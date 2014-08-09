@@ -1,0 +1,30 @@
+;; (define-value def
+;;   (\ (ast)
+;;     (if (Seq? (ast 0))
+;;       (Seq ((ast 0) 0)
+;;            \
+;;            (slice (ast 0) 1)
+;;            (ast 1))
+;;       (Seq (ast 0) (ast 1)))))
+
+(define-macro
+  (def ast)
+  (list->ast
+   (cons
+    define-value
+    (if (list? (ast 0))
+      (list ((ast 0) 0)
+            \
+            (slice (ast 0) 1)
+            (ast 1))
+      (list (ast 0) (ast 1))))))
+
+(define-value
+  def
+  (\ (ast)
+   (cons
+    define-value
+    (if (list? (ast 0))
+      (list ((ast 0) 0)
+            (list \ (slice (ast 0) 1) (ast 1)))
+      (list (ast 0) (ast 1))))))

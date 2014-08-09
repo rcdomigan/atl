@@ -1,0 +1,65 @@
+;; minimal recursive function
+(def (recur n acc)
+  (if (> n 0)
+    (recur (- n 1) (+ n acc))
+    acc))
+
+(def (- n lst)
+  (:: (-> Int Ast Int)
+      (Ast apply-operator bin-sub n
+           lst)))
+
+;; should be able to infer fib's type
+(def (fib1 n)
+  (< n 2) 1 (+ (fib1 (- n 2))
+               (fib1 (- n 1))))
+
+(def (:: (fib2 n) (-> Int Int))
+     (if (< n 2) 1 (+ (fib2 (- n 2))
+		      (fib2 (- n 1)))))
+
+(def (:: (fib2 n) (-> Int Int))
+     (itr (- n 2) 1 1)
+     (def (itr n a-1 a-2) ((< n 1) a-1 (itr (- n 1) (+ a-2 a-1) a-1))))
+
+(def (:: (fib2 n) (-> Int Int))
+     (let itr ((n (- n 2)) (a-1 1) (a-2 1))
+       (if (< n 1) a-1
+	   (itr (- n 1) (+ a-2 a-1) a-1))))
+
+(def (:: (fib2 n) (-> Int Int))
+     ((def (itr n a-1 a-2)
+	   (if (< n 1) a-1
+	       (itr (- n 1)
+		    (+ a-2 a-1) (a-1)))
+	   (- n 2) 1 1)))
+
+(:: (-> Int Int)
+    (def (fib3 n)
+	 (if (< n 2) 1 (+ (fib3 (- n 2))
+			  (fib3 (- n 1))))))
+
+(def (fib4 n)
+     (if (< n 2) 1 (+ (fib4 (- n 2))
+		      (fib4 (- n 1)))))
+
+(def main
+     (do (printf "%d\n" (fib1 3))
+	 (printf "%d\n" (fib2 4))))
+
+(:: (-> Ast Alloc Ast)
+    (def ast alloc)
+    (do (<- (alloc' sexp') alloc)
+        (match ((Sexpr sexp)
+                (do (<- output alloc)
+                    (output ((ast 0) 0)
+                            (slice (ast 0) 1)
+                            )))
+               ((Atom aa) aa)))
+
+
+         )
+        (<- ast)
+     ))
+
+  )

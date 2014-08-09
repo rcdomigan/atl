@@ -1,0 +1,11 @@
+* Friday Feb 28
+** TODO:
+   - [ ] Tail recursion
+   - [ ] Test GC marking and collection.
+
+* Tuesday Dec 24
+** TODO:
+  - [X] working recursion
+  - [X] let form macro
+
+
