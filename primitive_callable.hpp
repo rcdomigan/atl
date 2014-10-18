@@ -28,11 +28,12 @@ namespace atl {
 	    MakeSequence(GC &gc) : _gc(gc) {}
 
 	    Any operator()(const Any *begin, const Any *end) {
-		auto stack = _gc.dynamic_vector(end - begin);
+		auto stack = _gc.dynamic_vector((end - begin) + 2);
 		auto seq = stack->push_seq<Data>();
+
 		std::copy(begin, end, stack->back_insert_iterator());
 		seq->end_at(stack->end());
-		return wrap(seq);
+		return wrap(*seq);
 	    }
 	};
     }
@@ -82,7 +83,9 @@ namespace atl {
 		cout << "args:" << a << " and " << b << endl;
 		return a + b;
 	    });
-	en->wrap_fn<long (long, long)>("bin-sub", [](long a, long b) {return a - b; } );
+	en->wrap_fn<long (long, long)>("bin-sub", [](long a, long b) {
+		cout << "result: " << a - b << endl;
+		return a - b; } );
 
 	en->wrap_fn<bool (long, long)>("=",
 				       [](long a, long b) {
@@ -104,6 +107,29 @@ namespace atl {
 #undef ATL_NUM_COMPAIR
 
 	en->wrap_fn<Any (Any)>("print", [](Any a) { cout << printer::any(a); return a;} );
+
+	/////////////////////////////////////////////////////////////////////
+	//  ___       _                                 _   _              //
+	// |_ _|_ __ | |_ _ __ ___  ___ _ __   ___  ___| |_(_) ___  _ __   //
+	//  | || '_ \| __| '__/ _ \/ __| '_ \ / _ \/ __| __| |/ _ \| '_ \  //
+	//  | || | | | |_| | | (_) \__ \ |_) |  __/ (__| |_| | (_) | | | | //
+	// |___|_| |_|\__|_|  \___/|___/ .__/ \___|\___|\__|_|\___/|_| |_| //
+	//                             |_|                                 //
+	/////////////////////////////////////////////////////////////////////
+	// introspection
+
+	en->wrap_fn<Any (Any cc)>("print-procedure", [](Any a) {
+		auto& cc = unwrap<Procedure>(a);
+		auto formals = cc.parameters();
+
+		cout << "[" << printer::any(wrap(&formals[0]));
+		for(auto vv : slice(formals, 1))
+		    cout << ", " << printer::any(wrap(&vv));
+		cout << "]";
+
+		cout << printer::any(cc._body);
+		return a;
+	    });
 
 	/***************************/
 	/**  _     _     _        **/
@@ -176,8 +202,8 @@ namespace atl {
 	/////////// TO AST //////////
 	en->wrap_fn<Ast (Any)>
 	    ("list->ast",
-	     [gc](Any seq) -> Ast {
-		return deep_copy::ast_from(seq, *gc);
+	     [&](Any seq) -> Ast {
+		return deep_copy::to<Ast>(flat_iterator::range(seq), *gc);
 	    });
 
 	////////// cons ////////

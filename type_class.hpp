@@ -1,5 +1,5 @@
-#ifndef TYPE_CLASS_HPP
-#define TYPE_CLASS_HPP
+#ifndef ATL_TYPE_CLASS_HPP
+#define ATL_TYPE_CLASS_HPP
 // @file /home/ryan/programming/atl/type_class.hpp
 // @author Ryan Domigan <ryan_domigan@sutdents@uml.edu>
 // Created on Sep 23, 2014

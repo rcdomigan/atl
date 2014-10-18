@@ -1,5 +1,5 @@
-#ifndef TYPES_HH
-#define TYPES_HH
+#ifndef ATL_TYPES_HH
+#define ATL_TYPES_HH
 /**
  * @file /home/ryan/programming/atl/types.hpp
  * @author Ryan Domigan <ryan_domigan@sutdents@uml.edu>
@@ -68,7 +68,7 @@ namespace atl {
 
 #define ATL_IMMEDIATE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(Type)
 #define ATL_REINTERPERABLE_SEQ (Ast)(Data)
-#define ATL_PIMPL_SEQ (CxxArray)(Slice)(String)(Symbol)(Procedure)(Macro)(Undefined)
+#define ATL_PIMPL_SEQ (CxxArray)(Slice)(String)(Symbol)(Procedure)(Macro)(Undefined)(PCode)
 #define ATL_TYPES_SEQ ATL_IMMEDIATE_SEQ ATL_REINTERPERABLE_SEQ ATL_PIMPL_SEQ(PrimitiveRecursive)(Mark)(Parameter)
 
 #define M(r, _, i, elem)						\
@@ -77,8 +77,8 @@ namespace atl {
     template<> struct Name<elem> { constexpr static const char* value = BOOST_PP_STRINGIZE( elem ) ; }; \
     template<> struct tag<elem> {					\
 	typedef tag<elem> type;						\
-	typedef tag_t value_type;					\
-	const static unsigned int value = i;				\
+	typedef unsigned int value_type;				\
+	const static value_type value = i;				\
 	operator unsigned int () { return value; }			\
     };
 
@@ -89,7 +89,7 @@ namespace atl {
     BOOST_PP_SEQ_FOR_EACH_I(M, _, ATL_IMMEDIATE_SEQ)
 #undef M
 
-    typedef mpl::vector23< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
+    typedef mpl::vector24< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
 
     /****************************************************/
     /*  ____        __ _       _ _   _                  */
@@ -108,6 +108,10 @@ namespace atl {
 	constexpr Any(tag_t t) : _tag(t) , _value(nullptr) {}
     };
     template<> struct is_reinterperable<Any> : public std::true_type {};
+
+    bool operator==(const Any& aa, const Any& bb) {
+	return (aa._tag == bb._tag) && (aa._value == bb._value);
+    }
 
     /**
      * A null-valued Any with the tag type of T
@@ -267,6 +271,10 @@ namespace atl {
 	    }
 	    ~Bind() { _proc._stack = _old_args; }
 	};
+
+	Range<Parameter*> parameters() {
+	    return make_range(_parameters, _parameters + _num_params);
+	}
     };
 
     inline const Any& Parameter::value() const { return _closure->_stack[_offset]; }
@@ -280,6 +288,7 @@ namespace atl {
 
 	typedef std::function<Any (const Any* begin, const Any* end)> Fn;
 	mutable Fn _fn;
+
 	CxxArray _parameter_types;
 
 	PrimitiveRecursive(const Fn& fn, const char* name)
@@ -291,6 +300,10 @@ namespace atl {
 	    : _name(name), _fn(fn), _parameter_types(range) {}
 
 	Any call(const Any* begin, const Any* end) const { return _fn(begin, end); }
+
+	uintptr_t untyped_call(uintptr_t *begin, uintptr_t *end) {
+	    return reinterpret_cast<uintptr_t>(*begin) + reinterpret_cast<uintptr_t>(*end);
+	}
     };
 
     /**
@@ -322,7 +335,7 @@ namespace atl {
 
 	    IteratorBase& operator++() {
 		using namespace std;
-		if((_value->_tag == tag<Ast>::value)
+		if( ((_value->_tag == tag<Ast>::value) || (_value->_tag == tag<Data>::value))
 		       && (_value->_value == _value + 1))
 		    _value = &*reinterpret_cast<typename
 						conditional<is_const<Value>::value,
@@ -478,6 +491,16 @@ namespace atl {
 
 	size_t size() const { return end() - begin(); }
 	bool empty() const { return _begin == _end; }
+    };
+
+    struct PCode {
+	typedef uintptr_t  value_type;
+	typedef value_type* iterator;
+	tag_t tag;
+	uintptr_t *value;
+
+	PCode() = delete;
+	PCode(uintptr_t *vv) : tag(atl::tag<PCode>::value), value(vv) {}
     };
 
     /**

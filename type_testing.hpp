@@ -14,7 +14,7 @@ namespace atl {
 
   template<class T>
   struct Is_pointer_to {
-    static bool do_it(const Any &a) {
+    static constexpr bool do_it(const Any &a) {
       return is<Pointer>(a)
 	&& a._value
 	  && (*reinterpret_cast<unsigned int*>(a._value)  == tag<typename std::remove_pointer<T>::type >::value);
@@ -22,7 +22,7 @@ namespace atl {
 
   template<class T>
   struct Is_immediate {
-    static bool do_it(const Any &a) {
+    static constexpr bool do_it(const Any &a) {
       return a._tag == tag<T>::value;
     }};
 

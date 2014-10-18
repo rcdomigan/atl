@@ -57,6 +57,9 @@ namespace atl {
 	    mark_t _mark[num_mark_feilds];
 
 	    T *_begin, *_itr, *_end, *_free;
+
+	    typedef std::vector<PCode::value_type> PCodeAccumulator;
+	    std::vector<PCodeAccumulator> code_blocks;
 	public:
 	    static_assert( sizeof(T) >= sizeof(void*), "Can't build a pool _free list of types sized < void*");
 
@@ -97,7 +100,7 @@ namespace atl {
 		else if(_itr != _end)
 		    tmp = _itr++;
 
-		else 
+		else
 		    return nullptr;
 
 		/* mark that this as allocated for the sweep cycle */
@@ -106,6 +109,8 @@ namespace atl {
 
 		return tmp;
 	    }
+
+	    PCodeAccumulator& alloc_pcode() { return code_blocks.push_back(PCodeAccumulator()); }
 
 	    /* delete all un-marked objects (and re-set mark flags) */
 	    virtual unsigned int sweep() {
@@ -290,7 +295,16 @@ namespace atl {
 	    	return result;
 	    }
 
-	    void push_back(const Any& input) { *(_end++) = input; }
+	    void push_back(const Any& input) {
+		*_end = input;
+
+		// another position that will need to be assigned when
+		// the value is found.
+		if(is<Undefined>(input))
+		    unwrap<Undefined>(*_end)._backtrack.push_back(_end);
+
+		++_end;
+	    }
 
 	    Any pop_back() {
 		--_end;
@@ -341,6 +355,33 @@ namespace atl {
     void mark_args(GC &gc, T a, Types ... as) {
 	gc.mark( a );
 	mark_args(gc, as...);
+    }
+
+    namespace dynamic_vector {
+	typedef GC::DynamicVector DynamicVector;
+
+	// Copier supplies a push_back_iterator which tries to do the
+	// right thing with input (as opposed to the fast thing).
+	struct Copier {
+	    typedef Any* value_type;
+
+	    DynamicVector& stack;
+	    Copier(DynamicVector& input) : stack(input){}
+
+	    void push_back(Any&& aa) {
+		stack.push_back(aa);
+
+		switch(aa._tag) {
+		case tag<Undefined>::value:
+		    unwrap<Undefined>(aa)._backtrack.push_back(&stack.back());
+		    break;
+		}
+	    }
+
+	    std::back_insert_iterator<Copier> back_insert_iterator() {
+		return std::back_insert_iterator<Copier>(*this);
+	    }
+	};
     }
 }
 

@@ -14,17 +14,14 @@
     define-value
     (if (list? (ast 0))
       (list ((ast 0) 0)
-            \
-            (slice (ast 0) 1)
-            (ast 1))
+            (list
+             \
+             (slice (ast 0) 1)
+             (ast 1)))
       (list (ast 0) (ast 1))))))
 
-(define-value
-  def
-  (\ (ast)
-   (cons
-    define-value
-    (if (list? (ast 0))
-      (list ((ast 0) 0)
-            (list \ (slice (ast 0) 1) (ast 1)))
-      (list (ast 0) (ast 1))))))
+(def (recur n)
+  (if (= 0 n)
+    0
+    (recur (bin-sub n 1))))
+

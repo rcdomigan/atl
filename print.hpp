@@ -46,29 +46,42 @@ namespace atl {
 
 	void print_atom_debug(const Any& vv, std::ostream& out) {
 	    out << "@" << &vv
-		<< " [" << vv._tag << ":" << vv._value << "]"
+		<< " [" << type_name(vv._tag) << ":" << vv._value << "]"
 		<< endl;
 	}
 
 	struct DebugRange : public Printer {
 	    Range<const Any*> _rr;
-	    DebugRange(Range<const Any*> rr) : _rr(rr) {}
+	    bool _line_numbers;
+
+	    DebugRange(Range<const Any*> rr) : _rr(rr) , _line_numbers(false) {}
+	    DebugRange(Range<const Any*> rr, bool line_numbers) :
+		_rr(rr) , _line_numbers(line_numbers) {}
 
 	    virtual std::ostream& print(std::ostream& out) const {
-		for(auto& vv: _rr)
+		size_t line = 0;
+		for(auto& vv: _rr) {
+		    if(_line_numbers) { out << line << ": ";
+			                ++line; }
 		    print_atom_debug(vv, out);
+		}
 		return out;
 	    }
 	};
 
 	template<class Range>
 	DebugRange debug_range(const Range& rr) {
-	    return DebugRange(make_range(rr));
+	    return DebugRange(rr);
 	}
 
 	DebugRange debug_range(const Any& rr) {
 	    using namespace flat_iterator;
-	    return DebugRange(make_range(const_begin(rr), const_end(rr)));
+	    return DebugRange(make_range(const_begin(rr) - 2, const_end(rr)));
+	}
+
+	DebugRange debug_range(const Any& rr, bool line_numbers) {
+	    using namespace flat_iterator;
+	    return DebugRange(make_range(const_begin(rr) - 2, const_end(rr)), line_numbers);
 	}
 
 	std::ostream& operator<<(std::ostream& out, const printer::Printer& p) { return p.print(out); }
@@ -85,8 +98,17 @@ namespace atl {
 	}
 
 	std::ostream& PrintAny::print(std::ostream& out) const {
+	    auto trim_addr = [](void *pntr) {
+		return reinterpret_cast<long>(pntr) & (256 - 1);
+	    };
+
 	    using namespace std;
 	    switch(a._tag) {
+	    case tag<Undefined>::value:
+		return out << "#<Undefined:" << hex << trim_addr(a._value) << ">";
+	    case tag<Parameter>::value:
+		return out << "#<Param:" << hex << trim_addr(unwrap<Parameter>(a)._closure)
+			   << "[" << unwrap<Parameter>(a)._offset << "]>";
 	    case tag<Symbol>::value:
 		return out << "'" << unwrap<string>(a);
 	    case tag<Fixnum>::value:

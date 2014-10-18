@@ -33,12 +33,12 @@ int main(int argc, char *argv[]) {
     in_file.open("prelim.atl");
 
     GC gc;
-    ParseString p(gc);
+    ParseString parse(gc);
     Environment env(gc);
     EncodeAST encode(env, gc);
     EvaluateAST vm(env);
 
-    setup_interpreter(&gc, &env, &encode, &p, &vm);
+    setup_interpreter(&gc, &env, &encode, &parse, &vm);
 
     /* while( in_file ) { */
     /*   a = p(in_file); */
@@ -46,7 +46,7 @@ int main(int argc, char *argv[]) {
     /* } */
 
     while( true )
-	verbose_eval(p.any(cin),
+	verbose_eval(parse.stream(cin),
 		     gc, encode, vm);
 
     return 0;

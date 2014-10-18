@@ -24,6 +24,7 @@
 using namespace atl;
 using namespace std;
 
+// Test basic parsing
 // int main(int argc, char *argv[]) {
 //     ifstream in_file;
 //     in_file.open("prelim.atl");
@@ -52,28 +53,67 @@ void print_backtracks(Any uu) {
 	cout << vv << endl;
 }
 
+// Test parsing and conversion between sequential data types and Ast
 int main() {
     GC gc;
-    ParseString parse(gc);
+    ParseString parser(gc);
     Environment env(gc);
     EncodeAST encode(env, gc);
     EvaluateAST vm(env);
 
-    setup_interpreter(&gc, &env, &encode, &parse, &vm);
+    setup_interpreter(&gc, &env, &encode, &parser, &vm);
 
-    auto ast = encode.any(parse.string_("(foo 1 foo 2)"));
+    auto parse = [&](std::string input) { return parser.string_(input); };
 
-    std::cout << printer::debug_range(ast) << endl;
+    // (#<Define> #<Undefined> '(#<Lambda> [#<Undefined> #<Undefined>] '(bin-add #<Undefined> #<Undefined>)))
+    auto outer_sexpr = parse("(define-value foo (\\ REPLACE (bin-add a b)))");
+    auto inner_sexpr = parse("(a b)");
 
-    auto uu = unwrap<Ast>(ast)[0];
-    print_backtracks(uu);
+    env.toplevel.predefine("a");
+    env.toplevel.predefine("b");
 
-    const Ast ast2 = deep_copy::ast_from(ast, gc);
-    std::cout << "Copied range:\n"
-	      << printer::debug_range(make_range(ast2.flat_begin(), ast2.flat_end()))
-	      << "\nbacktrack:" << std::endl;
+    // Encodes the input range (via mutation) without doing anything
+    // in particular for special forms.
+    auto flat_encode = [&](Any sexpr) {
+	for(auto &vv : flat_iterator::range(sexpr)) {
+	    if(is<Symbol>(vv)) {
+		vv = env.toplevel.look_up(unwrap<std::string>(vv));
+		if(is<Undefined>(vv)) {
+		    unwrap<Undefined>(vv)._backtrack.push_back(&vv);
+		}
+	    }
+	}};
 
-    print_backtracks(uu);
+    outer_sexpr = wrap(deep_copy::to<Data>(flat_iterator::range(outer_sexpr), gc));
+    inner_sexpr = wrap(gc.make<Slice*>(flat_iterator::const_begin(inner_sexpr),
+				       flat_iterator::const_end(inner_sexpr)));
+
+    flat_encode(outer_sexpr);
+    flat_encode(inner_sexpr);
+
+    flat_iterator::begin(outer_sexpr)[5] = inner_sexpr;
+
+    auto print_info = [&](Any sexpr) {
+	std::cout << printer::any(sexpr) << std::endl;
+	std::cout << printer::debug_range(sexpr, true) << endl;
+
+	std::cout << "Backtrack for 'a':" << std::endl;
+	print_backtracks(flat_iterator::begin(inner_sexpr)[0]);
+
+	std::cout << "\nBacktrack for 'b':" << std::endl;
+	print_backtracks(flat_iterator::begin(inner_sexpr)[1]);
+    };
+
+    std::cout << "\n\n";
+
+    std::cout << "Input: ";
+    print_info(outer_sexpr);
+
+    auto output = deep_copy::to<Ast>(flat_iterator::range(outer_sexpr),
+				     gc);
+
+    std::cout << "Output: ";
+    print_info(wrap(output));
 
     return 0;
 }

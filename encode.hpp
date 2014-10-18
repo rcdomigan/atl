@@ -49,6 +49,7 @@ namespace atl {
 
 	template<class FRange, class BRange>
 	void lambda(Stack& stack, const FRange& formals, const BRange& body) {
+	    // note: similar functionality also in evaluator
 	    using namespace printer;
 	    lexical::Map local(_top);
 	    _top = &local;
@@ -72,19 +73,7 @@ namespace atl {
 	    cout << "Encoded body: " << printer::any(cc->_body)
 		 << endl;
 
-	    cout << "Encoded body: " << printer::range(*encoded_body)
-		 << endl;
-
 	    _top = local._prev;
-	}
-
-
-	Any look_up(const string& str) {
-	    lexical::Map::iterator i = _top->find(str);
-	    if (i != _top->end()) {
-		return i->second;
-	    } else
-		return _top->predefine(str);
 	}
 
 	template<class Range>
@@ -94,7 +83,7 @@ namespace atl {
 	find_form:
 	    switch (input._tag) {
 	    case tag<Symbol>::value:
-		input = look_up(unwrap<string>(input));
+		input = _top->look_up(unwrap<string>(input));
 		if( is<Undefined>(input) ) {
 		    stack.push_back(input);
 		    unwrap<Undefined>(input)._backtrack.push_back(stack.end() - 1);
@@ -141,7 +130,7 @@ namespace atl {
 		    encode(stack, unwrap<Ast>(vv));
 		    break;
 		case tag<Symbol>::value: {
-		    auto value = look_up(unwrap<std::string>(vv));
+		    auto value = _top->look_up(unwrap<std::string>(vv));
 		    if(is<Undefined>(value))
 			unwrap<Undefined>(value)._backtrack.push_back(stack.end());
 		    stack.push_back(value);
@@ -183,7 +172,7 @@ namespace atl {
 		return *stack->begin();
 	    }
 	    case tag<Symbol>::value: {
-		return look_up(unwrap<string>(vv));
+		return _top->look_up(unwrap<string>(vv));
 	    }
 	    default:
 		return vv;

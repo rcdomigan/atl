@@ -66,7 +66,6 @@ namespace atl {
 
 	    auto do_apply = [&](const Procedure &fn, Any* args_end) {
 		auto old_stack = fn._stack;
-
 		fn._stack = stack;
 		*args_end = fn._body;
 
@@ -96,10 +95,39 @@ namespace atl {
 		    for( auto i : u->_backtrack ) *i = *stack;
 		    return;
 		}
+	    case tag<Lambda>::value: { // note: simlar to encode.hpp
+		auto formals = flat_iterator::const_range(ast[1]);
+		Procedure *cc = _env.gc.make<Procedure*>(ast_iterator::size(formals));
+
+		std::cout << "Binding some formals from:" << std::endl;
+		cout << "[" << printer::any(formals[0]);
+		for(auto vv : slice(formals, 1))
+		    cout << ", " << printer::any(vv);
+		cout << "]\n";
+
+		auto substitute = [&](const Any& aa) -> Any {
+		    cout << "    checking " << printer::any(aa) << endl;
+
+		    if(is<Undefined>(aa)) {
+			auto itr = std::find(formals.begin(), formals.end(), aa);
+			if(itr != formals.end()) {
+			    cout << "** Found a match!" << endl;
+			    return wrap(&cc->_parameters[itr - formals.begin()]);
+			} else
+			    const_cast<Undefined&>(unwrap<Undefined>(aa))._backtrack.push_back(const_cast<Any*>(&aa));
+		    }
+		    return aa; };
+
+		cc->_body = wrap(deep_copy::map<Ast>(substitute,
+						     flat_iterator::range(ast[2]),
+						     _env.gc));
+		stack[0] = wrap(cc);
+		return;
+	    }
 	    case tag<Macro>::value: {
 		auto &fn = unwrap<Procedure>(*stack);
-		*stack = ast[1];
-		stack->_tag = tag<Data>::value;
+		*stack = wrap(deep_copy::to<Data>(flat_iterator::range(slice(ast, 1)),
+						  _env.gc));
 		do_apply(fn, stack + 1);
 		return;
 	    }

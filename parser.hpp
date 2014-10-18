@@ -130,7 +130,7 @@ namespace atl {
 	}
 
 	/* parse one S-expression from a string into an ast */
-	Any string(const std::string& input) {
+	Any string_(const std::string& input) {
 	    auto vec = _gc.dynamic_vector();
 	    **vec = nil<Null>::value();
 	    parse(*vec, input.begin(), input.end());

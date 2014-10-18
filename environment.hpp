@@ -9,8 +9,6 @@
 namespace atl {
     namespace lexical {
     	struct Map {
-	    /* todo: I am assuming I can mutate the value of a pair if I have the pointer to its .second member (the 'Any').
-	       That will for sure not be true for flat containers, and I should probably start using a 'Any*' instead. */
 	    typedef map<string, Any> Impl;
 	    typedef Impl::iterator iterator;
 	    Impl _local;
@@ -56,14 +54,23 @@ namespace atl {
 		return res; }
 
 	    Impl::iterator end() { return _local.end(); }
+
+	    Any look_up(const string& str) {
+		auto i = find(str);
+		if (i != end()) {
+		    return i->second;
+		} else
+		    return predefine(str);
+	    }
 	};
     }
 
     struct Environment {
 	std::map<tag_t, void*> type_class_map;
+	GC& gc;
 	lexical::Map toplevel;
 
-	Environment(GC &gc) : toplevel(gc) {}
+	Environment(GC &_gc) : gc(_gc), toplevel(_gc) {}
 	Environment() = delete;
     };
 }
