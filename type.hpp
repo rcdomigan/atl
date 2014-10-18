@@ -307,31 +307,6 @@ namespace atl {
     /** / \_|_|_  _ ._  **/
     /** \_/ |_| |(/_|   **/
     /*********************/
-    struct Data {
-	typedef Any* iterator;
-	typedef const Any* const_iterator;
-
-	tag_t _tag;
-	Any *_value;
-
-	iterator begin() { return iterator(_value + 1); }
-	const_iterator begin() const { return const_iterator(_value + 1); }
-
-	iterator end() { return iterator(reinterpret_cast<Any*>(_value->_value)); }
-	const_iterator end() const { return const_iterator(reinterpret_cast<Any*>(_value->_value)); }
-
-	Data(Any *begin, Any *end) : _tag(tag<Data>::value), _value(begin) { _value->_value = (void*)end; }
-	Data() : _tag(tag<Data>::value), _value(nullptr) {}
-
-	const Any& operator[](size_t n) const { return begin()[n]; }
-	bool empty() const {
-	    return (_value == nullptr) || (_value == _value->_value);
-	}
-	size_t size() const { return end() - begin(); }
-    };
-    template<> struct is_reinterperable<Data> : public std::true_type {};
-
-
     namespace ast_helper {
 	// This is really a special iterator for when I have nested
 	// arrays.  I don't know when that would happen other than in
@@ -411,11 +386,17 @@ namespace atl {
 	    return *itr;
 	}
 
-	iterator begin() { return iterator(_value + 1); }
-	const_iterator begin() const { return const_iterator(_value + 1); }
+	Any* flat_begin() { return _value + 1; }
+	Any* flat_end() { return reinterpret_cast<Any*>(_value->_value); }
+	const Any* flat_begin() const { return _value + 1; }
+	const Any* flat_end() const { return reinterpret_cast<Any*>(_value->_value); }
 
-	iterator end() { return iterator(reinterpret_cast<Any*>(_value->_value)); }
-	const_iterator end() const { return const_iterator(reinterpret_cast<Any*>(_value->_value)); }
+	iterator begin() { return iterator(flat_begin()); }
+	const_iterator begin() const { return const_iterator(flat_begin()); }
+
+	iterator end() { return iterator(flat_end()); }
+	const_iterator end() const { return const_iterator(flat_end()); }
+
 
 	Any* end_at(Any *pos)
 	{ return reinterpret_cast<Any*>(_value->_value = pos); }
@@ -428,6 +409,42 @@ namespace atl {
 	bool empty() const { return _value == _value->_value; }
     };
     template<> struct is_reinterperable<Ast> : public std::true_type {};
+
+    struct Data {
+	typedef typename Ast::iterator iterator;
+	typedef typename Ast::const_iterator const_iterator;
+
+	tag_t _tag;
+	Any *_value;
+
+	iterator begin() { return iterator(_value + 1); }
+	const_iterator begin() const { return const_iterator(_value + 1); }
+
+	iterator end() { return iterator(reinterpret_cast<Any*>(_value->_value)); }
+	const_iterator end() const { return const_iterator(reinterpret_cast<Any*>(_value->_value)); }
+
+	Data(Any *begin, Any *end) : _tag(tag<Data>::value), _value(begin) { _value->_value = (void*)end; }
+	Data() : _tag(tag<Data>::value), _value(nullptr) {}
+
+	const Any& operator[](size_t n) const {
+	    auto itr = begin();
+	    itr = itr + n;
+	    return *itr;
+	}
+
+	bool empty() const {
+	    return (_value == nullptr) || (_value == _value->_value);
+	}
+	size_t size() const { return end() - begin(); }
+
+	Any* end_at(Any *pos)
+	{ return reinterpret_cast<Any*>(_value->_value = pos); }
+
+	Any* end_at(const iterator& pos)
+	{ return reinterpret_cast<Any*>(_value->_value = pos._value); }
+    };
+    template<> struct is_reinterperable<Data> : public std::true_type {};
+
 
     Ast* make_empty_ast(Any *here) {
 	return new (here)Ast(here + 1, here + 1);
