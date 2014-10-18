@@ -67,7 +67,8 @@ namespace atl {
     }
 
     namespace deep_copy {
-	void _ast_from(Any seq, GC::DynamicVector& store, Any* root) {
+	template<class Seq>
+	void _to(Any seq, GC::DynamicVector& store, Any* root) {
 	    using namespace flat_iterator;
 
 	    auto input_root = begin(seq);
@@ -96,10 +97,23 @@ namespace atl {
 	Ast& ast_from(Any seq, GC& gc) {
 	    auto size = flat_iterator::const_end(seq) - flat_iterator::const_begin(seq);
 	    auto out = gc.dynamic_vector(size + 2);
-	    deep_copy::_ast_from(seq,
+	    auto top = out->push_seq<Ast>();
+	    deep_copy::_to<Ast>(seq,
+				*out,
+				out->begin());
+	    top->end_at(out->end());
+	    return *top;
+	}
+
+	Data& data_from(Any seq, GC& gc) {
+	    auto size = flat_iterator::const_end(seq) - flat_iterator::const_begin(seq);
+	    auto out = gc.dynamic_vector(size + 2);
+	    auto top = out->push_seq<Data>();
+	    deep_copy::_to<Data>(seq,
 				 *out,
 				 out->begin());
-	    return unwrap<Ast>(*out->begin());
+	    top->end_at(out->end());
+	    return *top;
 	}
     }
 }
