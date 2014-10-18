@@ -1,6 +1,5 @@
-
 /**
- * @file /home/ryan/programming/atl/main.cc
+ * @File /Home/ryan/programming/atl/main.cc
  * @author Ryan Domigan <ryan_domigan@sutdents@uml.edu>
  * Created on Jul 01, 2013
  */
@@ -62,21 +61,19 @@ int main() {
 
     setup_interpreter(&gc, &env, &encode, &parse, &vm);
 
-    //auto ast = encode.any(parse.string("(foo 1 foo 2)"));
-    //auto ast = parse.string("(foo 1 foo 2)");
-    auto ast = parse.stream(std::cin);
-    std::cout << printer::debug_range(ast) << endl;
-    
-    ast = encode.any(ast);
+    auto ast = encode.any(parse.string_("(foo 1 foo 2)"));
+
     std::cout << printer::debug_range(ast) << endl;
 
-    // std::cout << printer::debug_range(ast) << endl;
+    auto uu = unwrap<Ast>(ast)[0];
+    print_backtracks(uu);
 
-    // auto uu = unwrap<Ast>(ast)[0];
-    // print_backtracks(uu);
+    const Ast ast2 = deep_copy::ast_from(ast, gc);
+    std::cout << "Copied range:\n"
+	      << printer::debug_range(make_range(ast2.flat_begin(), ast2.flat_end()))
+	      << "\nbacktrack:" << std::endl;
 
-    // auto ast2 = deep_copy::ast_from(ast, gc);
-    // print_backtracks(uu);
+    print_backtracks(uu);
 
     return 0;
 }
