@@ -275,11 +275,6 @@ namespace atl {
 
 	    DynamicVector(const DynamicVector&) = default;
 
-	    Data vec() { return Data(_buffer - 1, _end); }
-	    Ast ast() { return Ast(_buffer - 1, _end); }
-
-	    Any wrap() { return atl::wrap(vec()); }
-
 	    iterator begin() { return _buffer; }
 	    iterator end() { return _end; }
 
@@ -288,8 +283,9 @@ namespace atl {
 
 	    Any& back() { return *(_end - 1); }
 
-	    Ast* push_ast() {
-	    	Ast *result = new (_end)Ast(_end + 1, _end + 1);
+	    template<class T>
+	    T* push_seq() {
+	    	T *result = new (_end)T(_end + 1, _end + 1);
 	    	_end += 2;
 	    	return result;
 	    }
@@ -319,7 +315,6 @@ namespace atl {
 		return *this;
 	    }
 	    Any& operator[](size_t n) { return _end[n]; }
-	    // operator Any* () { return _end; }
 
 	    std::back_insert_iterator<GC::DynamicVector> back_insert_iterator() {
 		return std::back_insert_iterator<GC::DynamicVector>(*this);

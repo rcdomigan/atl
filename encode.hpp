@@ -89,7 +89,7 @@ namespace atl {
 
 	template<class Range>
 	void encode(Stack& stack, const Range &ast) {
-	    auto frame = stack.push_ast();
+	    auto frame = stack.push_seq<Ast>();
 	    Any input = ast[0];
 	find_form:
 	    switch (input._tag) {

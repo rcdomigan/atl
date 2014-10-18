@@ -22,16 +22,17 @@ namespace atl {
     Any nullP(Any a) { return is<Null>(a) ? atl_true() : atl_false();  }
 
     namespace primitives {
-	// My list type is actually a vector.  So, whateves.
 	struct MakeSequence {
 	    GC &_gc;
 
 	    MakeSequence(GC &gc) : _gc(gc) {}
 
 	    Any operator()(const Any *begin, const Any *end) {
-		auto vec = _gc.dynamic_vector(end - begin);
-		std::copy(begin, end, vec->back_insert_iterator());
-		return wrap(vec->vec());
+		auto stack = _gc.dynamic_vector(end - begin);
+		auto seq = stack->push_seq<Data>();
+		std::copy(begin, end, stack->back_insert_iterator());
+		seq->end_at(stack->end());
+		return wrap(seq);
 	    }
 	};
     }
@@ -139,20 +140,26 @@ namespace atl {
 
 	en->wrap_fn<Any (Data, Data)>("append", [gc](Data aa, Data bb) {
 		auto output = gc->dynamic_vector();
-		std::copy(aa.begin() - 1, aa.end(),
-			  std::back_insert_iterator<GC::DynamicVector>(*output));
+		auto data = output->push_seq<Data>();
+
+		std::copy(aa.begin(), aa.end(),
+			  output->back_insert_iterator());
 		std::copy(bb.begin(), bb.end(),
-			  std::back_insert_iterator<GC::DynamicVector>(*output));
-		return wrap(output->vec());
+			  output->back_insert_iterator());
+
+		data->end_at(output->end());
+		return wrap(data);
 	    });
 
 	en->wrap_fn<Any (Data, long)>
 	    ("take",
 	     [gc](Data input, long num) {
 		auto output = gc->dynamic_vector();
+		auto data = output->push_seq<Data>();
 		std::copy(input.begin(), input.begin() + num,
 			  output->back_insert_iterator());
-		return output->wrap();
+		data->end_at(output->end());
+		return wrap(data);
 	    });
 
 	/////////// SLICE //////////
@@ -181,11 +188,14 @@ namespace atl {
 	     [gc](Any vv, Any seq) -> Data {
 		using namespace ast_iterator;
 		auto output = gc->dynamic_vector();
-		output->push_back(vv);
+		auto vec = output->push_seq<Data>();
 
+		output->push_back(vv);
 		std::copy(const_begin(seq), const_end(seq),
 			  std::back_insert_iterator<GC::DynamicVector>(*output));
-		return output->vec();
+
+		vec->end_at(output->end());
+		return *vec;
 	    });
 
 	auto apply_sequence = [](const Any *args, const Any *_) -> Any {

@@ -55,7 +55,7 @@ namespace atl {
 		    continue;
 
 		case '\'':{		/* quote */
-		    auto quote = vec.push_ast();
+		    auto quote = vec.push_seq<Ast>();
 		    vec[0] = aimm<Quote>();
 		    ++vec;
 
@@ -67,12 +67,12 @@ namespace atl {
 		case '(':{		/* sub expression */
 		    ++itr;
 		    if(*itr == ')') {
-			auto null = vec.push_ast();
+			auto null = vec.push_seq<Ast>();
 			null->end_at(vec.end());
 			return;
 		    }
 
-		    auto ast = vec.push_ast();
+		    auto ast = vec.push_seq<Ast>();
 		    while(*itr != ')') {
 			if(itr == end)
 			    throw UnbalancedParens(to_string(_line).append(": error: unbalanced parens"));

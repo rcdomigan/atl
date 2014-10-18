@@ -78,7 +78,7 @@ namespace atl {
 		case tag<Data>::value:
 		case tag<Slice>::value:
 		case tag<CxxArray>::value: {
-		    store.push_ast()->end_at(root + (&vv - input_root));
+		    store.push_seq<Seq>()->end_at(root + (&vv - input_root));
 		    break;
 		}
 		case tag<Undefined>::value: {
