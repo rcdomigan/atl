@@ -20,15 +20,8 @@ namespace atl {
 	static CxxArray vec(if_type.begin(), if_type.end());
 	return wrap(&vec);
     }
-    case tag<Procedure>::value: {
-	auto& types = unwrap<Procedure>(aa)._parameter_types;
-	static CxxArray vec(types.begin(), types.end());
-	return wrap(&vec);
-    }
     case tag<PrimitiveRecursive>::value:
 	return wrap(&unwrap<PrimitiveRecursive>(aa)._parameter_types);
-    case tag<Parameter>::value:
-	return unwrap<Parameter>(aa).value();
     default:
 	return aa;
     }

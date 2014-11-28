@@ -9,6 +9,8 @@
 
 #include "./type.hpp"
 #include "./gc.hpp"
+#include "./environment.hpp"
+
 namespace atl {
     template<class T>
     struct typeclass_tag;

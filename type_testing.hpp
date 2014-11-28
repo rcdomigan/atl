@@ -16,8 +16,8 @@ namespace atl {
   struct Is_pointer_to {
     static constexpr bool do_it(const Any &a) {
       return is<Pointer>(a)
-	&& a._value
-	  && (*reinterpret_cast<unsigned int*>(a._value)  == tag<typename std::remove_pointer<T>::type >::value);
+	&& a.value
+	  && (*reinterpret_cast<unsigned int*>(a.value)  == tag<typename std::remove_pointer<T>::type >::value);
     }};
 
   template<class T>
@@ -38,7 +38,7 @@ namespace atl {
   template<>
   bool is<Null>(const Any &a) {
     return a._tag == tag<Null>::value
-      || (is<Pointer>(a) && (a._value == nullptr));
+      || (is<Pointer>(a) && (a.value == nullptr));
   }
 }
 

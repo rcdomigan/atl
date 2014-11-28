@@ -46,7 +46,7 @@ namespace atl {
 
 	void print_atom_debug(const Any& vv, std::ostream& out) {
 	    out << "@" << &vv
-		<< " [" << type_name(vv._tag) << ":" << vv._value << "]"
+		<< " [" << type_name(vv._tag) << ":" << vv.value << "]"
 		<< endl;
 	}
 
@@ -105,12 +105,11 @@ namespace atl {
 	    using namespace std;
 	    switch(a._tag) {
 	    case tag<Undefined>::value:
-		return out << "#<Undefined:" << hex << trim_addr(a._value) << ">";
-	    case tag<Parameter>::value:
-		return out << "#<Param:" << hex << trim_addr(unwrap<Parameter>(a)._closure)
-			   << "[" << unwrap<Parameter>(a)._offset << "]>";
+		return out << "#<Undefined:" << hex << trim_addr(a.value) << ">";
+
 	    case tag<Symbol>::value:
-		return out << "'" << unwrap<string>(a);
+                return out << "'" << unwrap<string>(a);
+
 	    case tag<Fixnum>::value:
 		return out << unwrap<long>(a);
 	    case tag<Bool>::value:
@@ -119,12 +118,12 @@ namespace atl {
 		else
 		    return out << "False";
 	    case tag<String>::value:
-		return out << '"' << *reinterpret_cast<string*>(a._value) << '"';
+		return out << '"' << *reinterpret_cast<string*>(a.value) << '"';
 	    case tag<PrimitiveRecursive>::value:
 		return out << unwrap<PrimitiveRecursive>(a)._name;
 	    case tag<Pointer>::value:
-		if(a._value)
-		    return out << "#<Pointer-" << hex << (reinterpret_cast<long>(a._value) & (256 - 1)) << ">";
+		if(a.value)
+		    return out << "#<Pointer-" << hex << (reinterpret_cast<long>(a.value) & (256 - 1)) << ">";
 		else
 		    return out << "#<Pointer-NULL>";
 	    case tag<Data>::value:
@@ -138,7 +137,6 @@ namespace atl {
 		return out << "#" << range(unwrap<Data>(a));
 	    case tag<Procedure>::value:
 		return out << "#<\\ "
-			   << unwrap<Procedure>(a)._num_params
 			   << ">" << flush;
 	    default:
 		return out << "#<" << type_name(a._tag) << ">";

@@ -11,9 +11,8 @@
 
 #include "./type.hpp"
 #include "./parser.hpp"
-#include "./encode.hpp"
-#include "./evaluator.hpp"
 #include "./helpers.hpp"
+#include "./type_class.hpp"
 
 #include "./infer.hpp"
 #include "ffi.hpp"
@@ -36,6 +35,15 @@ namespace atl {
 		return wrap(*seq);
 	    }
 	};
+
+	template<class T>
+	void wrap_fn(Environment& env, const std::string& name, std::function<T>&& fn) {
+            env.define(name,
+                       Any(tag<PrimitiveRecursive>::value,
+                           WrapFn<T>::a(std::forward<const std::function<T> >(fn),
+                                        &env.gc, name))
+                       );
+        }
     }
 
     void setup_typeclasses(Environment& env) {
@@ -43,34 +51,36 @@ namespace atl {
 	env.type_class_map[typeclass_tag<Sequence>::value] = new Sequence::Map();
     }
 
-    void export_recursive_defs(GC *gc, Environment *env, EncodeAST *en, ParseString *parser, EvaluateAST *eval) {
-	en->define("\\", aimm<Lambda>());
-	en->define("quote", aimm<Quote>());
-	en->define("if", aimm<If>());
-	en->define("#f", atl_false());
-	en->define("#t", atl_true());
+    void export_recursive_defs(GC &gc, Environment &env, ParseString &parser) {
+        using namespace primitives;
 
-	en->define("define-value", aimm<Define>());
-	en->define("define-macro", aimm<DefineMacro>());
+	env.define("\\", aimm<Lambda>());
+	env.define("quote", aimm<Quote>());
+	env.define("if", aimm<If>());
+	env.define("#f", atl_false());
+	env.define("#t", atl_true());
 
-	en->wrap_fn<Any (string)>
-	    ("import",
-	     [parser,en,eval](string s) {
-		std::ifstream in(s);
-		Any last = nil<Null>::value();
-		Any parsed;
-		while(in) {
-		    parsed = parser->stream(in);
-		    if(is<Null>(parsed))
-			return last;
-		    last = eval->any
-			(en->any
-			 (parsed));
-		}
-		return last;
-	    });
+	env.define("define-value", aimm<Define>());
+	env.define("define-macro", aimm<DefineMacro>());
 
-	en->wrap_fn<Any (Any)>("infer", infer);
+	// env.wrap_fn<Any (string)>
+	//     ("import",
+	//      [parser,en](string s) {
+	// 	std::ifstream in(s);
+	// 	Any last = nil<Null>::value();
+	// 	Any parsed;
+	// 	while(in) {
+	// 	    parsed = parser->stream(in);
+	// 	    if(is<Null>(parsed))
+	// 		return last;
+	// 	    last = eval->any
+	// 		(env.any
+	// 		 (parsed));
+	// 	}
+	// 	return last;
+	//     });
+
+	// env.wrap_fn<Any (Any)>("infer", infer);
 
 	/***********************************************************/
 	/**     _         _ _   _                     _   _       **/
@@ -79,34 +89,37 @@ namespace atl {
 	/**  / ___ \| |  | | |_| | | | | | | | | (_| | |_| | (__  **/
 	/** /_/   \_\_|  |_|\__|_| |_|_| |_| |_|\__,_|\__|_|\___| **/
 	/***********************************************************/
-	en->wrap_fn<long (long, long)>("bin-add", [=](long a, long b) {
-		cout << "args:" << a << " and " << b << endl;
-		return a + b;
-	    });
-	en->wrap_fn<long (long, long)>("bin-sub", [](long a, long b) {
-		cout << "result: " << a - b << endl;
-		return a - b; } );
+	wrap_fn<long (long, long)>(env, "bin-add",
+                                   [=](long a, long b) {
+                                       cout << "args:" << a << " and " << b << endl;
+                                       return a + b;
+                                   });
+	wrap_fn<long (long, long)>(env, "bin-sub",
+                                   [](long a, long b) {
+                                       cout << "result: " << a - b << endl;
+                                       return a - b;
+                                   });
 
-	en->wrap_fn<bool (long, long)>("=",
-				       [](long a, long b) {
-					   return a == b ? true : false;
-				       });
+	wrap_fn<bool (long, long)>(env, "=",
+                                   [](long a, long b) {
+                                       return a == b ? true : false;
+                                   });
 #define ATL_NUM_COMPAIR(op)			\
-	en->wrap_fn<bool (long, long)>		\
-	    ( # op,				\
-	     [](long a, long b) {		\
+	wrap_fn<bool (long, long)>		\
+	    (env, # op,				\
+              [](long a, long b) {		\
 		return a op b ? true : false;	\
 	    });
 
 	ATL_NUM_COMPAIR(=)
-	ATL_NUM_COMPAIR(<)
-	ATL_NUM_COMPAIR(>)
-	ATL_NUM_COMPAIR(<=)
-	ATL_NUM_COMPAIR(>=)
+            ATL_NUM_COMPAIR(<)
+            ATL_NUM_COMPAIR(>)
+            ATL_NUM_COMPAIR(<=)
+            ATL_NUM_COMPAIR(>=)
 
 #undef ATL_NUM_COMPAIR
 
-	en->wrap_fn<Any (Any)>("print", [](Any a) { cout << printer::any(a); return a;} );
+            wrap_fn<Any (Any)>(env, "print", [](Any a) { cout << printer::any(a); return a;} );
 
 	/////////////////////////////////////////////////////////////////////
 	//  ___       _                                 _   _              //
@@ -118,18 +131,18 @@ namespace atl {
 	/////////////////////////////////////////////////////////////////////
 	// introspection
 
-	en->wrap_fn<Any (Any cc)>("print-procedure", [](Any a) {
-		auto& cc = unwrap<Procedure>(a);
-		auto formals = cc.parameters();
+	// env.wrap_fn<Any (Any cc)>("print-procedure", [](Any a) {
+	// 	auto& cc = unwrap<Procedure>(a);
+	// 	auto formals = cc.parameters();
 
-		cout << "[" << printer::any(wrap(&formals[0]));
-		for(auto vv : slice(formals, 1))
-		    cout << ", " << printer::any(wrap(&vv));
-		cout << "]";
+	// 	cout << "[" << printer::any(wrap(&formals[0]));
+	// 	for(auto vv : slice(formals, 1))
+	// 	    cout << ", " << printer::any(wrap(&vv));
+	// 	cout << "]";
 
-		cout << printer::any(cc._body);
-		return a;
-	    });
+	// 	// cout << printer::any(cc._body);
+	// 	return a;
+	//     });
 
 	/***************************/
 	/**  _     _     _        **/
@@ -139,20 +152,19 @@ namespace atl {
 	/** |_____|_|___/\__|___/ **/
 	/***************************/
 
-	auto list_factory = primitives::MakeSequence(*gc);
-	en->define("list" ,
-		   gc->amake<PrimitiveRecursive*>
-		   (PrimitiveRecursive::Fn(list_factory), "list"));
+	auto list_factory = primitives::MakeSequence(gc);
+	env.define("list" ,
+                    gc.amake<PrimitiveRecursive>
+                    (PrimitiveRecursive::Fn(list_factory), "list"));
 
 	// TODO: this doesn't make sense in a strongly typed language.
 	// To bad this language isn't strongly typed yet.
-	en->wrap_fn<bool(Any)>("list?", [](Any vv) {
+        wrap_fn<bool(Any)>(env, "list?", [](Any vv) {
 		return (vv._tag == tag<Data>::value)
 		    || (vv._tag == tag<Ast>::value)
 		    || (vv._tag == tag<CxxArray>::value);
 	    });
-
-	en->wrap_fn<bool(Any)>("empty?", [](Any vv) {
+        wrap_fn<bool(Any)>(env, "empty?", [](Any vv) {
 		switch(vv._tag) {
 		case tag<Data>::value:
 		    return unwrap<Data>(vv).empty();
@@ -164,8 +176,8 @@ namespace atl {
 		return true;
 	    });
 
-	en->wrap_fn<Any (Data, Data)>("append", [gc](Data aa, Data bb) {
-		auto output = gc->dynamic_vector();
+	wrap_fn<Any (Data, Data)>(env, "append", [&gc](Data aa, Data bb) {
+		auto output = gc.dynamic_vector();
 		auto data = output->push_seq<Data>();
 
 		std::copy(aa.begin(), aa.end(),
@@ -177,10 +189,9 @@ namespace atl {
 		return wrap(data);
 	    });
 
-	en->wrap_fn<Any (Data, long)>
-	    ("take",
-	     [gc](Data input, long num) {
-		auto output = gc->dynamic_vector();
+	wrap_fn<Any (Data, long)>(env, "take",
+	     [&gc](Data input, long num) {
+		auto output = gc.dynamic_vector();
 		auto data = output->push_seq<Data>();
 		std::copy(input.begin(), input.begin() + num,
 			  output->back_insert_iterator());
@@ -192,28 +203,28 @@ namespace atl {
 	// Both Ast and Data have the same memory layout, so the same
 	// `slice` will work on them
 	auto slice_vec_or_ast = Sequence::Slice();
-	en->wrap_fn<Any (Any, long)>
-	    ("slice", [gc](Any seq, long nn) {
+	wrap_fn<Any (Any, long)>
+	    (env, "slice", [&gc](Any seq, long nn) {
 		using namespace ast_iterator;
-		return wrap(gc->make<Slice*>(const_begin(seq) + nn,
-					     const_end(seq)));
+		return wrap(gc.make<Slice>(const_begin(seq) + nn,
+                                           const_end(seq)));
 	    });
 
 	/////////// TO AST //////////
-	en->wrap_fn<Ast (Any)>
-	    ("list->ast",
+	wrap_fn<Ast (Any)>
+	    (env, "list->ast",
 	     [&](Any seq) -> Ast {
-		return deep_copy::to<Ast>(flat_iterator::range(seq), *gc);
+		return deep_copy::to<Ast>(flat_iterator::range(seq), gc);
 	    });
 
 	////////// cons ////////
 	// TODO: make this a monad thing and pass the constructred
 	// list into a tail call.
-	en->wrap_fn<Data (Any, Any)>
-	    ("cons",
-	     [gc](Any vv, Any seq) -> Data {
+	wrap_fn<Data (Any, Any)>
+	    (env, "cons",
+	     [&gc](Any vv, Any seq) -> Data {
 		using namespace ast_iterator;
-		auto output = gc->dynamic_vector();
+		auto output = gc.dynamic_vector();
 		auto vec = output->push_seq<Data>();
 
 		output->push_back(vv);
@@ -228,10 +239,10 @@ namespace atl {
 	    return *(ast_iterator::const_begin(args[0])
 		     + unwrap<long>(args[1]));
 	};
-	(Applicable(*env)).set<Ast>(apply_sequence);
-	(Applicable(*env)).set<Data>(apply_sequence);
-	(Applicable(*env)).set<Slice>(apply_sequence);
-	(Applicable(*env)).set<CxxArray>(apply_sequence);
+	(Applicable(env)).set<Ast>(apply_sequence);
+	(Applicable(env)).set<Data>(apply_sequence);
+	(Applicable(env)).set<Slice>(apply_sequence);
+	(Applicable(env)).set<CxxArray>(apply_sequence);
 
 
 	///////////////////////////////////////////
@@ -243,22 +254,22 @@ namespace atl {
         ///////////////////////////////////////////
 	// Monads
 
-	// en->wrap_fn<Any (Any, Any)>
+	// env.wrap_fn<Any (Any, Any)>
 	//     (">>=",
 	//      [env](Any fn, Any monad) {
 	//     });
 
 	// // `return` in Haskell
-	// en->wrap_fn<Any (Any)>
+	// env.wrap_fn<Any (Any)>
 	//     ("unit",
 	//      [env](Any vv) {
 	// 	return 
 	//     });
     }
 
-    void setup_interpreter(GC *gc, Environment *env, EncodeAST *en, ParseString *parser, EvaluateAST *eval) {
-	setup_typeclasses(*env);
-	export_recursive_defs(gc, env, en, parser, eval);
+    void setup_interpreter(GC &gc, Environment &env, ParseString &parser) {
+	setup_typeclasses(env);
+	export_recursive_defs(gc, env, parser);
     }
 }
 

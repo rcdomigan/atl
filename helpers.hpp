@@ -4,6 +4,7 @@
 #include <algorithm>
 
 #include "./gc.hpp"
+#include "./type.hpp"
 
 namespace atl {
     typedef Range<Any*> AnyRange;
@@ -38,8 +39,8 @@ namespace atl {
 	Any* begin(Any aa) { return const_cast<Any*>(const_begin(aa)); }
 	Any* end(Any aa) { return const_cast<Any*>(const_end(aa)); }
 
-	Any* begin(Data aa) { return aa._value + 1; }
-	Any* end(Data aa) { return reinterpret_cast<Any*>(aa._value->_value); }
+	Any* begin(Data aa) { return aa.value + 1; }
+	Any* end(Data aa) { return reinterpret_cast<Any*>(aa.value->value); }
 
 
 	Range<Any*> range(Any input) {
@@ -62,6 +63,8 @@ namespace atl {
 	    return make_range(const_cast<const Any*>(&*input.begin()),
 			      const_cast<const Any*>(&*input.end()));
 	}
+
+	size_t size(const Any& input) { return end(input) - begin(input); }
     }
 
     namespace ast_iterator {
@@ -148,11 +151,6 @@ namespace atl {
 			     store);
 		    break;
 		}
-		case tag<Undefined>::value: {
-		    unwrap<Undefined>(*itr)._backtrack.push_back(itr);
-		    store.push_back(*itr);
-		    break;
-		}
 		default:
 		    store.push_back(*itr);
 		}
@@ -215,6 +213,29 @@ namespace atl {
 	    deep_copy::_map<Seq, Fn>(fn, input, *out);
 	    return unwrap<Seq>(*out->begin());
 	}
+    }
+
+    namespace byte_code {
+	typedef typename PCode::value_type value_type;
+	template<class T>
+	PCode::value_type to_bytes(T input) {
+	    return reinterpret_cast<PCode::value_type>(input);
+	}
+
+	// TODO: use the `std::is_integral` and static cast for all integral (and floating?) types.
+	value_type to_bytes(long input) {
+	    return static_cast<value_type>(input);
+	}
+
+	value_type to_bytes(bool input) {
+	    return static_cast<value_type>(input);
+	}
+
+
+	template<class R>
+	R from_bytes(value_type input) { return reinterpret_cast<R>(input); }
+
+	long from_bytes(value_type input) { return static_cast<long>(input); }
     }
 }
 

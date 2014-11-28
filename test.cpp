@@ -10,7 +10,6 @@
 #include "./gc.hpp"
 #include "./parser.hpp"
 #include "./encode.hpp"
-#include "./evaluator.hpp"
 #include "./primitive_callable.hpp"
 #include "./helpers.hpp"
 #include "./print.hpp"
@@ -58,7 +57,7 @@ int main() {
     GC gc;
     ParseString parser(gc);
     Environment env(gc);
-    EncodeAST encode(env, gc);
+    EncodeAST encode(env);
     EvaluateAST vm(env);
 
     setup_interpreter(&gc, &env, &encode, &parser, &vm);
@@ -85,8 +84,8 @@ int main() {
 	}};
 
     outer_sexpr = wrap(deep_copy::to<Data>(flat_iterator::range(outer_sexpr), gc));
-    inner_sexpr = wrap(gc.make<Slice*>(flat_iterator::const_begin(inner_sexpr),
-				       flat_iterator::const_end(inner_sexpr)));
+    inner_sexpr = wrap(gc.make<Slice>(flat_iterator::const_begin(inner_sexpr),
+                                      flat_iterator::const_end(inner_sexpr)));
 
     flat_encode(outer_sexpr);
     flat_encode(inner_sexpr);

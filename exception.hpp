@@ -18,6 +18,10 @@ namespace atl {
 	UnbalancedParens(const std::string& what_arg) : std::runtime_error(what_arg) {}
 	UnbalancedParens(const char* what_arg) : std::runtime_error(what_arg) {}
     };
+
+    struct UnboundSymbolError : public std::runtime_error {
+        UnboundSymbolError(const std::string& what_arg) : std::runtime_error(what_arg) {}
+    };
 }
 
 #endif

@@ -14,14 +14,14 @@ namespace atl {
     namespace unwrapping {
 	template<class T>
 	struct Immediate {
-	    static inline constexpr T& a(atl::Any& aa) {return reinterpret_cast<T&>(aa._value);}
-	    static inline constexpr const T& a(const atl::Any& aa) {return reinterpret_cast<const T&>(aa._value);}};
+	    static inline constexpr T& a(atl::Any& aa) {return reinterpret_cast<T&>(aa.value);}
+	    static inline constexpr const T& a(const atl::Any& aa) {return reinterpret_cast<const T&>(aa.value);}};
 
 	template<class T>
 	struct Pimpl {
 	    static_assert(type_mapping::unwrappable_type<T>::value, "Cannot unwrap Any to type T");
-	    static inline constexpr T& a(atl::Any& aa) {return *reinterpret_cast<T*>(aa._value);}
-	    static inline constexpr const T& a(const atl::Any& aa) {return *reinterpret_cast<T*>(aa._value);}};
+	    static inline constexpr T& a(atl::Any& aa) {return *reinterpret_cast<T*>(aa.value);}
+	    static inline constexpr const T& a(const atl::Any& aa) {return *reinterpret_cast<T*>(aa.value);}};
 
 	template<class T>
 	struct Reinterpret {
@@ -58,7 +58,7 @@ namespace atl {
 	template<class T>
 	struct Reinterpret {
 	    static_assert(atl::is_reinterperable<T>::value, "Cannot wrap T");
-	    static inline constexpr Any a(const T& aa) { return Any(aa._tag, (void*)aa._value); }};
+	    static inline constexpr Any a(const T& aa) { return Any(aa._tag, (void*)aa.value); }};
 
 	template<class T>
 	struct Immediate {
@@ -97,7 +97,7 @@ namespace atl {
 
     static inline Any wrap(const Fixnum& vv) {
 	return Any(tag<Fixnum>::value,
-		   (void*)vv._value);
+		   (void*)vv.value);
     }
 }
 

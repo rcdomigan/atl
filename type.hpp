@@ -47,7 +47,7 @@ namespace atl {
     /*   | || | | (_| | | |_\__ \ */
     /*   |_||_|  \__,_|_|\__|___/ */
     /******************************/
-    template<class T> struct tag;
+    template<class T> struct _Tag;
     template<class T>
     struct Name { constexpr static const char* value = "#<UNKNOWN>"; };
 
@@ -66,17 +66,17 @@ namespace atl {
     struct is_reinterperable : public std::false_type {};
 
 
-#define ATL_IMMEDIATE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(Type)
-#define ATL_REINTERPERABLE_SEQ (Ast)(Data)
-#define ATL_PIMPL_SEQ (CxxArray)(Slice)(String)(Symbol)(Procedure)(Macro)(Undefined)(PCode)
-#define ATL_TYPES_SEQ ATL_IMMEDIATE_SEQ ATL_REINTERPERABLE_SEQ ATL_PIMPL_SEQ(PrimitiveRecursive)(Mark)(Parameter)
+#define ATL_IMMEDIATE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(Type)(ProcedureLocation)
+#define ATL_REINTERPERABLE_SEQ (Ast)(Data)(CxxFn2)
+#define ATL_PIMPL_SEQ (CxxArray)(Slice)(String)(Symbol)(Procedure)(Macro)(Undefined)(PCode)(Parameter)
+#define ATL_TYPES_SEQ ATL_IMMEDIATE_SEQ ATL_REINTERPERABLE_SEQ ATL_PIMPL_SEQ(PrimitiveRecursive)(Mark)
 
 #define M(r, _, i, elem)						\
     struct elem;							\
     template<> struct is_atl_type<elem> : public std::true_type {};	\
     template<> struct Name<elem> { constexpr static const char* value = BOOST_PP_STRINGIZE( elem ) ; }; \
-    template<> struct tag<elem> {					\
-	typedef tag<elem> type;						\
+    template<> struct _Tag<elem> {					\
+	typedef _Tag<elem> type;					\
 	typedef unsigned int value_type;				\
 	const static value_type value = i;				\
 	operator unsigned int () { return value; }			\
@@ -89,7 +89,10 @@ namespace atl {
     BOOST_PP_SEQ_FOR_EACH_I(M, _, ATL_IMMEDIATE_SEQ)
 #undef M
 
-    typedef mpl::vector24< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
+    typedef mpl::vector26< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
+
+    template<class T>
+    struct tag : public _Tag<typename std::remove_const<T>::type> {};
 
     /****************************************************/
     /*  ____        __ _       _ _   _                  */
@@ -100,17 +103,17 @@ namespace atl {
     /****************************************************/
     struct Any {
 	tag_t _tag;
-	void *_value;
+	void *value;
 
 	Any(const Any&) = default;
-	constexpr Any() : _tag(tag<Any>::value) , _value(nullptr) {}
-	constexpr Any(tag_t t, void *v) : _tag(t) , _value(v) {}
-	constexpr Any(tag_t t) : _tag(t) , _value(nullptr) {}
+	constexpr Any() : _tag(tag<Any>::value) , value(nullptr) {}
+	constexpr Any(tag_t t, void *v) : _tag(t) , value(v) {}
+	constexpr Any(tag_t t) : _tag(t) , value(nullptr) {}
     };
     template<> struct is_reinterperable<Any> : public std::true_type {};
 
     bool operator==(const Any& aa, const Any& bb) {
-	return (aa._tag == bb._tag) && (aa._value == bb._value);
+	return (aa._tag == bb._tag) && (aa.value == bb.value);
     }
 
     /**
@@ -124,9 +127,9 @@ namespace atl {
 
     struct Null {
 	tag_t _tag;
-	void *_value;
+	void *value;
 
-	Null() : _tag(0), _value(nullptr) {}
+	Null() : _tag(0), value(nullptr) {}
     };
     template<> struct is_reinterperable<Null> : public std::true_type {};
 
@@ -141,10 +144,10 @@ namespace atl {
 
     struct Fixnum {
 	tag_t _tag;
-	long _value;
+	long value;
 
-	Fixnum() noexcept : _tag( tag<Fixnum>::value ) , _value(0) {}
-	Fixnum(long value) : _tag( tag<Fixnum>::value ), _value(value) {}
+	Fixnum() noexcept : _tag( tag<Fixnum>::value ) , value(0) {}
+	Fixnum(long value) : _tag( tag<Fixnum>::value ), value(value) {}
     };
     template<> struct is_reinterperable<Fixnum> : public std::true_type {};
 
@@ -157,21 +160,18 @@ namespace atl {
     /*************************/
     struct Bool {
 	tag_t _tag;
-	void *_value;
-	Bool() : _tag(tag<Bool>::value), _value(nullptr) {}
+	long value;
+	Bool() : _tag(tag<Bool>::value), value(false) {}
     };
     Any atl_true() { return Any(tag<Bool>::value, (void*)true); }
     Any atl_false() { return Any(tag<Bool>::value, (void*)false); }
 
     struct Pointer {
 	tag_t _tag;
-	Any *_value;
+	Any *value;
 
-	Pointer() : _tag(tag<Pointer>::value), _value(NULL) {}
-	Pointer(Any *value) : _tag(tag<Pointer>::value), _value(value) {}
-
-	Any& value() { return *_value; }
-	const Any& value() const { return *_value; }
+	Pointer() : _tag(tag<Pointer>::value), value(NULL) {}
+	Pointer(Any *value) : _tag(tag<Pointer>::value), value(value) {}
     };
     template<> struct is_reinterperable<Pointer> : public std::true_type {};
 
@@ -181,19 +181,23 @@ namespace atl {
     /** | _|_|  ||  |_  **/
     /**           pimpl **/
     /*********************/
-    struct Symbol {
-	std::string _value;
+    struct Parameter {
+        size_t offset, hops;
+        Parameter(size_t offset_, size_t hops_) : offset(offset_), hops(hops_) {}
+    };
 
-	Symbol(const std::string& value) : _value(value) {}
+    struct Symbol {
+	std::string name;
+	Symbol(const std::string& name_) : name(name_) {}
     };
 
     struct String {
-	std::string _value;
+	std::string value;
 
-	String() : _value() {}
+	String() : value() {}
 
 	template<class T>
-	String(T init) : _value(init) {}
+	String(T init) : value(init) {}
     };
 
     template<> struct
@@ -202,19 +206,6 @@ namespace atl {
     template<> struct
     tag<std::string*> : public tag<String> {};
 
-    struct Undefined {
-	typedef std::vector<Any*> Backtrack;
-	Backtrack _backtrack;
-    };
-
-    /* a bound value of a procedure */
-    struct Procedure;
-    struct Parameter {
-	Procedure *_closure;
-	size_t _offset;
-
-	const Any& value() const;
-    };
 
     // Wrap a C style array
     struct CxxArray {
@@ -233,58 +224,46 @@ namespace atl {
 	bool empty() const { return begin() == end(); }
     };
 
+
+    struct PCode {
+	typedef uintptr_t  value_type;
+	typedef value_type* iterator;
+	tag_t tag;
+	uintptr_t *value;
+
+	PCode() : tag(atl::tag<PCode>::value), value(nullptr) {}
+	PCode(uintptr_t *vv) : tag(atl::tag<PCode>::value), value(vv) {}
+    };
+    template<> struct is_reinterperable<PCode> : public std::true_type {};
+
+
+    struct ProcedureLocation {
+        tag_t _tag;
+        PCode::iterator value;
+
+        ProcedureLocation() : _tag(tag<ProcedureLocation>::value), value(nullptr) {}
+        ProcedureLocation(PCode::iterator value_)
+            : _tag(tag<ProcedureLocation>::value), value(value_) {}
+    };
+    template<> struct is_reinterperable<ProcedureLocation> : public std::true_type {};
+
+
     /* Macro and Procedure have the same data layout, but distinct tags */
     struct Procedure {
-	mutable Any *_stack;	/* The Parameter's _base pointers are to this address */
-	Any _body;
- 	Parameter *_parameters;
-	size_t _num_params;
+	void *bc;
+	Ast *ast_body
+	    , *ast_formals;
 
-	CxxArray _parameter_types;
-
-	Procedure() = delete;
-	Procedure(const Procedure&) = delete; /* shallow copy will invalidate Parameter pointers */
-
-	Procedure(size_t num_params) : _stack(nullptr) {
-	    _parameter_types._begin = new Any[num_params];
-	    _parameter_types._end = _parameter_types.begin() + num_params;
-
-	    _num_params = num_params;
-
-	    _parameters = new Parameter[num_params];
-
-	    for(size_t i = 0; i < num_params; ++i) {
-		_parameters[i]._closure = this;
-		_parameters[i]._offset = i;
-	    }
-	}
-
-	~Procedure() { delete []_parameters; }
-
-	struct Bind {
-	    const Procedure &_proc;
-	    Any *_old_args;
-
-	    Bind(const Procedure &p, Any *new_args)
-		: _proc(p), _old_args(p._stack) {
-		_proc._stack = new_args;
-	    }
-	    ~Bind() { _proc._stack = _old_args; }
-	};
-
-	Range<Parameter*> parameters() {
-	    return make_range(_parameters, _parameters + _num_params);
-	}
+	PCode compiled_body;
     };
 
-    inline const Any& Parameter::value() const { return _closure->_stack[_offset]; }
 
     struct Macro { Procedure _proc; };
 
     class EvaluateAST;
 
     struct PrimitiveRecursive {
-	const char *_name;
+	const std::string _name;
 
 	typedef std::function<Any (const Any* begin, const Any* end)> Fn;
 	mutable Fn _fn;
@@ -295,7 +274,7 @@ namespace atl {
 	    : _name(name), _fn(fn) {}
 
 	PrimitiveRecursive(const Fn& fn
-			   , const char* name
+			   , const std::string& name
 			   , CxxArray range)
 	    : _name(name), _fn(fn), _parameter_types(range) {}
 
@@ -326,25 +305,25 @@ namespace atl {
 	// generating ASTs.
 	template<class Value>
 	struct IteratorBase {
-	    Value *_value;
-	    IteratorBase(Value* vv) : _value(vv) {}
+	    Value *value;
+	    IteratorBase(Value* vv) : value(vv) {}
 	    IteratorBase() = default;
 
-	    Value& operator*() { return *_value; }
-	    const Value& operator*() const { return *_value; }
+	    Value& operator*() { return *value; }
+	    const Value& operator*() const { return *value; }
 
 	    IteratorBase& operator++() {
 		using namespace std;
-		if( ((_value->_tag == tag<Ast>::value) || (_value->_tag == tag<Data>::value))
-		       && (_value->_value == _value + 1))
-		    _value = &*reinterpret_cast<typename
+		if( ((value->_tag == tag<Ast>::value) || (value->_tag == tag<Data>::value))
+		       && (value->value == value + 1))
+		    value = &*reinterpret_cast<typename
 						conditional<is_const<Value>::value,
 							    add_const<Ast>,
 							    Identity<Ast>
 							    >::type::type*
-						>(_value)->end();
+						>(value)->end();
 		else
-		    ++_value;
+		    ++value;
 		return *this; }
 
 	    IteratorBase operator+(size_t n) const {
@@ -360,23 +339,23 @@ namespace atl {
 		return n;
 	    }
 
-	    bool operator!=(const IteratorBase<Value>& j) const {return j._value != _value;}
+	    bool operator!=(const IteratorBase<Value>& j) const {return j.value != value;}
 
-	    bool operator==(const IteratorBase<Value>& j) const {return j._value == _value;}
+	    bool operator==(const IteratorBase<Value>& j) const {return j.value == value;}
 
-	    std::ostream& print(std::ostream& out) const { return out << _value; }
+	    std::ostream& print(std::ostream& out) const { return out << value; }
 	};
     }
 
     struct Ast {
 	tag_t _tag;
-	Any* _value;
+	Any* value;
 
 	Ast() = delete;
 	Ast(Any *begin, Any *end)
-	    : _tag(tag<Ast>::value), _value(begin)
+	    : _tag(tag<Ast>::value), value(begin)
 	{
-	    _value->_value = end;
+	    value->value = end;
 	}
 	Ast(const Ast&) = default;
 
@@ -399,10 +378,10 @@ namespace atl {
 	    return *itr;
 	}
 
-	Any* flat_begin() { return _value + 1; }
-	Any* flat_end() { return reinterpret_cast<Any*>(_value->_value); }
-	const Any* flat_begin() const { return _value + 1; }
-	const Any* flat_end() const { return reinterpret_cast<Any*>(_value->_value); }
+	Any* flat_begin() { return value + 1; }
+	Any* flat_end() { return reinterpret_cast<Any*>(value->value); }
+	const Any* flat_begin() const { return value + 1; }
+	const Any* flat_end() const { return reinterpret_cast<Any*>(value->value); }
 
 	iterator begin() { return iterator(flat_begin()); }
 	const_iterator begin() const { return const_iterator(flat_begin()); }
@@ -412,14 +391,14 @@ namespace atl {
 
 
 	Any* end_at(Any *pos)
-	{ return reinterpret_cast<Any*>(_value->_value = pos); }
+	{ return reinterpret_cast<Any*>(value->value = pos); }
 
 	Any* end_at(const iterator& pos)
-	{ return reinterpret_cast<Any*>(_value->_value = pos._value); }
+	{ return reinterpret_cast<Any*>(value->value = pos.value); }
 
 	size_t size() const { return end() - begin(); }
 
-	bool empty() const { return _value == _value->_value; }
+	bool empty() const { return value == value->value; }
     };
     template<> struct is_reinterperable<Ast> : public std::true_type {};
 
@@ -428,16 +407,16 @@ namespace atl {
 	typedef typename Ast::const_iterator const_iterator;
 
 	tag_t _tag;
-	Any *_value;
+	Any *value;
 
-	iterator begin() { return iterator(_value + 1); }
-	const_iterator begin() const { return const_iterator(_value + 1); }
+	iterator begin() { return iterator(value + 1); }
+	const_iterator begin() const { return const_iterator(value + 1); }
 
-	iterator end() { return iterator(reinterpret_cast<Any*>(_value->_value)); }
-	const_iterator end() const { return const_iterator(reinterpret_cast<Any*>(_value->_value)); }
+	iterator end() { return iterator(reinterpret_cast<Any*>(value->value)); }
+	const_iterator end() const { return const_iterator(reinterpret_cast<Any*>(value->value)); }
 
-	Data(Any *begin, Any *end) : _tag(tag<Data>::value), _value(begin) { _value->_value = (void*)end; }
-	Data() : _tag(tag<Data>::value), _value(nullptr) {}
+	Data(Any *begin, Any *end) : _tag(tag<Data>::value), value(begin) { value->value = (void*)end; }
+	Data() : _tag(tag<Data>::value), value(nullptr) {}
 
 	const Any& operator[](size_t n) const {
 	    auto itr = begin();
@@ -446,15 +425,15 @@ namespace atl {
 	}
 
 	bool empty() const {
-	    return (_value == nullptr) || (_value == _value->_value);
+	    return (value == nullptr) || (value == value->value);
 	}
 	size_t size() const { return end() - begin(); }
 
 	Any* end_at(Any *pos)
-	{ return reinterpret_cast<Any*>(_value->_value = pos); }
+	{ return reinterpret_cast<Any*>(value->value = pos); }
 
 	Any* end_at(const iterator& pos)
-	{ return reinterpret_cast<Any*>(_value->_value = pos._value); }
+	{ return reinterpret_cast<Any*>(value->value = pos.value); }
     };
     template<> struct is_reinterperable<Data> : public std::true_type {};
 
@@ -493,15 +472,16 @@ namespace atl {
 	bool empty() const { return _begin == _end; }
     };
 
-    struct PCode {
-	typedef uintptr_t  value_type;
-	typedef value_type* iterator;
-	tag_t tag;
-	uintptr_t *value;
+    struct CxxFn2 {
+        tag_t _tag;
+	typedef void (*value_type)(uintptr_t*, uintptr_t*);
+	value_type value;
 
-	PCode() = delete;
-	PCode(uintptr_t *vv) : tag(atl::tag<PCode>::value), value(vv) {}
+	constexpr CxxFn2(value_type value) : _tag(tag<CxxFn2>::value), value(value) {}
+        constexpr CxxFn2() : _tag(tag<CxxFn2>::value), value(nullptr) {}
     };
+    template<> struct is_reinterperable<CxxFn2> : public std::true_type {};
+
 
     /**
      * For a container wrapping Ast::iterator types, what is size
@@ -511,7 +491,7 @@ namespace atl {
      * @param cc: @return:
      */
     template<class Container>
-    size_t flat_size(const Container& cc) { return cc->end()._value - cc->_value._value; }
+    size_t flat_size(const Container& cc) { return cc->end().value - cc->value.value; }
 
     /********************************/
     /*  ____       _                */

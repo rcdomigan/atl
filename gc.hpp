@@ -57,9 +57,6 @@ namespace atl {
 	    mark_t _mark[num_mark_feilds];
 
 	    T *_begin, *_itr, *_end, *_free;
-
-	    typedef std::vector<PCode::value_type> PCodeAccumulator;
-	    std::vector<PCodeAccumulator> code_blocks;
 	public:
 	    static_assert( sizeof(T) >= sizeof(void*), "Can't build a pool _free list of types sized < void*");
 
@@ -109,8 +106,6 @@ namespace atl {
 
 		return tmp;
 	    }
-
-	    PCodeAccumulator& alloc_pcode() { return code_blocks.push_back(PCodeAccumulator()); }
 
 	    /* delete all un-marked objects (and re-set mark flags) */
 	    virtual unsigned int sweep() {
@@ -175,11 +170,11 @@ namespace atl {
 
 	void unregister(MarkType::iterator itr) { _mark.erase(itr); }
 
-	memory_pool::Pool< Undefined > _undefined_heap;
 	memory_pool::Pool< Procedure > _procedure_heap;
 	memory_pool::Pool< String > _string_heap;
 	memory_pool::Pool< PrimitiveRecursive > _primitive_recursive_heap;
 	memory_pool::Pool< Symbol > _symbol_heap;
+	memory_pool::Pool< Parameter > _Parameter_heap;
 	memory_pool::Pool< CxxArray > _array_heap;
 	memory_pool::Pool< Slice > _slice_heap;
 
@@ -190,12 +185,12 @@ namespace atl {
 	    const static PoolType value;
 	};
 
-	typedef mpl::map< mpl::pair< Undefined , MemberPtr<Undefined, &GC::_undefined_heap > >
-			  , mpl::pair< Procedure , MemberPtr<Procedure, &GC::_procedure_heap > >
+	typedef mpl::map< mpl::pair< Procedure , MemberPtr<Procedure, &GC::_procedure_heap > >
 			  , mpl::pair< String , MemberPtr<String, &GC::_string_heap > >
 			  , mpl::pair< PrimitiveRecursive,
 				       MemberPtr<PrimitiveRecursive, &GC::_primitive_recursive_heap > >
 			  , mpl::pair< Symbol,  MemberPtr<Symbol, &GC::_symbol_heap > >
+                          , mpl::pair< Parameter,  MemberPtr<Parameter, &GC::_Parameter_heap > >
 			  , mpl::pair< CxxArray,  MemberPtr<CxxArray, &GC::_array_heap > >
 			  , mpl::pair< Slice,  MemberPtr<Slice, &GC::_slice_heap > >
 			  > PoolMap;
@@ -213,18 +208,19 @@ namespace atl {
 
 	    return result;
 	}
-
     public:
+	typedef PCode::value_type* PCodeAccumulator;
+	std::vector<PCodeAccumulator> code_blocks;
+
 	void mark_and_sweep() {
 	    for(auto i : _mark_callbacks)
 		i(*this);
 
-	    _undefined_heap.sweep();
 	    _procedure_heap.sweep();
 	    _string_heap.sweep();
 	}
 
-	void mark(Any a);
+	void mark(Any a) {}
 
 	/**
 	 * Adds callbacks which will be invoked during the mark phase of the GC.
@@ -247,19 +243,19 @@ namespace atl {
 	    return alloc_from( (this->*mpl::at<PoolMap,T>::type::value) );
 	}
 
-	template<class PointerType, class ... Types>
-	PointerType make(Types ... args) {
-	    typedef typename std::remove_pointer< PointerType >::type Type;
+	PCodeAccumulator& alloc_pcode() {
+	    code_blocks.push_back(new PCode::value_type[100]);
+	    return code_blocks.back();
+	}
+
+	template<class Type, class ... Types>
+	Type* make(Types ... args) {
 	    return new ( alloc<Type>() ) Type (args...);
 	}
 
-	template<class PointerType, class ... Types>
+	template<class Type, class ... Types>
 	Any amake(Types ... args) {
-	    typedef typename std::remove_pointer<
-		PointerType
-	        >::type Type;
-
-	    return Any( tag<Type>::value , make<PointerType>(args...));
+	    return Any( tag<Type>::value , make<Type>(args...));
 	}
 
 	// Mixed metaphore struct.
@@ -297,12 +293,6 @@ namespace atl {
 
 	    void push_back(const Any& input) {
 		*_end = input;
-
-		// another position that will need to be assigned when
-		// the value is found.
-		if(is<Undefined>(input))
-		    unwrap<Undefined>(*_end)._backtrack.push_back(_end);
-
 		++_end;
 	    }
 
@@ -355,33 +345,6 @@ namespace atl {
     void mark_args(GC &gc, T a, Types ... as) {
 	gc.mark( a );
 	mark_args(gc, as...);
-    }
-
-    namespace dynamic_vector {
-	typedef GC::DynamicVector DynamicVector;
-
-	// Copier supplies a push_back_iterator which tries to do the
-	// right thing with input (as opposed to the fast thing).
-	struct Copier {
-	    typedef Any* value_type;
-
-	    DynamicVector& stack;
-	    Copier(DynamicVector& input) : stack(input){}
-
-	    void push_back(Any&& aa) {
-		stack.push_back(aa);
-
-		switch(aa._tag) {
-		case tag<Undefined>::value:
-		    unwrap<Undefined>(aa)._backtrack.push_back(&stack.back());
-		    break;
-		}
-	    }
-
-	    std::back_insert_iterator<Copier> back_insert_iterator() {
-		return std::back_insert_iterator<Copier>(*this);
-	    }
-	};
     }
 }
 

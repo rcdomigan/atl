@@ -9,7 +9,7 @@
 namespace atl {
     namespace lexical {
     	struct Map {
-	    typedef map<string, Any> Impl;
+	    typedef std::map<std::string, Any> Impl;
 	    typedef Impl::iterator iterator;
 	    Impl _local;
 	    Map *_prev;
@@ -20,31 +20,13 @@ namespace atl {
 	    Map() = delete;
 
 
-	    // defines string s in the current enviornment, but does
-	    // not create an assigning S-expr.
-	    // \internal
-	    // @param s: the name I'm binding at the current scope.
-	    // @return: the new Undefined
-	    Any& predefine(const string &s) {
-		auto u = _gc.make<Undefined*>();
-		auto inserted = _local.insert( Impl::value_type(s, wrap(u)) );
+	    void define(const std::string& name, Any value) {
+		_local.insert(Impl::value_type(name, value));
+	    }
 
-		auto itr = inserted.first;
+	    // void define(Symbol& sym) { define(sym.name, Any()); }
 
-		/* use the _backtrack mechanism to replace the Undefined in the Map when it gets a
-		   value */
-		if(_prev == nullptr)
-		    u->_backtrack.push_back(&itr->second);
-
-		return itr->second; }
-
-	    // Sets the symbol s to value
-	    // \internal
-	    // @param s: the (name of the) symbol to bind
-	    // @param value: the expression which will bind to the symbol
-	    void define(const string& s, Any value) { _local.insert( Impl::value_type(s, value) ); }
-
-	    Impl::iterator find(string k) {
+	    Impl::iterator find(const string& k) {
 		Impl::iterator res = _local.find(k);
 		if(res == _local.end()) {
 		    if(_prev == nullptr) return end();
@@ -53,16 +35,32 @@ namespace atl {
 		    return  res; }
 		return res; }
 
+            // Iterate over _this_ map (doesn't do encosing scope).
 	    Impl::iterator end() { return _local.end(); }
+	    Impl::iterator begin() { return _local.begin(); }
 
-	    Any look_up(const string& str) {
-		auto i = find(str);
-		if (i != end()) {
+            Any& value(const std::string& name) {
+		auto i = find(name);
+
+		if (i == end())
+		    throw UnboundSymbolError(std::string("Unbound symbol: ").append(name));
+		else
 		    return i->second;
-		} else
-		    return predefine(str);
-	    }
+            }
+
+	    Any& value(Symbol& sym) {
+                return value(sym.name);
+            }
 	};
+
+        struct MapRAII {
+            Map map;
+            Map **top;
+            MapRAII(Map** top_) : map(*top_), top(top_) {
+                *top = &map;
+            }
+            ~MapRAII() { *top = map._prev; }
+        };
     }
 
     struct Environment {
@@ -70,8 +68,12 @@ namespace atl {
 	GC& gc;
 	lexical::Map toplevel;
 
-	Environment(GC &_gc) : gc(_gc), toplevel(_gc) {}
+	Environment(GC &_gc) : gc(_gc), toplevel(_gc) { init_types(); }
 	Environment() = delete;
+
+        void define(const std::string& name, Any value) {
+            toplevel.define(name, value);
+        }
     };
 }
 

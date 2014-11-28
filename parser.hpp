@@ -87,7 +87,7 @@ namespace atl {
 		case ')': return;
 
 		case '"': {		/* string */
-		    std::string *str = reinterpret_cast<std::string*>(_gc.make<String*>());
+		    std::string *str = reinterpret_cast<std::string*>(_gc.make<String>());
 
 		    for(++itr; *itr != '"'; ++itr) {
 			if(itr == end) throw to_string(_line).append("string not terminated.");
@@ -112,14 +112,13 @@ namespace atl {
 		    if(string_is_number(scratch)) {
 			vec[0] = aimm( atoi(scratch.c_str()) );
 		    } else {
-			std::string *sym = reinterpret_cast<std::string*>(_gc.make<Symbol*>(scratch));
+			std::string *sym = reinterpret_cast<std::string*>(_gc.make<Symbol>(scratch));
 			vec[0] = Any(tag<Symbol>::value, sym);
 		    }
 
 		    ++vec;
 		    return;
-		}
-		}}
+		}}}
 	    return;
 	}
 
@@ -130,7 +129,7 @@ namespace atl {
 	}
 
 	/* parse one S-expression from a string into an ast */
-	Any string_(const std::string& input) {
+	Any& string_(const std::string& input) {
 	    auto vec = _gc.dynamic_vector();
 	    **vec = nil<Null>::value();
 	    parse(*vec, input.begin(), input.end());
@@ -138,7 +137,7 @@ namespace atl {
 	}
 
 	/* parse one S-expression from a stream into an ast */
-	Any stream(istream &stream) {
+	Any& stream(istream &stream) {
 	    auto initial_flags = stream.flags();
 	    noskipws(stream);
 

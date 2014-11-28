@@ -16,6 +16,7 @@
 #include <iostream>
 #include <type_traits>
 #include <utility>
+#include <limits>
 
 #include <boost/mpl/vector.hpp>
 
@@ -47,6 +48,7 @@ struct rational_c {
     constexpr static Num value = (Num)Numerator / (Num)Denominator;
     constexpr static Num value_squared = value * value;
 };
+
 
 /**************************************/
 /*     _                              */
@@ -259,12 +261,16 @@ struct GetIterator
 /*********************************/
 struct IncItr { template<class T> static void apply(T&& t) { ++t; } };
 
+
+// Not quite idomatic; the operator* returns the tuple containing all the _iterators_.
+// TODO: can I construct a tuple of rvalues from the tuple of iterators?
 template<class ... Types>
 struct RangeItr {
-    typedef std::tuple< std::pair<Types, Types> ... > value_type;
+    typedef std::tuple< Types ... > value_type;
     value_type _itrs;
 
-    RangeItr( const std::pair<Types, Types>& ... input ) : _itrs(input ...) {}
+    RangeItr() = delete; // : _itrs(Types()...) {}
+    RangeItr( const Types& ... input ) : _itrs(input ...) {}
 
     RangeItr& operator++() {
 	map_tuple(IncItr(), _itrs);
@@ -274,8 +280,8 @@ struct RangeItr {
 
     /* note: only compairs the _first_ element (so I can have ranges of different sizes; stick the shortest range in
        the first position) */
-    bool operator!=(const RangeItr<Types...>& itr) {
-	return std::get<0>(itr._itrs) != std::get<0>(_itrs);
+    bool operator!=(const RangeItr<Types...>& other) {
+	return std::get<0>(other._itrs) != std::get<0>(_itrs);
     }
 };
 
@@ -285,8 +291,9 @@ struct Range_base {
     typedef Range_base<Itr> type;
     typedef Itr iterator;
     typedef const Itr const_iterator;
-    typedef decltype(*Itr()) value_type;
     Itr _begin, _end;
+
+    typedef decltype(*_begin) value_type;
 
     iterator& begin() { return _begin; }
     iterator& end() { return _end; }
@@ -294,13 +301,12 @@ struct Range_base {
     const iterator& end() const { return _end; }
     bool empty() const { return _begin == _end; }
 
-    Range_base() = default;
+    Range_base() = delete;
     Range_base(const Range_base&) = default;
     ~Range_base() = default;
 
-    Range_base(const Itr& begin, const Itr& end)
+    Range_base(Itr begin, Itr end)
 	: _begin(begin), _end(end) {}
-
 
     /* don't think this makes sense for zipped ranges */
     void push_back(value_type vv) { *_end = vv; ++_end; }
@@ -309,18 +315,25 @@ struct Range_base {
 };
 
 
-template<class ... Pairs>
+template<class ... Ranges>
 struct Zipper
-    : public Range_base<RangeItr<typename Pairs::first_type ...> > {
+    : public Range_base<RangeItr<typename std::remove_reference<Ranges>::type::iterator ...> > {
 
-    typedef Range_base<RangeItr<typename Pairs::first_type ...> > base_type;
+    typedef Range_base<RangeItr<typename std::remove_reference<Ranges>::type::iterator ...>
+		       > base_type;
+    typedef RangeItr<typename std::remove_reference<Ranges>::type::iterator ...> Itr;
 
-    Zipper(const Pairs& ...  pp)
-	: base_type::_begin(pp.first ...), base_type::_end(pp.second ...) {}
-    Zipper() = delete;
+    Zipper(Ranges&& ...  pp)
+	: base_type(Itr(pp.begin() ...), Itr(pp.end()...)) {}
+
     Zipper(const Zipper&) = default;
     ~Zipper() = default;
 };
+
+template<class ... Ranges>
+Zipper<Ranges...> zip(Ranges&& ... rr) {
+    return Zipper<Ranges...>(std::forward<Ranges>(rr)...);
+}
 
 
 template<class IteratorType>
@@ -333,7 +346,7 @@ struct Range : public Range_base<IteratorType> {
     Range(const std::pair<iterator,iterator>& pp)
 	: base_type(pp.first, pp.second) {}
 
-    Range(const iterator& aa, const iterator& bb)
+    Range(iterator aa, iterator bb)
 	: base_type(aa, bb) {}
 
     Range() = default;
@@ -369,6 +382,52 @@ Range<typename GetIterator<T>::type > slice(T& tt, int begin, int end) {
     else return type(tt.begin() + begin, tt.begin() + end);
 }
 
+// Count up indefinitely
+struct CountingRange {
+    typedef size_t value_type;
+
+    struct Counter {
+	value_type _value;
+	Counter(value_type vv) : _value(vv) {}
+	Counter& operator++() {
+	    ++_value;
+	    return *this;
+	}
+
+	value_type operator*() { return _value; }
+
+	bool operator!=(const Counter& other) const { return other._value != _value; }
+    };
+    typedef Counter iterator;
+
+    iterator begin() const { return Counter(0); }
+    iterator end() const { return Counter(std::numeric_limits<value_type>::max()); }
+};
+
+
+// It would be convinient to use the new for(value:container) form and
+// have the value be a pointer into the container
+template<class Container>
+struct PointerRange {
+    struct iterator {
+	typedef typename Container::iterator value_type;
+	value_type value;
+	iterator(value_type vv) : value(vv) {}
+
+	value_type operator*() { return value; }
+	iterator& operator++() { ++value; return *this; }
+	bool operator!=(const iterator& other) { return other.value != value; }
+    };
+
+    Container& container;
+    PointerRange(Container& c) : container(c) {}
+
+    iterator begin() { return iterator(container.begin()); }
+    iterator end() { return iterator(container.end()); }
+};
+
+template<class Container>
+PointerRange<Container> pointer_range(Container& cc) { return PointerRange<Container>(cc); }
 
 /****************************************************/
 /*  ____            _   __        __                */
