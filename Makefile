@@ -22,8 +22,5 @@ test-vm: test_tiny_vm.cpp *.hpp
 byte-coded: ./test/byte_coded.cpp *.hpp
 	$(CXX) ./test/byte_coded.cpp -o byte-coded
 
-test-parser: ./test/test_parser.cpp *.hpp
-	$(CXX) ./test/test_parser.cpp -o test-parser
-
 test-zipper: ./test/test_zipper.cpp *.hpp
 	$(CXX) ./test/test_zipper.cpp -o test-zipper

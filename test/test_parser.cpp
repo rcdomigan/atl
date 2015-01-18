@@ -9,7 +9,6 @@
 
 #include "../gc.hpp"
 #include "../parser.hpp"
-#include "../encode.hpp"
 #include "../primitive_callable.hpp"
 #include "../helpers.hpp"
 #include "../print.hpp"
@@ -24,15 +23,11 @@ int main(int argc, char *argv[]) {
     GC gc;
     Environment env(gc);
     ParseString parse(gc);
-    EncodeAST encode(env);
 
-    setup_interpreter(&gc, &env, &encode, &parse);
+    setup_interpreter(gc, env, parse);
 
     auto& ast = parse.string_("(bin-add (#t 1 2) 3)");
     cout << "Parsed AST: " << printer::any(ast) << endl;
-
-    encode.any(ast);
-    cout << "Encoded AST: " << printer::any(ast) << endl;
 
     return 0;
 }

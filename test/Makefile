@@ -3,10 +3,15 @@ GTEST_LINK=-lgtest -lgtest_main
 CXXFLAGS=$(CFLAGS) $(COMMON_FLAGS)
 
 CXX=g++ $(CXXFLAGS)
-#CXX=clang $(COMMON_FLAGS) -lc++ -stdlib=libc++
+#CXX=clang $(CXXFLAGS) -lc++ -stdlib=libc++
 
 vm_test: ../*hpp vm_test.cpp
 	$(CXX) vm_test.cpp $(GTEST_LINK) -o vm_test
 
 compiler: ../*hpp compiler.cpp
 	$(CXX) compiler.cpp $(GTEST_LINK) -o compiler
+
+parser: test_parser.cpp ../*.hpp
+	$(CXX) test_parser.cpp -o parser
+
+
