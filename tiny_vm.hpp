@@ -319,4 +319,18 @@ namespace atl {
     };
 }
 
+// Set the flag to compile this as an app that just prints the byte
+// code numbers (in hex) and the corrosponding name
+#ifdef TINY_VM_PRINT_BYTE_CODES
+int main() {
+    using namespace std;
+    using namespace atl::vm_codes;
+#define M(r, data, instruction) cout << setw(15) << BOOST_PP_STRINGIZE(instruction) ": " << hex << Tag<instruction>::value << endl;
+    BOOST_PP_SEQ_FOR_EACH(M, _, ATL_BYTE_CODES);
+#undef M
+
+    return 0;
+}
+#endif
+
 #endif

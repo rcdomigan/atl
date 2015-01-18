@@ -3,6 +3,12 @@ CXX=g++ -pipe -I./ -std=c++11 -ggdb -Wall
 
 all: main
 
+# prints byte code name/value table
+table-bc: tiny_vm.hpp
+	ln -s tiny_vm.hpp tiny_vm.cpp
+	$(CXX) -DTINY_VM_PRINT_BYTE_CODES tiny_vm.cpp -o table-bc
+	rm tiny_vm.cpp
+
 main: Makefile main.cpp gc.cpp *.hpp
 	$(CXX) main.cpp -o main
 

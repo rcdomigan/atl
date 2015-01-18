@@ -5,3 +5,4 @@ test-zipper
 test-parser
 test/compiler
 TAGS
+table-bc
