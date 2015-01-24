@@ -66,7 +66,7 @@ namespace atl {
     struct is_reinterperable : public std::false_type {};
 
 
-#define ATL_IMMEDIATE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(Type)(ProcedureLocation)
+#define ATL_IMMEDIATE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(Type)(TailCall)
 #define ATL_REINTERPERABLE_SEQ (Ast)(Data)(CxxFn2)
 #define ATL_PIMPL_SEQ (CxxArray)(Slice)(String)(Symbol)(Procedure)(Macro)(Undefined)(PCode)(Parameter)
 #define ATL_TYPES_SEQ ATL_IMMEDIATE_SEQ ATL_REINTERPERABLE_SEQ ATL_PIMPL_SEQ(PrimitiveRecursive)(Mark)
@@ -237,24 +237,23 @@ namespace atl {
     template<> struct is_reinterperable<PCode> : public std::true_type {};
 
 
-    struct ProcedureLocation {
+    struct TailCall {
         tag_t _tag;
         PCode::iterator value;
 
-        ProcedureLocation() : _tag(tag<ProcedureLocation>::value), value(nullptr) {}
-        ProcedureLocation(PCode::iterator value_)
-            : _tag(tag<ProcedureLocation>::value), value(value_) {}
+        TailCall() : _tag(tag<TailCall>::value), value(nullptr) {}
+        TailCall(PCode::iterator value_)
+            : _tag(tag<TailCall>::value), value(value_) {}
     };
-    template<> struct is_reinterperable<ProcedureLocation> : public std::true_type {};
+    template<> struct is_reinterperable<TailCall> : public std::true_type {};
 
 
     /* Macro and Procedure have the same data layout, but distinct tags */
     struct Procedure {
-	void *bc;
-	Ast *ast_body
-	    , *ast_formals;
+        PCode::iterator body;
+        size_t tail_params;
 
-	PCode compiled_body;
+        Procedure(PCode::iterator body_, size_t padding) : body(body_), tail_params(padding) {}
     };
 
 

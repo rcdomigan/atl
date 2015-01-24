@@ -1,16 +1,4 @@
 ;; An Ast->Encode compiler
+(require 'prelim)
 
-(def (:: (-> Ast PCode)
-         compile)
-  (let ((pack-args (foldr compile
-                          (return ())
-                          args)))
-    ([(Fn2 fn args)]
-     (>> pack-args
-         (put (get-fn-pointer form))
-         (put (get-apply-opcode form))))
-
-   ([(Fn1 fn arg)]
-    (>> pack-args
-        (put (get-fn-pointer fn))
-        (put (get-apply-opcode fn))))))
+(def (annotate-tail-calls (Ast _ formals body)) ())

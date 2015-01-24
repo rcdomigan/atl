@@ -2,7 +2,7 @@ main
 test-vm
 byte-coded
 test-zipper
-test-parser
+test/parser
 test/compiler
 TAGS
 table-bc

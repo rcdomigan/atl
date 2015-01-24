@@ -16,6 +16,7 @@
 #include <boost/preprocessor/seq/for_each.hpp>
 #include <boost/preprocessor/seq/for_each_i.hpp>
 #include <boost/preprocessor/punctuation/comma_if.hpp>
+#include <boost/preprocessor/stringize.hpp>
 
 #include "./type.hpp"
 #include "./gc.hpp"
@@ -28,12 +29,13 @@
 //   push               : *
 //   pop                : [out-going]
 //   jump               : [destination address]
-//   procedure          : [arg1]...[argN][@closure][next-instruction]<body...>
+//   call_procedure     : [arg1]...[argN][@closure][next-instruction]<body...>
 //   return_            : [return-value][number-of-arguments-to-procedure]
 //   argument           : [offset]
 //   nested_argument    : [offset][hops]
+//   tail_call          : [arg0]..[argN][N][dst]
 
-#define ATL_NORMAL_BYTE_CODES (pop)(if_)(foreign_1)(foreign_2)(variadic_foreign)(jump)(return_)(procedure)(argument)(nested_argument)
+#define ATL_NORMAL_BYTE_CODES (nop)(pop)(if_)(foreign_1)(foreign_2)(variadic_foreign)(jump)(return_)(call_procedure)(argument)(nested_argument)(tail_call)
 #define ATL_BYTE_CODES (finish)(push)ATL_NORMAL_BYTE_CODES
 
 #define ATL_VM_SPECIAL_BYTE_CODES (finish)      // Have to be interpreted specially by the run/switch statement
@@ -132,9 +134,9 @@ namespace atl {
             return foreign_2();
         }
 
-        AssembleVM& procedure(uintptr_t* body) {
+        AssembleVM& call_procedure(uintptr_t* body) {
             constant(reinterpret_cast<uintptr_t>(body));
-            return procedure();
+            return call_procedure();
         }
 
         AssembleVM& argument(uintptr_t offset) {
@@ -146,6 +148,17 @@ namespace atl {
             constant(offset);
             constant(hops);
             return nested_argument();
+        }
+
+        AssembleVM& return_(size_t num_args) {
+            constant(num_args);
+            return return_();
+        }
+
+        AssembleVM& tail_call(size_t num_args, iterator proc) {
+            constant(num_args);
+            pointer(proc);
+            return tail_call();
         }
 
         uintptr_t& operator[](size_t offset) { return _begin[offset]; }
@@ -161,6 +174,7 @@ namespace atl {
             auto vname = vm_codes::name_or_null(vv);
 
             cout << " " << hex << &vv << ": ";
+
             if(pushing) {
                 --pushing;
                 cout << "@" << hex << vv;
@@ -187,10 +201,9 @@ namespace atl {
 
         value_type back() { return *(top - 1); }
 
-        void push() {
-            cout << "pushing: " << pc[1] << endl;
-            *(top++) = pc[1]; pc += 2;
-        }
+        void nop() { ++pc; }
+
+        void push() { *(top++) = pc[1]; pc += 2; }
         void pop() { top--; ++pc; }
 
         void foreign_1() {
@@ -220,17 +233,17 @@ namespace atl {
 
         void if_() {
             top -= 2;
-            if(top[1]) ++pc;
+            if(top[1] != 0) ++pc;
             else pc = reinterpret_cast<uintptr_t*>(*top);
         }
 
         void jump() { --top; pc = reinterpret_cast<uintptr_t*>(*top); }
 
-        void procedure() {
-            *top        = reinterpret_cast<value_type>(pc + 1);
+        void call_procedure() {
+            *top        = reinterpret_cast<value_type>(pc + 1);    // next instruction
             pc          = reinterpret_cast<uintptr_t*>(back());
-            *(top - 1)  = reinterpret_cast<uintptr_t>(call_stack);  // store the enclosing frame
-            call_stack  = top - 1;                                  // update the frame
+            *(top - 1)  = reinterpret_cast<uintptr_t>(call_stack); // store the enclosing frame
+            call_stack  = top - 1;                                 // update the frame
             ++top;
         }
 

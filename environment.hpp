@@ -6,6 +6,8 @@
  * Created on Sep 23, 2014
  */
 
+#include <map>
+
 namespace atl {
     namespace lexical {
     	struct Map {
@@ -23,8 +25,6 @@ namespace atl {
 	    void define(const std::string& name, Any value) {
 		_local.insert(Impl::value_type(name, value));
 	    }
-
-	    // void define(Symbol& sym) { define(sym.name, Any()); }
 
 	    Impl::iterator find(const string& k) {
 		Impl::iterator res = _local.find(k);

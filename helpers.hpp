@@ -42,6 +42,9 @@ namespace atl {
 	Any* begin(Data aa) { return aa.value + 1; }
 	Any* end(Data aa) { return reinterpret_cast<Any*>(aa.value->value); }
 
+        Any* begin(const Range<Any*>& input) { return input.begin(); }
+        Any* end(const Range<Any*>& input) { return input.end(); }
+
 
 	Range<Any*> range(Any input) {
 	    return Range<Any*>(begin(input), end(input));

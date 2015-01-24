@@ -2,6 +2,8 @@
  * @file /home/ryan/programming/atl/test/compiler.cpp
  * @author Ryan Domigan <ryan_domigan@sutdents@uml.edu>
  * Created on Dec 25, 2014
+ *
+ * Regression tests.  There may be unit tests some day if I can be bolloxed.
  */
 
 #include <tiny_vm.hpp>
@@ -29,57 +31,135 @@ void run_code(TinyVM& vm, TinyVM::iterator input) {
 #endif
 }
 
-
-TEST(CompilerTest, BasicLambda) {
+struct CompilerTest : public ::testing::Test {
     GC gc;
-    ParseString parse(gc);
-    Environment env(gc);
-    Compile compile(env);
+    ParseString parse;
+    Environment env;
+    Compile compile;
+    TinyVM vm;
 
-    setup_interpreter(gc, env, parse);
+    CompilerTest() : parse(gc), env(gc), compile(env) {}
 
-    env.define("equal2", WrapFn2<bool (*)(long, long), equal2>::any());
-    env.define("add2", WrapFn2<long (*)(long, long), add2>::any());
-    env.define("sub2", WrapFn2<long (*)(long, long), sub2>::any());
+    virtual void SetUp() {
+        setup_interpreter(gc, env, parse);
 
-    auto ast = parse.string_("((\\ (a b) (add2 a b)) 4 7)");
+        env.define("equal2", WrapFn2<bool (*)(long, long), equal2>::any());
+        env.define("add2", WrapFn2<long (*)(long, long), add2>::any());
+        env.define("sub2", WrapFn2<long (*)(long, long), sub2>::any());
+    }
+};
 
+
+TEST_F(CompilerTest, BasicApplication) {
+    auto ast = parse.string_("(add2 2 3)");
     auto pcode = compile.any(ast);
 
-    TinyVM vm;
     run_code(vm, pcode.value);
+    cout << "Result: " << vm.stack[0] << endl;
 
     ASSERT_EQ(vm.stack[0], 5);
 }
 
-// TEST(CompilerTest, TestLambdaWithIf) {
-//     TinyVM::value_type code[100];
+TEST_F(CompilerTest, NestedApplication) {
+    auto ast = parse.string_("(add2 (sub2 7 5) (add2 8 3))");
+    auto pcode = compile.any(ast);
+
+    run_code(vm, pcode.value);
+    cout << "Result: " << vm.stack[0] << endl;
+
+    ASSERT_EQ(vm.stack[0], 13);
+}
+
+TEST_F(CompilerTest, BasicLambda) {
+    auto ast = parse.string_("((\\ (a b) (add2 a b)) 4 7)");
+
+    auto pcode = compile.any(ast);
 
 
-//     GC gc;
-//     ParseString parse(gc);n
-//     Environment env(gc);
-//     EncodeAST encode(env, gc);
-//     EvaluateAST eval(env);
-
-//     setup_interpreter(&gc, &env, &encode, &parse, &eval);
-
-//     encode.define("equal2", wrap(WrapFn2<bool (*)(long, long), equal2>::tagged()));
-//     encode.define("add2", wrap(WrapFn2<long (*)(long, long), add2>::tagged()));
-//     encode.define("sub2", wrap(WrapFn2<long (*)(long, long), sub2>::tagged()));
-
-//     auto pcode = compile(gc, encode.any(parse.string_("((\ (a b) (if (equal2 a b) (add2 a b) (sub2 a b))) 1 2)")));
-
-//     TinyVM vm;
-//     vm.run(pcode.value, 20);
-//     cout << "Result: " << vm.stack[0] << endl;
-//     return 0;
+    run_code(vm, pcode.value);
+    cout << "Result: " << vm.stack[0] << endl;
 
 
-//     ASSERT_EQ(vm.stack[0], 5);
-// }
+    ASSERT_EQ(vm.stack[0], 11);
+}
+
+TEST_F(CompilerTest, TestIfTrue) {
+    auto ast = parse.string_("(if #t 3 4)");
+    auto pcode = compile.any(ast);
+
+    run_code(vm, pcode.value);
+    ASSERT_EQ(vm.stack[0], 3);
+}
+
+TEST_F(CompilerTest, TestIfFalse) {
+    auto ast = parse.string_("(if #f 3 4)");
+    auto pcode = compile.any(ast);
+
+    run_code(vm, pcode.value);
+    ASSERT_EQ(vm.stack[0], 4);
+}
+
+
+TEST_F(CompilerTest, TestLambdaWithIf) {
+    auto ast = parse.string_("((\\ (a b) (if (equal2 a b) (add2 a b) (sub2 a b))) 7 3)");
+    auto pcode = compile.any(ast);
+
+    run_code(vm, pcode.value);
+    cout << "Result: " << vm.stack[0] << endl;
+
+    ASSERT_EQ(vm.stack[0], 4);
+}
+
+
+TEST_F(CompilerTest, BasicDefine) {
+    // Test that defining a constant works
+    auto ast = parse.string_("(define-value foo 3)");
+    compile.any(ast);
+
+    ast = parse.string_("(add2 foo foo)");
+    compile.any(ast);
+
+    run_code(vm, compile.finish());
+
+    ASSERT_EQ(vm.stack[0], 6);
+}
+
+
+TEST_F(CompilerTest, Backpatch) {
+    // Test that defining a constant works
+    auto ast = parse.string_("(add2 foo foo)");
+    compile.any(ast);
+
+    ast = parse.string_("(define-value foo 3)");
+    compile.any(ast);
+
+    run_code(vm, compile.finish());
+
+    ASSERT_EQ(vm.stack[0], 6);
+}
+
+TEST_F(CompilerTest, DefineLambda) {
+    // Check that the appropriate number of filler values have been
+    // pushed to the stack.  This is a brittle test, but so it goes
+    // for the moment.
+    compile.any(parse.string_("(define-value my-add3 (\\ (a b c) (add2 a b)))"));
+    compile.any(parse.string_("(define-value my-add1 (\\ (a) (my-add3 a a a)))"));
+
+    ASSERT_EQ(unwrap<Procedure>(env.toplevel._local["my-add1"]).tail_params,
+              3);
+}
+
+TEST_F(CompilerTest, SimpleRecursion) {
+    compile.any(parse.string_("(define-value simple-recur (\\ (a b) (if (equal2 0 a) b (simple-recur (sub2 a 1) (add2 b 1)))))"));
+    compile.any(parse.string_("(simple-recur 3 2)"));
+
+    run_code(vm, compile.finish());
+
+    ASSERT_EQ(vm.stack[0], 5);
+}
 
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
+

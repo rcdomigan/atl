@@ -18,25 +18,33 @@ long add2(long a, long b) { return a + b; }
 long sub2(long a, long b) { return a - b; }
 bool equal2(long a, long b) { return a == b; }
 
+auto weq = &WrapFn2<bool (*)(long, long), equal2>::wrapped;
+auto wadd = &WrapFn2<long (*)(long, long), add2>::wrapped;
+auto wsub = &WrapFn2<long (*)(long, long), sub2>::wrapped;
+
 void run_code(TinyVM& vm, AssembleVM& assemble) {
 #ifdef DEBUGGING
+    assemble.print();
     vm.run_debug(assemble.begin(), 20);
 #else
     vm.run(assemble.begin());
 #endif
 }
 
-TEST(VmTest, TestCxxFn2) {
-    using namespace atl;
-
+struct VmTest : public ::testing::Test {
     TinyVM::value_type code[100];
-
     TinyVM vm;
-    AssembleVM assemble(code);
+    AssembleVM assemble;
+
+    VmTest() : assemble(code) {}
+};
+
+TEST_F(VmTest, TestCxxFn2) {
+    using namespace atl;
 
     assemble.constant(2)
         .constant(3)
-        .foreign_2(&WrapFn2<long (*)(long, long), add2>::wrapped)
+        .foreign_2(wadd)
         .finish();
 
     assemble.print();
@@ -46,18 +54,57 @@ TEST(VmTest, TestCxxFn2) {
     ASSERT_EQ(vm.stack[0], 5);
 }
 
-TEST(VmTest, TestArguments) {
-    TinyVM::value_type code[100];
+TEST_F(VmTest, TestIfTrue) {
+    assemble.pointer(nullptr);
+    auto alternate_ptr = assemble.last();
 
-    TinyVM vm;
-    AssembleVM assemble(code);
+    assemble.constant(1)
+        .if_()
+        .constant(5)            // consequent
+        .pointer(nullptr);
+    auto end_of_alt = assemble.last();
+    assemble.jump();
 
+    *alternate_ptr = reinterpret_cast<TinyVM::value_type>(assemble.end());
+    assemble.constant(9);        // alternate
+
+    *end_of_alt = reinterpret_cast<TinyVM::value_type>(assemble.end());
+    assemble.finish();
+
+    run_code(vm, assemble);
+
+    ASSERT_EQ(vm.stack[0], 5);
+}
+
+TEST_F(VmTest, TestIfFalse) {
+    assemble.pointer(nullptr);
+    auto alternate_ptr = assemble.last();
+
+    assemble.constant(0)
+        .if_()
+        .constant(5)            // consequent
+        .pointer(nullptr);
+    auto end_of_alt = assemble.last();
+    assemble.jump();
+
+    *alternate_ptr = reinterpret_cast<TinyVM::value_type>(assemble.end());
+    assemble.constant(9);        // alternate
+
+    *end_of_alt = reinterpret_cast<TinyVM::value_type>(assemble.end());
+    assemble.finish();
+
+    run_code(vm, assemble);
+
+    ASSERT_EQ(vm.stack[0], 9);
+}
+
+TEST_F(VmTest, TestArguments) {
     assemble.constant(5)
 	.constant(3)
 	.pointer(nullptr);
     auto procedure_address = assemble.last();
 
-    assemble.procedure()
+    assemble.call_procedure()
 	.finish();
 
     *procedure_address = reinterpret_cast<uintptr_t>(assemble.end());
@@ -68,51 +115,57 @@ TEST(VmTest, TestArguments) {
 	.constant(2) // # args
 	.return_();
 
-    assemble.print();
-
     run_code(vm, assemble);
 
     ASSERT_EQ(vm.stack[0], 2);
 }
 
-TEST(VmTest, SymToFunction) {
+TEST_F(VmTest, SymToFunction) {
     GC gc;
     ParseString parse(gc);
     Environment env(gc);
 
-    TinyVM::value_type code[100];
-    TinyVM vm;
-    AssembleVM assemble(code);
-
     setup_interpreter(gc, env, parse);
 
-    auto wrapped_add2 = WrapFn2<long (*)(long, long), add2>::any();
-
-    env.define("add2", wrapped_add2);
+    env.define("add2", WrapFn2<long (*)(long, long), add2>::any());
 
     auto fn = env.toplevel.value("add2");
 
-    assemble.argument(1)
-        .argument(2)
+    assemble.constant(1)
+        .constant(2)
         .foreign_2(unwrap<CxxFn2>(fn).value)
         .finish();
 
-#ifdef DEBUGGING
-    cout << "Foreign fuction stored and retrieved from env" << endl;
-    cout << " in Any: " << wrapped_add2.value << endl;
-    cout << " wrapped: " << (reinterpret_cast<void*>(&WrapFn2<long (*)(long, long), add2>::wrapped)) << endl;
-    cout << " from env: " << unwrap<CxxFn2>(fn).value << endl;
+    run_code(vm, assemble);
 
-    assemble.print();
-#endif
+    ASSERT_EQ(vm.stack[0], 3);
+}
+
+TEST_F(VmTest, SMoveN) {
+    assemble.pointer(nullptr);
+    auto after_defs = assemble.last(); // skip over function definitions
+    assemble.jump();
+
+    auto enter_tail_call = assemble.end();
+    assemble.finish();
+
+    auto enter_setup = assemble.end();
+    assemble.constant(2)
+        .constant(3)
+        .constant(4)
+        .tail_call(3, enter_tail_call);
+
+    *after_defs = reinterpret_cast<uintptr_t>(assemble.end());
+    assemble.constant(1)
+        .constant(0)
+        .constant(0)
+        .constant(0)
+        .call_procedure(enter_setup);
 
     run_code(vm, assemble);
 
-#ifdef DEBUGGING
-    cout << "Yields: " << vm.stack[0] << endl;
-#endif
-
-    ASSERT_EQ(vm.stack[0], 3);
+    for(int i = 0; i < 4; ++i)
+        ASSERT_EQ(vm.stack[i], i + 1);
 }
 
 int main(int argc, char **argv) {
