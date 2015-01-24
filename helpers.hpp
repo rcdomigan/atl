@@ -67,7 +67,8 @@ namespace atl {
 			      const_cast<const Any*>(&*input.end()));
 	}
 
-	size_t size(const Any& input) { return end(input) - begin(input); }
+        template<class T>
+	size_t size(const T& input) { return end(input) - begin(input); }
     }
 
     namespace ast_iterator {

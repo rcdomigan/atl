@@ -94,7 +94,7 @@ namespace atl {
 
         std::vector<value_type> offset;
 
-        AssembleVM(uintptr_t *output) : _begin(output), _end(output) {
+        AssembleVM(uintptr_t *output = nullptr) : _begin(output), _end(output) {
             offset.push_back(0);
         }
 

@@ -40,12 +40,27 @@ namespace atl {
     }
 
     struct Compile {
+        typedef PCode::iterator iterator;
+
         lexical::Map *_env;     // pushing a scope mutates where this points
         GC& gc;
+        PCode::value_type* output;
+        AssembleVM wrapped;
 
-        Any& scoped_value(Symbol& sym) { return _env->value(sym); }
+        Any value_or_undef(Symbol &sym) {
+            auto def = _env->find(sym.name);
+
+            if(def == _env->end()) {
+                auto udef = gc.amake<Undefined>();
+                _env->define(sym.name, udef);
+                return udef;
+            }
+            return def->second;
+        }
 
         Compile(Environment& env) : gc(env.gc) {
+            output = gc.alloc_pcode();
+            wrapped = AssembleVM(output);
             _env = &env.toplevel;
         }
 
@@ -54,9 +69,24 @@ namespace atl {
 
         enum {applicable=0, pad_to=1, fform=2};
 
+        struct SkipBlock {
+            iterator _skip_to;
+            AssembleVM& code;
+            SkipBlock(AssembleVM& code_) : code(code_) {
+                code.pointer(nullptr);
+                _skip_to = code.last(); // skip over the lambda body when running the code
+                code.jump();
+            }
+
+            ~SkipBlock() {
+                *_skip_to = reinterpret_cast<PCode::value_type>(code.end());
+            }
+        };
+
 
         // What needs to be handled specially in the car of an Ast?
-        std::tuple<Any, size_t, Form> form(Ast ast, AssembleVM& code, bool tail) {
+        std::tuple<Any, size_t, Form>
+        form(Ast ast, AssembleVM& code, bool tail) {
             using namespace std;
             typedef PCode::value_type value_type;
 
@@ -64,7 +94,7 @@ namespace atl {
         setup_form:
             switch(head._tag) {
             case tag<Symbol>::value:
-                head = scoped_value(unwrap<Symbol>(head));
+                head = value_or_undef(unwrap<Symbol>(head));
                 goto setup_form;
 
             case tag<Lambda>::value: {
@@ -84,18 +114,17 @@ namespace atl {
                 // inline with the rest of the code.  I could save
                 // some jumps if the lambda bodies where gathered in
                 // one place in the closure.
-                code.pointer(nullptr);
-                auto skip_to = code.last(); // skip over the lambda body when running the code
-                code.jump();
+                iterator entry_point;
+                {
+                    SkipBlock my_def(code);
 
-                auto entry_point = code.end();
-                auto result = _compile(ast[2], code, true);
+                    entry_point = code.end();
+                    auto result = _compile(ast[2], code, true);
 
-                // Might need to allocate for more params to make the tail call happy
-                size = max(size, get<pad_to>(result));
-                code.return_(size);
-
-                *skip_to = reinterpret_cast<PCode::value_type>(code.end());
+                    // Might need to allocate for more params to make the tail call happy
+                    size = max(size, get<pad_to>(result));
+                    code.return_(size);
+                }
 
                 return std::make_tuple(gc.amake<Procedure>(entry_point, size),
                                        0,
@@ -193,15 +222,14 @@ namespace atl {
                 return std::make_tuple(aimm<Null>(), 0, Form::done);
             }
             default:
-                return std::make_tuple(head,
-                                       0,
-                                       Form::function);
+                return std::make_tuple(head, 0, Form::function);
             }
         }
 
 
         // :returns: thing that can be applied and the size of its tail call
-        std::tuple<Any, size_t> _compile(Any input, AssembleVM& code, bool tail) {
+        std::tuple<Any, size_t>
+        _compile(Any input, AssembleVM& code, bool tail) {
             using namespace std;
         compile_value:
             switch(input._tag) {
@@ -258,12 +286,12 @@ namespace atl {
                     else
                         _compile(get<applicable>(form), code, tail);
 
-                    return make_tuple(aimm<Null>(), tail_size);
+                    return make_tuple(get<applicable>(form), tail_size);
                 }}
                 throw "should be unreachable";
             }
             case tag<Symbol>::value:
-                input = scoped_value(unwrap<Symbol>(input));
+                input = value_or_undef(unwrap<Symbol>(input));
                 goto compile_value;
             case tag<Parameter>::value: {
                 auto param = unwrap<Parameter>(input);
@@ -274,23 +302,31 @@ namespace atl {
                 }
                 break;
             }
+            case tag<Undefined>::value: {
+                code.pointer(nullptr);
+                unwrap<Undefined>(input).backtrack.push_back(code.last());
+
+                // Assume a thunk will get patched in later.
+                code.call_procedure();
+                break;
+            }
             case tag<Fixnum>::value:
-                code.constant(unwrap<Fixnum>(input).value);
+                code.constant(value<Fixnum>(input));
                 break;
             case tag<Bool>::value:
-                code.constant(unwrap<Bool>(input).value);
+                code.constant(value<Bool>(input));
+                break;
+            case tag<Pointer>::value:
+                code.pointer(value<Pointer>(input));
                 break;
             case tag<CxxFn2>::value: {
-                // todo: should this do the tail-call thing?
-                code.foreign_2(unwrap<CxxFn2>(input).value);
+                code.foreign_2(value<CxxFn2>(input));
                 break;
             }
-            case tag<Define>::value: {
-                *stack = ast[2];
-                argument_value(stack);
+            case tag<Procedure>::value: {
+                code.call_procedure(unwrap<Procedure>(input).body);
                 break;
             }
-
 
                 // case tag<DefineMacro>::value:
                 // 	*stack = ast[2];-
@@ -324,12 +360,8 @@ namespace atl {
         }
 
         PCode any(Any ast) {
-            auto output = gc.alloc_pcode();
-            auto wrapped = AssembleVM(output);
-
             _compile(ast, wrapped, false);
             wrapped.finish();
-            wrapped.print();
 
             return PCode(&output[0]);
         }

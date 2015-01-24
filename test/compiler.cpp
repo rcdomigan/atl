@@ -23,11 +23,12 @@ long add2(long a, long b) { return a + b; }
 long sub2(long a, long b) { return a - b; }
 bool equal2(long a, long b) { return a == b; }
 
-void run_code(TinyVM& vm, TinyVM::iterator input) {
+void run_code(TinyVM& vm, AssembleVM input) {
 #ifdef DEBUGGING
-    vm.run_debug(input, 100);
+    input.print();
+    vm.run_debug(input.begin(), 100);
 #else
-    vm.run(input);
+    vm.run(input.begin());
 #endif
 }
 
@@ -55,17 +56,15 @@ TEST_F(CompilerTest, BasicApplication) {
     auto pcode = compile.any(ast);
 
     run_code(vm, pcode.value);
-    cout << "Result: " << vm.stack[0] << endl;
 
     ASSERT_EQ(vm.stack[0], 5);
 }
 
 TEST_F(CompilerTest, NestedApplication) {
     auto ast = parse.string_("(add2 (sub2 7 5) (add2 8 3))");
-    auto pcode = compile.any(ast);
+    compile.any(ast);
 
-    run_code(vm, pcode.value);
-    cout << "Result: " << vm.stack[0] << endl;
+    run_code(vm, compile.wrapped);
 
     ASSERT_EQ(vm.stack[0], 13);
 }
@@ -75,41 +74,35 @@ TEST_F(CompilerTest, BasicLambda) {
 
     compile.any(ast);
 
-
-    run_code(vm, pcode.value);
-    cout << "Result: " << vm.stack[0] << endl;
-
+    run_code(vm, compile.wrapped);
 
     ASSERT_EQ(vm.stack[0], 11);
 }
 
-TEST_F(CompilerTest, TestIfTrue) {
+TEST_F(CompilerTest, IfTrue) {
     auto ast = parse.string_("(if #t 3 4)");
-    auto pcode = compile.any(ast);
+    compile.any(ast);
 
-    run_code(vm, pcode.value);
+    run_code(vm, compile.wrapped);
     ASSERT_EQ(vm.stack[0], 3);
 }
 
-TEST_F(CompilerTest, TestIfFalse) {
+TEST_F(CompilerTest, IfFalse) {
     auto ast = parse.string_("(if #f 3 4)");
     compile.any(ast);
 
-    run_code(vm, pcode.value);
+    run_code(vm, compile.wrapped);
     ASSERT_EQ(vm.stack[0], 4);
 }
 
-
-TEST_F(CompilerTest, TestLambdaWithIf) {
+TEST_F(CompilerTest, LambdaWithIf) {
     auto ast = parse.string_("((\\ (a b) (if (equal2 a b) (add2 a b) (sub2 a b))) 7 3)");
     compile.any(ast);
 
-    run_code(vm, pcode.value);
-    cout << "Result: " << vm.stack[0] << endl;
+    run_code(vm, compile.wrapped);
 
     ASSERT_EQ(vm.stack[0], 4);
 }
-
 
 TEST_F(CompilerTest, BasicDefine) {
     // Test that defining a constant works
@@ -124,7 +117,6 @@ TEST_F(CompilerTest, BasicDefine) {
     ASSERT_EQ(vm.stack[0], 6);
 }
 
-
 TEST_F(CompilerTest, Backpatch) {
     // Test that defining a constant works
     auto ast = parse.string_("(add2 foo foo)");
@@ -138,6 +130,7 @@ TEST_F(CompilerTest, Backpatch) {
     ASSERT_EQ(vm.stack[0], 6);
 }
 
+
 TEST_F(CompilerTest, DefineLambda) {
     // Check that the appropriate number of filler values have been
     // pushed to the stack.  This is a brittle test, but so it goes
@@ -149,6 +142,7 @@ TEST_F(CompilerTest, DefineLambda) {
               3);
 }
 
+
 TEST_F(CompilerTest, SimpleRecursion) {
     compile.any(parse.string_("(define-value simple-recur (\\ (a b) (if (equal2 0 a) b (simple-recur (sub2 a 1) (add2 b 1)))))"));
     compile.any(parse.string_("(simple-recur 3 2)"));
@@ -157,6 +151,7 @@ TEST_F(CompilerTest, SimpleRecursion) {
 
     ASSERT_EQ(vm.stack[0], 5);
 }
+
 
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);

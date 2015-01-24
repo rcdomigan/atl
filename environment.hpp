@@ -22,9 +22,7 @@ namespace atl {
 	    Map() = delete;
 
 
-	    void define(const std::string& name, Any value) {
-		_local.insert(Impl::value_type(name, value));
-	    }
+	    void define(const std::string& name, Any value) { _local[name] = value; }
 
 	    Impl::iterator find(const string& k) {
 		Impl::iterator res = _local.find(k);
@@ -51,7 +49,14 @@ namespace atl {
 	    Any& value(Symbol& sym) {
                 return value(sym.name);
             }
+
+            void print();
 	};
+
+        void Map::print() {
+            for(auto& pair : _local)
+                std::cout << pair.first << " = " << printer::any(pair.second) << endl;
+        }
 
         struct MapRAII {
             Map map;

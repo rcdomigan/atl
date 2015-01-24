@@ -80,6 +80,7 @@ namespace atl {
     BOOST_PP_SEQ_FOR_EACH_I(M, _, ATL_REINTERPERABLE_SEQ)
 #undef M
 
+
     typedef mpl::vector26< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
 
     template<class T>
@@ -139,7 +140,6 @@ namespace atl {
 	Fixnum() noexcept : _tag( tag<Fixnum>::value ) , value(0) {}
 	Fixnum(long value) : _tag( tag<Fixnum>::value ), value(value) {}
     };
-    template<> struct is_reinterperable<Fixnum> : public std::true_type {};
 
     /*************************/
     /*  ____              _  */
@@ -159,12 +159,11 @@ namespace atl {
 
     struct Pointer {
 	tag_t _tag;
-	Any *value;
+	void *value;
 
 	Pointer() : _tag(tag<Pointer>::value), value(NULL) {}
-	Pointer(Any *value) : _tag(tag<Pointer>::value), value(value) {}
+	Pointer(void *value) : _tag(tag<Pointer>::value), value(value) {}
     };
-    template<> struct is_reinterperable<Pointer> : public std::true_type {};
 
     /*********************/
     /**  _ __     _     **/
@@ -197,7 +196,6 @@ namespace atl {
     template<> struct
     tag<std::string*> : public tag<String> {};
 
-
     // Wrap a C style array
     struct CxxArray {
 	typedef const Any* iterator;
@@ -226,6 +224,19 @@ namespace atl {
 	PCode(uintptr_t *vv) : tag(atl::tag<PCode>::value), value(vv) {}
     };
 
+
+
+    struct Undefined {
+	typedef std::vector<PCode::iterator> Backtrack;
+
+	// Information for the compiler ()
+	enum class LexicalBinding {unbound, parameter, indirect_parameter};
+	LexicalBinding binding_type;
+
+	size_t argument_position;
+
+	Backtrack backtrack;
+    };
 
 
     struct TailCall {
