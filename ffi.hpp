@@ -33,6 +33,17 @@ namespace atl {
     BuildIndicies<0, Is...> : Indexer<Is...> {};
 
     namespace cxx_functions {
+        namespace convert_value {
+            template<class T>
+            struct PassThrough { static T a(T input) { return input; } };
+
+            template<class T>
+            struct Convert
+                : std::conditional<is_atl_type<T>::value,
+                                   unwrapping::Any<T>,
+                                   get_value::GetValue<T,Any>
+                                   >::type {};
+        }
 
 	namespace unpack_fn {
 	    template<class Dest, class R, class ... Sig> struct Signature;
@@ -103,7 +114,7 @@ namespace atl {
 				   , const Any *begin
 				   , Indexer<Index...>) {
 		return
-		    wrap(fn(unwrap<Sig>(begin[Index])...));
+		    wrap(fn(convert_value::Convert<Sig>::a(begin[Index])...));
 	    }
 	public:
 

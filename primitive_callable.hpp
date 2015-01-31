@@ -237,7 +237,7 @@ namespace atl {
 
 	auto apply_sequence = [](const Any *args, const Any *_) -> Any {
 	    return *(ast_iterator::const_begin(args[0])
-		     + unwrap<long>(args[1]));
+		     + value<Fixnum>(args[1]));
 	};
 	(Applicable(env)).set<Ast>(apply_sequence);
 	(Applicable(env)).set<Data>(apply_sequence);

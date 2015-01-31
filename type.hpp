@@ -55,21 +55,12 @@ namespace atl {
     struct is_atl_type : public std::false_type {};
 
     template<class T>
-    struct is_immediate : public std::is_integral<T>::type {};
-
-    /**
-     * Trait class for types which can be derived from an Any with a
-     * reinterpret_cast
-     * @tparam T: type under consideration
-     */
-    template<class T>
     struct is_reinterperable : public std::false_type {};
 
 
-#define ATL_IMMEDIATE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(Type)(TailCall)
-#define ATL_REINTERPERABLE_SEQ (Ast)(Data)(CxxFn2)
+#define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(Type)(TailCall)(Ast)(Data)(CxxFn2)
 #define ATL_PIMPL_SEQ (CxxArray)(Slice)(String)(Symbol)(Procedure)(Macro)(Undefined)(PCode)(Parameter)
-#define ATL_TYPES_SEQ ATL_IMMEDIATE_SEQ ATL_REINTERPERABLE_SEQ ATL_PIMPL_SEQ(PrimitiveRecursive)(Mark)
+#define ATL_TYPES_SEQ ATL_REINTERPERABLE_SEQ ATL_PIMPL_SEQ(PrimitiveRecursive)(Mark)
 
 #define M(r, _, i, elem)						\
     struct elem;							\
@@ -85,8 +76,8 @@ namespace atl {
     BOOST_PP_SEQ_FOR_EACH_I(M, _, ATL_TYPES_SEQ)
 #undef M
 
-#define M(r, _, i, elem) template<> struct is_immediate<elem> : public std::true_type {};
-    BOOST_PP_SEQ_FOR_EACH_I(M, _, ATL_IMMEDIATE_SEQ)
+#define M(r, _, i, elem) template<> struct is_reinterperable<elem> : public std::true_type {};
+    BOOST_PP_SEQ_FOR_EACH_I(M, _, ATL_REINTERPERABLE_SEQ)
 #undef M
 
     typedef mpl::vector26< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
@@ -110,7 +101,6 @@ namespace atl {
 	constexpr Any(tag_t t, void *v) : _tag(t) , value(v) {}
 	constexpr Any(tag_t t) : _tag(t) , value(nullptr) {}
     };
-    template<> struct is_reinterperable<Any> : public std::true_type {};
 
     bool operator==(const Any& aa, const Any& bb) {
 	return (aa._tag == bb._tag) && (aa.value == bb.value);
@@ -131,7 +121,7 @@ namespace atl {
 
 	Null() : _tag(0), value(nullptr) {}
     };
-    template<> struct is_reinterperable<Null> : public std::true_type {};
+
 
     /************************************/
     /** ___   immediate                **/
@@ -162,6 +152,7 @@ namespace atl {
 	tag_t _tag;
 	long value;
 	Bool() : _tag(tag<Bool>::value), value(false) {}
+        Bool(bool vv) : _tag(tag<Bool>::value), value(vv) {}
     };
     Any atl_true() { return Any(tag<Bool>::value, (void*)true); }
     Any atl_false() { return Any(tag<Bool>::value, (void*)false); }
@@ -234,7 +225,7 @@ namespace atl {
 	PCode() : tag(atl::tag<PCode>::value), value(nullptr) {}
 	PCode(uintptr_t *vv) : tag(atl::tag<PCode>::value), value(vv) {}
     };
-    template<> struct is_reinterperable<PCode> : public std::true_type {};
+
 
 
     struct TailCall {
@@ -245,7 +236,7 @@ namespace atl {
         TailCall(PCode::iterator value_)
             : _tag(tag<TailCall>::value), value(value_) {}
     };
-    template<> struct is_reinterperable<TailCall> : public std::true_type {};
+
 
 
     /* Macro and Procedure have the same data layout, but distinct tags */
@@ -399,7 +390,7 @@ namespace atl {
 
 	bool empty() const { return value == value->value; }
     };
-    template<> struct is_reinterperable<Ast> : public std::true_type {};
+
 
     struct Data {
 	typedef typename Ast::iterator iterator;
@@ -434,7 +425,7 @@ namespace atl {
 	Any* end_at(const iterator& pos)
 	{ return reinterpret_cast<Any*>(value->value = pos.value); }
     };
-    template<> struct is_reinterperable<Data> : public std::true_type {};
+
 
 
     Ast* make_empty_ast(Any *here) {
@@ -479,7 +470,7 @@ namespace atl {
 	constexpr CxxFn2(value_type value) : _tag(tag<CxxFn2>::value), value(value) {}
         constexpr CxxFn2() : _tag(tag<CxxFn2>::value), value(nullptr) {}
     };
-    template<> struct is_reinterperable<CxxFn2> : public std::true_type {};
+
 
 
     /**
@@ -505,7 +496,7 @@ namespace atl {
 
     template<class T>
     class size
-	: public std::conditional< atl::is_immediate<T>::value,
+	: public std::conditional< atl::is_reinterperable<T>::value,
 				   mpl::sizeof_<Any>,
 				   mpl::sizeof_<T>
 				   >::type {};

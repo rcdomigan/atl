@@ -111,9 +111,9 @@ namespace atl {
                 return out << "'" << unwrap<string>(a);
 
 	    case tag<Fixnum>::value:
-		return out << unwrap<long>(a);
+		return out << value<Fixnum>(a);
 	    case tag<Bool>::value:
-		if(unwrap<bool>(a))
+		if(value<bool>(a))
 		    return out << "True";
 		else
 		    return out << "False";

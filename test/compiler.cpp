@@ -73,7 +73,7 @@ TEST_F(CompilerTest, NestedApplication) {
 TEST_F(CompilerTest, BasicLambda) {
     auto ast = parse.string_("((\\ (a b) (add2 a b)) 4 7)");
 
-    auto pcode = compile.any(ast);
+    compile.any(ast);
 
 
     run_code(vm, pcode.value);
@@ -93,7 +93,7 @@ TEST_F(CompilerTest, TestIfTrue) {
 
 TEST_F(CompilerTest, TestIfFalse) {
     auto ast = parse.string_("(if #f 3 4)");
-    auto pcode = compile.any(ast);
+    compile.any(ast);
 
     run_code(vm, pcode.value);
     ASSERT_EQ(vm.stack[0], 4);
@@ -102,7 +102,7 @@ TEST_F(CompilerTest, TestIfFalse) {
 
 TEST_F(CompilerTest, TestLambdaWithIf) {
     auto ast = parse.string_("((\\ (a b) (if (equal2 a b) (add2 a b) (sub2 a b))) 7 3)");
-    auto pcode = compile.any(ast);
+    compile.any(ast);
 
     run_code(vm, pcode.value);
     cout << "Result: " << vm.stack[0] << endl;
