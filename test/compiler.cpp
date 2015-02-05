@@ -52,10 +52,9 @@ struct CompilerTest : public ::testing::Test {
 
 
 TEST_F(CompilerTest, BasicApplication) {
-    auto ast = parse.string_("(add2 2 3)");
-    auto pcode = compile.any(ast);
+    compile.any(parse.string_("(add2 2 3)"));
 
-    run_code(vm, pcode.value);
+    run_code(vm, compile.finish());
 
     ASSERT_EQ(vm.stack[0], 5);
 }
@@ -64,7 +63,7 @@ TEST_F(CompilerTest, NestedApplication) {
     auto ast = parse.string_("(add2 (sub2 7 5) (add2 8 3))");
     compile.any(ast);
 
-    run_code(vm, compile.wrapped);
+    run_code(vm, compile.finish());
 
     ASSERT_EQ(vm.stack[0], 13);
 }
@@ -74,7 +73,7 @@ TEST_F(CompilerTest, BasicLambda) {
 
     compile.any(ast);
 
-    run_code(vm, compile.wrapped);
+    run_code(vm, compile.finish());
 
     ASSERT_EQ(vm.stack[0], 11);
 }
@@ -83,7 +82,7 @@ TEST_F(CompilerTest, IfTrue) {
     auto ast = parse.string_("(if #t 3 4)");
     compile.any(ast);
 
-    run_code(vm, compile.wrapped);
+    run_code(vm, compile.finish());
     ASSERT_EQ(vm.stack[0], 3);
 }
 
@@ -91,7 +90,7 @@ TEST_F(CompilerTest, IfFalse) {
     auto ast = parse.string_("(if #f 3 4)");
     compile.any(ast);
 
-    run_code(vm, compile.wrapped);
+    run_code(vm, compile.finish());
     ASSERT_EQ(vm.stack[0], 4);
 }
 
@@ -99,7 +98,7 @@ TEST_F(CompilerTest, LambdaWithIf) {
     auto ast = parse.string_("((\\ (a b) (if (equal2 a b) (add2 a b) (sub2 a b))) 7 3)");
     compile.any(ast);
 
-    run_code(vm, compile.wrapped);
+    run_code(vm, compile.finish());
 
     ASSERT_EQ(vm.stack[0], 4);
 }

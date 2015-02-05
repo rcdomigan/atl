@@ -98,6 +98,22 @@ namespace atl {
             offset.push_back(0);
         }
 
+        AssembleVM(AssembleVM&& other) 
+            : _begin(other._begin), _end(other._end), offset(other.offset) {}
+
+        AssembleVM& operator=(AssembleVM&& other) {
+            offset.clear();
+
+            _begin = other._begin;
+            _end = other._end;
+            offset.swap(other.offset);
+
+            other._begin = other._end = nullptr;
+            other.offset.clear();
+
+            return *this;
+        }
+
 #define M(r, data, instruction) AssembleVM& instruction() {             \
             *_end = vm_codes::Tag<vm_codes::instruction>::value;        \
             ++_end;                                                     \

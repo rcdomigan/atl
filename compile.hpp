@@ -45,7 +45,14 @@ namespace atl {
         lexical::Map *_env;     // pushing a scope mutates where this points
         GC& gc;
         PCode::value_type* output;
-        AssembleVM wrapped;
+        AssembleVM _wrapped;
+
+        Compile(Environment& env) : gc(env.gc) {
+            output = gc.alloc_pcode();
+            _wrapped = AssembleVM(output);
+            _env = &env.toplevel;
+        }
+
 
         Any value_or_undef(Symbol &sym) {
             auto def = _env->find(sym.name);
@@ -56,12 +63,6 @@ namespace atl {
                 return udef;
             }
             return def->second;
-        }
-
-        Compile(Environment& env) : gc(env.gc) {
-            output = gc.alloc_pcode();
-            wrapped = AssembleVM(output);
-            _env = &env.toplevel;
         }
 
         enum class Form {done, // The form has been evaluated, _compile can return
@@ -359,11 +360,15 @@ namespace atl {
             return make_tuple(aimm<Null>(), (size_t)0);
         }
 
-        PCode any(Any ast) {
-            _compile(ast, wrapped, false);
-            wrapped.finish();
+        void any(Any ast) {
+            _compile(ast, _wrapped, false);
+        }
 
-            return PCode(&output[0]);
+        AssembleVM&& finish() {
+            AssembleVM other;
+            _wrapped.finish();
+            other = std::move(_wrapped);
+            return std::move(other);
         }
     };
 }
