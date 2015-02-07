@@ -142,6 +142,10 @@ namespace atl {
 		return out << "#<" << type_name(a._tag) << ">";
 	    }}
     }
+
+    void dbg_print_any(Any vv) {
+        cout << printer::any(vv) << endl;
+    }
 }
 
 
