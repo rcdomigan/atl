@@ -9,7 +9,7 @@ table-bc: tiny_vm.hpp
 	$(CXX) -DTINY_VM_PRINT_BYTE_CODES tiny_vm.cpp -o table-bc
 	rm tiny_vm.cpp
 
-main: Makefile main.cpp gc.cpp *.hpp
+main: Makefile main.cpp *.hpp
 	$(CXX) main.cpp -o main
 
 test: test.cpp *.hpp
