@@ -24,8 +24,7 @@
 
 // Stack layout the opcodes expect, bottom --> top:
 //   if_                : [pc-of-alternate-branch][predicate-value]
-//   foreign_2          : [arg1][arg2]
-//   foreign_1          : [arg1]
+//   fn_pntr            : [arg1]...[argN][N][function-pointer]
 //   push               : *
 //   pop                : [out-going]
 //   jump               : [destination address]
@@ -34,8 +33,10 @@
 //   argument           : [offset]
 //   nested_argument    : [offset][hops]
 //   tail_call          : [arg0]..[argN][N][dst]
+//   finish             : -
 
-#define ATL_NORMAL_BYTE_CODES (nop)(pop)(if_)(foreign_1)(foreign_2)(variadic_foreign)(jump)(return_)(call_procedure)(argument)(nested_argument)(tail_call)
+
+#define ATL_NORMAL_BYTE_CODES (nop)(pop)(if_)(fn_pntr)(jump)(return_)(call_procedure)(argument)(nested_argument)(tail_call)
 #define ATL_BYTE_CODES (finish)(push)ATL_NORMAL_BYTE_CODES
 
 #define ATL_VM_SPECIAL_BYTE_CODES (finish)      // Have to be interpreted specially by the run/switch statement
@@ -46,9 +47,6 @@
 
 
 namespace atl {
-    typedef void (*Fn1)(uintptr_t*);
-    typedef void (*Fn2)(uintptr_t*, uintptr_t*);
-    typedef void (*FnN)(uintptr_t* begin, uintptr_t* end);
 
     namespace vm_codes {
         template<class T> struct Name;
@@ -90,26 +88,31 @@ namespace atl {
     struct AssembleVM {
         typedef uintptr_t value_type;
         typedef value_type* iterator;
-        uintptr_t *_begin, *_end;
+
+        iterator _begin, _end;
+        iterator main_entry_point;
 
         std::vector<value_type> offset;
 
-        AssembleVM(uintptr_t *output = nullptr) : _begin(output), _end(output) {
+        AssembleVM(uintptr_t *output = nullptr) : _begin(output), _end(output), main_entry_point(output) {
             offset.push_back(0);
         }
 
-        AssembleVM(AssembleVM&& other) 
-            : _begin(other._begin), _end(other._end), offset(other.offset) {}
+        AssembleVM(AssembleVM&& other)
+            : _begin(std::move(other._begin)),
+              _end(std::move(other._end)),
+              main_entry_point(std::move(other.main_entry_point)),
+              offset(std::move(other.offset)) {}
 
         AssembleVM& operator=(AssembleVM&& other) {
+            using namespace std;
+
             offset.clear();
+            offset = move(other.offset);
 
-            _begin = other._begin;
-            _end = other._end;
-            offset.swap(other.offset);
-
-            other._begin = other._end = nullptr;
-            other.offset.clear();
+            _begin = move(other._begin);
+            _end = move(other._end);
+            main_entry_point = move(other.main_entry_point);
 
             return *this;
         }
@@ -139,16 +142,11 @@ namespace atl {
 
         AssembleVM& pointer(void* cc) { return constant(reinterpret_cast<uintptr_t>(cc)); }
 
-        std::map<std::string, std::vector<uintptr_t*> > _patches;
+        iterator begin() { return _begin; }
+        iterator end() { return _end; }
+        iterator last() { return _end - 1; }
+        value_type back() { return *last(); }
 
-        uintptr_t* begin() { return _begin; }
-        uintptr_t* end() { return _end; }
-        uintptr_t* last() { return _end - 1; }
-
-        AssembleVM& foreign_2(Fn2 fn) {
-            constant(reinterpret_cast<uintptr_t>(fn));
-            return foreign_2();
-        }
 
         AssembleVM& call_procedure(uintptr_t* body) {
             constant(reinterpret_cast<uintptr_t>(body));
@@ -175,6 +173,12 @@ namespace atl {
             constant(num_args);
             pointer(proc);
             return tail_call();
+        }
+
+        AssembleVM& fn_pntr(CxxFn::value_type fn, size_t arity) {
+            constant(arity);
+            pointer(reinterpret_cast<void*>(fn));
+            return fn_pntr();
         }
 
         uintptr_t& operator[](size_t offset) { return _begin[offset]; }
@@ -222,28 +226,16 @@ namespace atl {
         void push() { *(top++) = pc[1]; pc += 2; }
         void pop() { top--; ++pc; }
 
-        void foreign_1() {
-            top -= 1;
-            (*reinterpret_cast<Fn1>(*top))(top - 1);
-            ++pc;
-        }
-
-        void foreign_2() {
-            top -= 2;
-            (*reinterpret_cast<Fn2>(top[1]))(top - 1, top);
-            ++pc;
-        }
-
-        void variadic_foreign() {
-            auto fn = reinterpret_cast<FnN>(*pc);
+        void fn_pntr() {
+            auto fn = reinterpret_cast<CxxFn::value_type>(*(top - 1));
             top -= 2;
             auto n = *top;
 
             auto end = top;
             top -= n;
 
-            (*fn)(top - 1, end);
-
+            (*fn)(top, end);
+            ++top;
             ++pc;
         }
 
@@ -309,8 +301,8 @@ namespace atl {
             default: return false;
             }}
 
-        void run_debug(uintptr_t *in, unsigned int max_steps = 1000) {
-            pc = in;
+        void run_debug(PCode::iterator enter, unsigned int max_steps = 1000) {
+            pc = enter;
 
             for(unsigned int i = 0; i < max_steps; ++i) {
                 std::cout << "====================\n"
@@ -344,7 +336,6 @@ namespace atl {
             for(auto vv : pointer_range(*this))
                 cout << " " << hex << vv << ": @" << *vv << endl;
         }
-
     };
 }
 

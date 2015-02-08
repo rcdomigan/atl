@@ -36,14 +36,59 @@ namespace atl {
 	    }
 	};
 
-	template<class T>
-	void wrap_fn(Environment& env, const std::string& name, std::function<T>&& fn) {
+	template<class T, T fn>
+	void wrap_fn(Environment& env, const std::string& name) {
             env.define(name,
-                       Any(tag<PrimitiveRecursive>::value,
-                           WrapFn<T>::a(std::forward<const std::function<T> >(fn),
-                                        &env.gc, name))
-                       );
+                       WrapFn<T, fn>::any());
+
         }
+
+        long bin_add(long a, long b) { return a + b; }
+        long bin_sub(long a, long b) { return a - b; }
+        bool arith_eq(long a, long b) { return a == b; }
+
+        bool arith_lt(long a, long b) { return a < b; }
+        bool arith_gt(long a, long b) { return a > b; }
+        bool arith_lt_eq(long a, long b) { return a <= b; }
+        bool arith_gt_eq(long a, long b) { return a >= b; }
+
+        long print(Any a) {
+            cout << printer::any(a);
+            return 0;
+        }
+
+        struct listP {
+            static constexpr char const* name = "list?";
+
+            static bool a(Any vv) {
+		return (vv._tag == tag<Data>::value)
+		    || (vv._tag == tag<Ast>::value)
+		    || (vv._tag == tag<CxxArray>::value);
+	    }
+
+            typedef WrapFn<bool(*)(Any), &a> def;
+        };
+
+        struct emptyP {
+            static constexpr char const* name = "empty?";
+
+            static bool a(Any vv) {
+		switch(vv._tag) {
+		case tag<Data>::value:
+		    return unwrap<Data>(vv).empty();
+		case tag<Ast>::value:
+		    return unwrap<Ast>(vv).empty();
+		case tag<CxxArray>::value:
+		    return unwrap<CxxArray>(vv).empty();
+		}
+		return true;
+	    }
+
+            typedef WrapFn<bool(*)(Any), &a> def;
+        };
+
+        template<class Definition>
+        void def(Environment& env) { env.define(Definition::name,  Definition::def::any()); }
     }
 
     void setup_typeclasses(Environment& env) {
@@ -89,37 +134,18 @@ namespace atl {
 	/**  / ___ \| |  | | |_| | | | | | | | | (_| | |_| | (__  **/
 	/** /_/   \_\_|  |_|\__|_| |_|_| |_| |_|\__,_|\__|_|\___| **/
 	/***********************************************************/
-	wrap_fn<long (long, long)>(env, "bin-add",
-                                   [=](long a, long b) {
-                                       cout << "args:" << a << " and " << b << endl;
-                                       return a + b;
-                                   });
-	wrap_fn<long (long, long)>(env, "bin-sub",
-                                   [](long a, long b) {
-                                       cout << "result: " << a - b << endl;
-                                       return a - b;
-                                   });
+	wrap_fn<long (*)(long, long), &bin_add>(env, "bin-add");
 
-	wrap_fn<bool (long, long)>(env, "=",
-                                   [](long a, long b) {
-                                       return a == b ? true : false;
-                                   });
-#define ATL_NUM_COMPAIR(op)			\
-	wrap_fn<bool (long, long)>		\
-	    (env, # op,				\
-              [](long a, long b) {		\
-		return a op b ? true : false;	\
-	    });
+	wrap_fn<long (*)(long, long), &bin_sub>(env, "bin-sub");
 
-	ATL_NUM_COMPAIR(=)
-            ATL_NUM_COMPAIR(<)
-            ATL_NUM_COMPAIR(>)
-            ATL_NUM_COMPAIR(<=)
-            ATL_NUM_COMPAIR(>=)
 
-#undef ATL_NUM_COMPAIR
+	wrap_fn<bool (*)(long, long), &arith_eq>(env, "=");
+        wrap_fn<bool (*)(long, long), &arith_lt>(env, "<");
+        wrap_fn<bool (*)(long, long), &arith_gt>(env, ">");
+        wrap_fn<bool (*)(long, long), &arith_lt_eq>(env, "<=");
+        wrap_fn<bool (*)(long, long), &arith_gt_eq>(env, ">=");
 
-            wrap_fn<Any (Any)>(env, "print", [](Any a) { cout << printer::any(a); return a;} );
+        wrap_fn<long (*)(Any), print>(env, "print");
 
 	/////////////////////////////////////////////////////////////////////
 	//  ___       _                                 _   _              //
@@ -159,81 +185,69 @@ namespace atl {
 
 	// TODO: this doesn't make sense in a strongly typed language.
 	// To bad this language isn't strongly typed yet.
-        wrap_fn<bool(Any)>(env, "list?", [](Any vv) {
-		return (vv._tag == tag<Data>::value)
-		    || (vv._tag == tag<Ast>::value)
-		    || (vv._tag == tag<CxxArray>::value);
-	    });
-        wrap_fn<bool(Any)>(env, "empty?", [](Any vv) {
-		switch(vv._tag) {
-		case tag<Data>::value:
-		    return unwrap<Data>(vv).empty();
-		case tag<Ast>::value:
-		    return unwrap<Ast>(vv).empty();
-		case tag<CxxArray>::value:
-		    return unwrap<CxxArray>(vv).empty();
-		}
-		return true;
-	    });
+        def<listP>(env);
+        def<emptyP>(env);
 
-	wrap_fn<Any (Data, Data)>(env, "append", [&gc](Data aa, Data bb) {
-		auto output = gc.dynamic_vector();
-		auto data = output->push_seq<Data>();
 
-		std::copy(aa.begin(), aa.end(),
-			  output->back_insert_iterator());
-		std::copy(bb.begin(), bb.end(),
-			  output->back_insert_iterator());
+	// wrap_fn<Any (Data, Data)>(env, "append", [&gc](Data aa, Data bb) {
+	// 	auto output = gc.dynamic_vector();
+	// 	auto data = output->push_seq<Data>();
 
-		data->end_at(output->end());
-		return wrap(data);
-	    });
+	// 	std::copy(aa.begin(), aa.end(),
+	// 		  output->back_insert_iterator());
+	// 	std::copy(bb.begin(), bb.end(),
+	// 		  output->back_insert_iterator());
 
-	wrap_fn<Any (Data, long)>(env, "take",
-	     [&gc](Data input, long num) {
-		auto output = gc.dynamic_vector();
-		auto data = output->push_seq<Data>();
-		std::copy(input.begin(), input.begin() + num,
-			  output->back_insert_iterator());
-		data->end_at(output->end());
-		return wrap(data);
-	    });
+	// 	data->end_at(output->end());
+	// 	return wrap(data);
+	//     })
+            ;
+
+	// wrap_fn<Any (Data, long)>(env, "take",
+	//      [&gc](Data input, long num) {
+	// 	auto output = gc.dynamic_vector();
+	// 	auto data = output->push_seq<Data>();
+	// 	std::copy(input.begin(), input.begin() + num,
+	// 		  output->back_insert_iterator());
+	// 	data->end_at(output->end());
+	// 	return wrap(data);
+	//     });
 
 	/////////// SLICE //////////
 	// Both Ast and Data have the same memory layout, so the same
 	// `slice` will work on them
-	auto slice_vec_or_ast = Sequence::Slice();
-	wrap_fn<Any (Any, long)>
-	    (env, "slice", [&gc](Any seq, long nn) {
-		using namespace ast_iterator;
-		return wrap(gc.make<Slice>(const_begin(seq) + nn,
-                                           const_end(seq)));
-	    });
+	// auto slice_vec_or_ast = Sequence::Slice();
+	// wrap_fn<Any (Any, long)>
+	//     (env, "slice", [&gc](Any seq, long nn) {
+	// 	using namespace ast_iterator;
+	// 	return wrap(gc.make<Slice>(const_begin(seq) + nn,
+        //                                    const_end(seq)));
+	//     });
 
 	/////////// TO AST //////////
-	wrap_fn<Ast (Any)>
-	    (env, "list->ast",
-	     [&](Any seq) -> Ast {
-		return deep_copy::to<Ast>(flat_iterator::range(seq), gc);
-	    });
+	// wrap_fn<Ast (Any)>
+	//     (env, "list->ast",
+	//      [&](Any seq) -> Ast {
+	// 	return deep_copy::to<Ast>(flat_iterator::range(seq), gc);
+	//     });
 
 	////////// cons ////////
 	// TODO: make this a monad thing and pass the constructred
 	// list into a tail call.
-	wrap_fn<Data (Any, Any)>
-	    (env, "cons",
-	     [&gc](Any vv, Any seq) -> Data {
-		using namespace ast_iterator;
-		auto output = gc.dynamic_vector();
-		auto vec = output->push_seq<Data>();
+	// wrap_fn<Data (Any, Any)>
+	//     (env, "cons",
+	//      [&gc](Any vv, Any seq) -> Data {
+	// 	using namespace ast_iterator;
+	// 	auto output = gc.dynamic_vector();
+	// 	auto vec = output->push_seq<Data>();
 
-		output->push_back(vv);
-		std::copy(const_begin(seq), const_end(seq),
-			  std::back_insert_iterator<GC::DynamicVector>(*output));
+	// 	output->push_back(vv);
+	// 	std::copy(const_begin(seq), const_end(seq),
+	// 		  std::back_insert_iterator<GC::DynamicVector>(*output));
 
-		vec->end_at(output->end());
-		return *vec;
-	    });
+	// 	vec->end_at(output->end());
+	// 	return *vec;
+	//     });
 
 	auto apply_sequence = [](const Any *args, const Any *_) -> Any {
 	    return *(ast_iterator::const_begin(args[0])

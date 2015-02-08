@@ -70,78 +70,82 @@ namespace atl {
 		}};
 	};
 
+
         template<class Fn, Fn fn>
-	struct _WrapFn2 {
-	    template<class R, class A, class B>
+	struct _WrapFn {
+
+	    template<class R, class ... Arguments>
 	    struct apply {
-		typedef R (*value_type)(A, B);
 
-		static void wrapped(PCode::value_type* a, PCode::value_type* b) {
-		    using namespace byte_code;
-		    *a = to_bytes(fn(from_bytes(*a),
-				     from_bytes(*b)));
-		}
+                template <std::size_t... Index>
+                static void call_packed(PCode::iterator begin,
+                                       Indexer<Index...>) {
+                    using namespace byte_code;
+                    *begin = to_bytes(fn(begin[Index]...));
+                }
 
-                constexpr static CxxFn2 _tagged = CxxFn2(&wrapped);
+                static void shimmed(PCode::iterator begin, PCode::iterator end) {
+                    call_packed(begin, BuildIndicies<sizeof...(Arguments)>{} );
+                }
+
+                constexpr static CxxFn impl = CxxFn(&shimmed, sizeof...(Arguments));
 
                 static Any any() {
-                    return Any(tag<CxxFn2>::value,
-                               reinterpret_cast<void*>(&wrapped)); }
-	    };
+                    return Any(tag<CxxFn>::value,
+                               const_cast<void*>(reinterpret_cast<void const*>(&impl))); }
+            };
+
 	};
 
         template<class Fn, Fn fn>
-        template<class R, class A, class B>
-        constexpr CxxFn2 _WrapFn2<Fn, fn>::apply<R,A,B>::_tagged;
+        template<class R, class ... Arguments>
+        constexpr CxxFn _WrapFn<Fn, fn>::apply<R,Arguments...>::impl;
 
 	template<class Fn, Fn fn>
-	struct WrapFn2 :
+	struct WrapFn :
 	    public unpack_fn::Pointer<Metadata, Fn>,
-	    public unpack_fn::Pointer<_WrapFn2<Fn, fn>, Fn>
+	    public unpack_fn::Pointer<_WrapFn<Fn, fn>, Fn>
         {};
 
-	template<class Sig> struct WrapFn {};
+	// template<class Sig> struct WrapFn {};
 
-	template<class R, class ... Sig>
-	class WrapFn<R (Sig ...)> :
-	    public Metadata::template apply<R, Sig...> {
-	public:
-	    static const size_t arity = sizeof...(Sig);
+	// template<class R, class ... Sig>
+	// class WrapFn<R (Sig ...)> :
+	//     public Metadata::template apply<R, Sig...> {
+	// public:
+	//     static const size_t arity = sizeof...(Sig);
 
-	private:
-	    template <std::size_t... Index>
-	    static Any call_packed(std::function<R (Sig...)> fn
-				   , const Any *begin
-				   , Indexer<Index...>) {
-		return
-		    wrap(fn(convert_value::Convert<Sig>::a(begin[Index])...));
-	    }
-	public:
+	// private:
+	//     template <std::size_t... Index>
+	//     static Any call_packed(std::function<R (Sig...)> fn
+	// 			   , const Any *begin
+	// 			   , Indexer<Index...>) {
+	// 	return
+	// 	    wrap(fn(convert_value::Convert<Sig>::a(begin[Index])...));
+	//     }
+	// public:
 
-	    /**
-	     * using the 'a' for 'apply' convention, builds the wrapped version of fn
-	     * @return: wrapped function
-	     */
-	    static PrimitiveRecursive* a(const std::function<R (Sig...)>&& fn, GC *gc
-					 , const std::string& name = "#<PrimitiveRecursive>") {
-		static const auto param_t = Metadata::template apply<R,Sig...>::parameter_types();
-		return gc->make<PrimitiveRecursive>
-		    (
-		     [fn](const Any *vv, const Any *_) -> Any {
-			 return call_packed(fn, vv, BuildIndicies<arity> {});
-		     }
-		     , name
-		     , CxxArray(&(*param_t.begin()), &(*param_t.end()))
-		     );
-	    }};
+	//     /**
+	//      * using the 'a' for 'apply' convention, builds the wrapped version of fn
+	//      * @return: wrapped function
+	//      */
+	//     static PrimitiveRecursive* a(const std::function<R (Sig...)>&& fn, GC *gc
+	// 				 , const std::string& name = "#<PrimitiveRecursive>") {
+	// 	static const auto param_t = Metadata::template apply<R,Sig...>::parameter_types();
+	// 	return gc->make<PrimitiveRecursive>
+	// 	    (
+	// 	     [fn](const Any *vv, const Any *_) -> Any {
+	// 		 return call_packed(fn, vv, BuildIndicies<arity> {});
+	// 	     }
+	// 	     , name
+	// 	     , CxxArray(&(*param_t.begin()), &(*param_t.end()))
+	// 	     );
+	//     }};
     }
 
 
     template<class Fn, Fn fn>
-    using WrapFn2 = cxx_functions::WrapFn2<Fn, fn>;
-
-    template<class Sig>
-    using WrapFn = cxx_functions::WrapFn<Sig>;
+    using WrapFn = cxx_functions::WrapFn<Fn, fn>;
 }
 
 #endif

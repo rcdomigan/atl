@@ -45,11 +45,13 @@ namespace atl {
         lexical::Map *_env;     // pushing a scope mutates where this points
         GC& gc;
         PCode::value_type* output;
+
         AssembleVM _wrapped;
 
         Compile(Environment& env) : gc(env.gc) {
             output = gc.alloc_pcode();
             _wrapped = AssembleVM(output);
+
             _env = &env.toplevel;
         }
 
@@ -85,13 +87,38 @@ namespace atl {
         };
 
 
+        struct Context {
+            bool tail;
+            bool definition;
+
+            Context& set_tail(bool in) {
+                tail = in;
+                return *this;
+            }
+            Context& set_define(bool in) {
+                definition = in;
+                return *this;
+            }
+
+            Context(bool t, bool d) : tail(t), definition(d) {}
+        };
+
+
         // What needs to be handled specially in the car of an Ast?
         std::tuple<Any, size_t, Form>
-        form(Ast ast, AssembleVM& code, bool tail) {
+        form(Ast ast, AssembleVM& code, Context context) {
             using namespace std;
             typedef PCode::value_type value_type;
+            typedef PCode::iterator iterator;
 
             auto head = ast[0];
+            auto result = [](Any aa, size_t ss, Form ff) { return make_tuple(aa, ss, ff); };
+
+            auto compile_tail = [&](Any input) {
+                return _compile(input, code,
+                                Context(context.tail, false));
+            };
+
         setup_form:
             switch(head._tag) {
             case tag<Symbol>::value:
@@ -116,58 +143,69 @@ namespace atl {
                 // some jumps if the lambda bodies where gathered in
                 // one place in the closure.
                 iterator entry_point;
-                {
-                    SkipBlock my_def(code);
 
+                auto compile_body = [&]() {
                     entry_point = code.end();
-                    auto result = _compile(ast[2], code, true);
+                    auto comp_val = _compile(ast[2], code, context);
 
                     // Might need to allocate for more params to make the tail call happy
-                    size = max(size, get<pad_to>(result));
+                    size = max(size, get<pad_to>(comp_val));
                     code.return_(size);
+                };
+
+                if(context.definition) {
+                    compile_body();
+                }
+                else {
+                    SkipBlock my_def(code);
+                    compile_body();
                 }
 
-                return std::make_tuple(gc.amake<Procedure>(entry_point, size),
-                                       0,
-                                       Form::done);
+                return result(gc.amake<Procedure>(entry_point, size),
+                              0,
+                              Form::done);
             }
             case tag<If>::value: {
-                auto will_jump = [&]() {
+                auto will_jump = [&]() -> iterator {
                     code.pointer(nullptr);
                     return code.last();
                 };
 
                 auto alt_address = will_jump();
-                _compile(ast[1],  code, false); // get the predicate
+                _compile(ast[1],  code, Context(false, false)); // get the predicate
                 code.if_();
 
                 // consiquent
-                auto consiquent = _compile(ast[2], code, tail);
+                auto consiquent = compile_tail(ast[2]);
 
                 auto after_alt = will_jump();
                 code.jump();
 
                 // alternate
                 *alt_address = reinterpret_cast<value_type>(code.end());
-                auto alternate = _compile(ast[3], code, tail);
+                auto alternate = compile_tail(ast[3]);
 
                 *after_alt = reinterpret_cast<value_type>(code.end());
 
                 auto padding = 0;
-                if(tail)
+                if(context.tail)
                     padding = max(get<pad_to>(consiquent),
                                   get<pad_to>(alternate));
 
-                return std::make_tuple(aimm<Null>(), padding, Form::done);
+                return result(aimm<Null>(), padding, Form::done);
             }
             case tag<Ast>::value: {
-                auto result = _compile(head, code, false);
-                return std::make_tuple(get<applicable>(result),
-                                       0,
-                                       Form::function);
+                auto compiled = _compile(head, code, Context(false, false));
+
+                return result(get<applicable>(compiled),
+                              0,
+                              Form::function);
             }
             case tag<Define>::value: {
-                // define a symbol
+                auto def_compile = [&](Any input) {
+                    return _compile(input, code, Context(true, true));
+                };
+
                 auto sym = unwrap<Symbol>(ast[1]);
                 Any value = ast[2];
 
@@ -196,7 +234,7 @@ namespace atl {
                         head = value_or_undef(unwrap<Symbol>(head));
 
                     if(is<Lambda>(head))
-                        value = get<applicable>(_compile(value, code, true));
+                        value = get<applicable>(def_compile(value));
                 }
 
                 if(is<Procedure>(value)) {
@@ -205,14 +243,11 @@ namespace atl {
                     // treat non-procedure expression as thunks, I'll
                     // write out definitions and use the procedure
                     // call mechanism to actually get a value.
-                    {
-                        SkipBlock inlined(code);
+                    entry_point = code.end();
+                    def_compile(ast[2]);
 
-                        entry_point = code.end();
-                        _compile(ast[2], code, true);
+                    code.return_(0);
 
-                        code.return_(0);
-                    }
                     value = gc.amake<Procedure>(entry_point, 0);
                 }
 
@@ -220,24 +255,28 @@ namespace atl {
                     *vv = reinterpret_cast<value_type>(entry_point);
 
                 _env->define(sym.name, value);
-                return std::make_tuple(aimm<Null>(), 0, Form::done);
+
+                if(_env->_prev == nullptr)
+                    _wrapped.main_entry_point = code.end();
+
+                return result(aimm<Null>(), 0, Form::done);
             }
             default:
-                return std::make_tuple(head, 0, Form::function);
+                return result(head, 0, Form::function);
             }
         }
 
 
         // :returns: thing that can be applied and the size of its tail call
         std::tuple<Any, size_t>
-        _compile(Any input, AssembleVM& code, bool tail) {
+        _compile(Any input, AssembleVM& code, Context context) {
             using namespace std;
         compile_value:
             switch(input._tag) {
             case tag<Ast>::value: {
                 // todo... does the IF form needs to move in here.
                 auto ast = unwrap<Ast>(input);
-                auto form = this->form(ast, code, tail);
+                auto form = this->form(ast, code, context);
 
                 switch(get<fform>(form)) {
                 case Form::done:
@@ -263,10 +302,10 @@ namespace atl {
                     for(size_t i=0; i < padding; ++i) code.constant(-1);
 
                     for(auto& vv : rest)
-                        _compile(vv, code, false);
+                        _compile(vv, code, Context(false, false));
 
                     if(is_procedure) {
-                        if(tail)
+                        if(context.tail)
                             code.tail_call(tail_size,
                                            unwrap<Procedure>(fn).body);
                         else
@@ -285,7 +324,7 @@ namespace atl {
                         code.tail_call();
                     }
                     else
-                        _compile(get<applicable>(form), code, tail);
+                        _compile(get<applicable>(form), code, Context(false, false));
 
                     return make_tuple(get<applicable>(form), tail_size);
                 }}
@@ -320,8 +359,9 @@ namespace atl {
             case tag<Pointer>::value:
                 code.pointer(value<Pointer>(input));
                 break;
-            case tag<CxxFn2>::value: {
-                code.foreign_2(value<CxxFn2>(input));
+            case tag<CxxFn>::value: {
+                auto fn = unwrap<CxxFn>(input);
+                code.fn_pntr(fn.value, fn.arity);
                 break;
             }
             case tag<Procedure>::value: {
@@ -361,14 +401,15 @@ namespace atl {
         }
 
         void any(Any ast) {
-            _compile(ast, _wrapped, false);
+            if(_wrapped.back() == vm_codes::Tag<vm_codes::finish>::value)
+                --_wrapped._end;
+
+            _compile(ast, _wrapped, Context(false, false));
+            _wrapped.finish();
         }
 
         AssembleVM&& finish() {
-            AssembleVM other;
-            _wrapped.finish();
-            other = std::move(_wrapped);
-            return std::move(other);
+            return std::move(_wrapped);
         }
     };
 }

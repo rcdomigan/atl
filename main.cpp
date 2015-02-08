@@ -16,8 +16,10 @@ using namespace std;
 int main(int argc, char *argv[]) {
     atl::Atl interpreter;
 
-    while( true )
+    while( true ) {
 	interpreter.stream(cin);
+        cout << interpreter.vm.stack[0] <<endl;
+    }
 
     return 0;
 }

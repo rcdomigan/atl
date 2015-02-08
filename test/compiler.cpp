@@ -26,9 +26,9 @@ bool equal2(long a, long b) { return a == b; }
 void run_code(TinyVM& vm, AssembleVM input) {
 #ifdef DEBUGGING
     input.print();
-    vm.run_debug(input.begin(), 100);
+    vm.run_debug(input.main_entry_point, 100);
 #else
-    vm.run(input.begin());
+    vm.run(input.main_entery_point);
 #endif
 }
 
@@ -44,9 +44,9 @@ struct CompilerTest : public ::testing::Test {
     virtual void SetUp() {
         setup_interpreter(gc, env, parse);
 
-        env.define("equal2", WrapFn2<bool (*)(long, long), equal2>::any());
-        env.define("add2", WrapFn2<long (*)(long, long), add2>::any());
-        env.define("sub2", WrapFn2<long (*)(long, long), sub2>::any());
+        env.define("equal2", WrapFn<bool (*)(long, long), equal2>::any());
+        env.define("add2", WrapFn<long (*)(long, long), add2>::any());
+        env.define("sub2", WrapFn<long (*)(long, long), sub2>::any());
     }
 };
 

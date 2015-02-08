@@ -29,8 +29,7 @@ namespace atl {
 
         void eval(Any value) {
             compile.any(value);
-            compile._wrapped.finish();
-            vm.run(compile._wrapped.begin());
+            vm.run(compile._wrapped.main_entry_point);
         }
 
         void string_(const std::string& ss) { eval(parse.string_(ss)); }

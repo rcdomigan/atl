@@ -58,8 +58,8 @@ namespace atl {
     struct is_reinterperable : public std::false_type {};
 
 
-#define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(Type)(TailCall)(Ast)(Data)(CxxFn2)
-#define ATL_PIMPL_SEQ (CxxArray)(Slice)(String)(Symbol)(Procedure)(Macro)(Undefined)(PCode)(Parameter)
+#define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(Type)(TailCall)(Ast)(Data)
+#define ATL_PIMPL_SEQ (CxxArray)(Slice)(String)(Symbol)(Procedure)(Macro)(Undefined)(PCode)(Parameter)(CxxFn)
 #define ATL_TYPES_SEQ ATL_REINTERPERABLE_SEQ ATL_PIMPL_SEQ(PrimitiveRecursive)(Mark)
 
 #define M(r, _, i, elem)						\
@@ -217,6 +217,7 @@ namespace atl {
     struct PCode {
 	typedef uintptr_t  value_type;
 	typedef value_type* iterator;
+
 	tag_t tag;
 	uintptr_t *value;
 
@@ -473,13 +474,15 @@ namespace atl {
 	bool empty() const { return _begin == _end; }
     };
 
-    struct CxxFn2 {
+    struct CxxFn {
         tag_t _tag;
-	typedef void (*value_type)(uintptr_t*, uintptr_t*);
-	value_type value;
+        typedef void (* value_type)(uintptr_t* begin, uintptr_t* end);
 
-	constexpr CxxFn2(value_type value) : _tag(tag<CxxFn2>::value), value(value) {}
-        constexpr CxxFn2() : _tag(tag<CxxFn2>::value), value(nullptr) {}
+	value_type value;
+        size_t arity;
+
+	constexpr CxxFn(value_type value, size_t arity_) : _tag(tag<CxxFn>::value), value(value), arity(arity_) {}
+        constexpr CxxFn() : _tag(tag<CxxFn>::value), value(nullptr), arity(0) {}
     };
 
 
