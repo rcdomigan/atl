@@ -17,8 +17,9 @@ int main(int argc, char *argv[]) {
     atl::Atl interpreter;
 
     while( true ) {
+        cout << "> ";
 	interpreter.stream(cin);
-        cout << interpreter.vm.stack[0] <<endl;
+        cout << dec << interpreter.vm.stack[0] <<endl;
     }
 
     return 0;

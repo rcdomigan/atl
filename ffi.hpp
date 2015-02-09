@@ -72,7 +72,7 @@ namespace atl {
 
 
         template<class Fn, Fn fn>
-	struct _WrapFn {
+	struct _WrapFnPntr {
 
 	    template<class R, class ... Arguments>
 	    struct apply {
@@ -99,53 +99,58 @@ namespace atl {
 
         template<class Fn, Fn fn>
         template<class R, class ... Arguments>
-        constexpr CxxFn _WrapFn<Fn, fn>::apply<R,Arguments...>::impl;
+        constexpr CxxFn _WrapFnPntr<Fn, fn>::apply<R,Arguments...>::impl;
 
 	template<class Fn, Fn fn>
-	struct WrapFn :
+	struct WrapFnPntr :
 	    public unpack_fn::Pointer<Metadata, Fn>,
-	    public unpack_fn::Pointer<_WrapFn<Fn, fn>, Fn>
+	    public unpack_fn::Pointer<_WrapFnPntr<Fn, fn>, Fn>
         {};
 
-	// template<class Sig> struct WrapFn {};
 
-	// template<class R, class ... Sig>
-	// class WrapFn<R (Sig ...)> :
-	//     public Metadata::template apply<R, Sig...> {
-	// public:
-	//     static const size_t arity = sizeof...(Sig);
+        // wraps a c++ std::function
+	template<class Sig> struct WrapStdFunction {};
 
-	// private:
-	//     template <std::size_t... Index>
-	//     static Any call_packed(std::function<R (Sig...)> fn
-	// 			   , const Any *begin
-	// 			   , Indexer<Index...>) {
-	// 	return
-	// 	    wrap(fn(convert_value::Convert<Sig>::a(begin[Index])...));
-	//     }
-	// public:
+	template<class R, class ... Sig>
+	class WrapStdFunction<R (Sig ...)> :
+	    public Metadata::template apply<R, Sig...> {
+	public:
+	    static const size_t arity = sizeof...(Sig);
 
-	//     /**
-	//      * using the 'a' for 'apply' convention, builds the wrapped version of fn
-	//      * @return: wrapped function
-	//      */
-	//     static PrimitiveRecursive* a(const std::function<R (Sig...)>&& fn, GC *gc
-	// 				 , const std::string& name = "#<PrimitiveRecursive>") {
-	// 	static const auto param_t = Metadata::template apply<R,Sig...>::parameter_types();
-	// 	return gc->make<PrimitiveRecursive>
-	// 	    (
-	// 	     [fn](const Any *vv, const Any *_) -> Any {
-	// 		 return call_packed(fn, vv, BuildIndicies<arity> {});
-	// 	     }
-	// 	     , name
-	// 	     , CxxArray(&(*param_t.begin()), &(*param_t.end()))
-	// 	     );
-	//     }};
+	private:
+	    template <std::size_t... Index>
+	    static Any call_packed(std::function<R (Sig...)> fn
+				   , const Any *begin
+				   , Indexer<Index...>) {
+		return
+		    wrap(fn(convert_value::Convert<Sig>::a(begin[Index])...));
+	    }
+	public:
+
+	    /**
+	     * using the 'a' for 'apply' convention, builds the wrapped version of fn
+	     * @return: wrapped function
+	     */
+	    static PrimitiveRecursive* a(const std::function<R (Sig...)>& fn, GC *gc
+					 , const std::string& name = "#<PrimitiveRecursive>") {
+		static const auto param_t = Metadata::template apply<R,Sig...>::parameter_types();
+		return gc->make<PrimitiveRecursive>
+		    (
+		     [fn](const Any *vv, const Any *_) -> Any {
+			 return call_packed(fn, vv, BuildIndicies<arity> {});
+		     }
+		     , name
+		     , CxxArray(&(*param_t.begin()), &(*param_t.end()))
+		     );
+	    }};
     }
 
 
     template<class Fn, Fn fn>
-    using WrapFn = cxx_functions::WrapFn<Fn, fn>;
+    using WrapFnPntr = cxx_functions::WrapFnPntr<Fn, fn>;
+
+    template<class Sig>
+    using WrapStdFunction = cxx_functions::WrapStdFunction<Sig>;
 }
 
 #endif

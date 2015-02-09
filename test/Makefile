@@ -11,7 +11,7 @@ vm_test: ../*hpp vm_test.cpp
 compiler: ../*hpp compiler.cpp
 	$(CXX) compiler.cpp $(GTEST_LINK) -o compiler
 
-parser: test_parser.cpp ../*.hpp
-	$(CXX) test_parser.cpp -o parser
+parser: parser.cpp ../*.hpp
+	$(CXX) parser.cpp $(GTEST_LINK) -o parser
 
 

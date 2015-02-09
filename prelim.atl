@@ -25,12 +25,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;
 ;; auxilary function for 'let', breaks a let parameter list into a
 ;; list of symbols and a list of values.
-(def (let-symbol-names lst)
+(def (let-symbols/values lst)
   (if (Null? lst)
     (list '() '())
     ((\ (params/args) (list (cons (car lst) (car params/args))
                      (cons (cadr lst) (cadr params/args))))
-     (let-symbol-names (cddr lst)))))
+     (let-symbols/values (cddr lst)))))
 
 ;; the let form
 (define-macro

@@ -39,8 +39,13 @@ namespace atl {
 	template<class T, T fn>
 	void wrap_fn(Environment& env, const std::string& name) {
             env.define(name,
-                       WrapFn<T, fn>::any());
+                       WrapFnPntr<T, fn>::any());
+        }
 
+        template<class T>
+        void wrap_function(Environment& env, std::string const& name, std::function<T> fn) {
+            env.define(name,
+                       wrap(WrapStdFunction<T>::a(fn, &env.gc, name)));
         }
 
         long bin_add(long a, long b) { return a + b; }
@@ -66,7 +71,7 @@ namespace atl {
 		    || (vv._tag == tag<CxxArray>::value);
 	    }
 
-            typedef WrapFn<bool(*)(Any), &a> def;
+            typedef WrapFnPntr<bool(*)(Any), &a> def;
         };
 
         struct emptyP {
@@ -84,7 +89,7 @@ namespace atl {
 		return true;
 	    }
 
-            typedef WrapFn<bool(*)(Any), &a> def;
+            typedef WrapFnPntr<bool(*)(Any), &a> def;
         };
 
         template<class Definition>
@@ -157,18 +162,14 @@ namespace atl {
 	/////////////////////////////////////////////////////////////////////
 	// introspection
 
-	// env.wrap_fn<Any (Any cc)>("print-procedure", [](Any a) {
-	// 	auto& cc = unwrap<Procedure>(a);
-	// 	auto formals = cc.parameters();
-
-	// 	cout << "[" << printer::any(wrap(&formals[0]));
-	// 	for(auto vv : slice(formals, 1))
-	// 	    cout << ", " << printer::any(wrap(&vv));
-	// 	cout << "]";
-
-	// 	// cout << printer::any(cc._body);
-	// 	return a;
-	//     });
+	wrap_function<Any ()>(env, "print-bytecode",
+                                    [env]() {
+                                        if(env.pcode)
+                                            env.pcode->print();
+                                        else
+                                            cout << "environment pcode is not set." << endl;
+                                        return aimm<Null>();
+                                    });
 
 	/***************************/
 	/**  _     _     _        **/

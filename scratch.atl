@@ -25,3 +25,8 @@
     0
     (recur (bin-sub n 1))))
 
+(define-value simple-recur (\ (a b) (if (= 0 a) b (simple-recur (bin-sub a 1) (bin-add b 1)))))
+
+(define-value tri-add (\ (a b c) (bin-add a (bin-add b c))))
+
+(define-value fib (\ (n a b) (if (= n 0) a (fib (bin-sub n 1) b (bin-add a b)))))

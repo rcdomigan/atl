@@ -73,7 +73,11 @@ namespace atl {
 	GC& gc;
 	lexical::Map toplevel;
 
-	Environment(GC &_gc) : gc(_gc), toplevel(_gc) { init_types(); }
+        AssembleVM *pcode;
+
+	Environment(GC &_gc) : gc(_gc), toplevel(_gc), pcode(nullptr)
+        { init_types(); }
+
 	Environment() = delete;
 
         void define(const std::string& name, Any value) {

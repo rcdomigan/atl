@@ -26,7 +26,7 @@ namespace atl {
      *
      * ++add assert (that I am wrapping an immediate).
      * @tparam T:
-     * @return: 
+     * @return:
      */
     template<class T>
     Any aimm() { return Any(tag<T>::value, nullptr);  }

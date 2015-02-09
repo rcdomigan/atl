@@ -28,7 +28,7 @@ void run_code(TinyVM& vm, AssembleVM input) {
     input.print();
     vm.run_debug(input.main_entry_point, 100);
 #else
-    vm.run(input.main_entery_point);
+    vm.run(input.main_entry_point);
 #endif
 }
 
@@ -44,9 +44,9 @@ struct CompilerTest : public ::testing::Test {
     virtual void SetUp() {
         setup_interpreter(gc, env, parse);
 
-        env.define("equal2", WrapFn<bool (*)(long, long), equal2>::any());
-        env.define("add2", WrapFn<long (*)(long, long), add2>::any());
-        env.define("sub2", WrapFn<long (*)(long, long), sub2>::any());
+        env.define("equal2", WrapFnPntr<bool (*)(long, long), equal2>::any());
+        env.define("add2", WrapFnPntr<long (*)(long, long), add2>::any());
+        env.define("sub2", WrapFnPntr<long (*)(long, long), sub2>::any());
     }
 };
 
@@ -156,4 +156,3 @@ int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
-

@@ -408,10 +408,22 @@ namespace atl {
             _wrapped.finish();
         }
 
+        // Reset the pcode entry point to compile another expression (as for the REPL).
+        void repl_reset() {
+            _wrapped._end = _wrapped.main_entry_point;
+        }
+
         AssembleVM&& finish() {
             return std::move(_wrapped);
         }
+
+        void print();
     };
+
+    void Compile::print() {
+        cout << "Main entry point: " << _wrapped.main_entry_point << endl;
+        _wrapped.print();
+    }
 }
 
 

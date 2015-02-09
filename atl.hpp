@@ -28,8 +28,15 @@ namespace atl {
         }
 
         void eval(Any value) {
+#ifdef DEBUGGING
+            compile.any(value);
+            compile.print();
+            vm.run_debug(compile._wrapped.main_entry_point);
+#else
             compile.any(value);
             vm.run(compile._wrapped.main_entry_point);
+#endif
+            compile.repl_reset();
         }
 
         void string_(const std::string& ss) { eval(parse.string_(ss)); }

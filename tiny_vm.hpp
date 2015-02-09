@@ -190,7 +190,7 @@ namespace atl {
         using namespace std;
 
         int pushing = 0;
-        for(auto vv : *this) {
+        for(auto& vv : *this) {
             auto vname = vm_codes::name_or_null(vv);
 
             cout << " " << hex << &vv << ": ";
@@ -302,6 +302,7 @@ namespace atl {
             }}
 
         void run_debug(PCode::iterator enter, unsigned int max_steps = 1000) {
+            top = stack;
             pc = enter;
 
             for(unsigned int i = 0; i < max_steps; ++i) {
@@ -315,8 +316,9 @@ namespace atl {
             print_stack();
         }
 
-        void run(uintptr_t *in) {
+        void run(iterator in) {
             pc = in;
+            top = stack;
 
             while(true) {
                 switch(*pc) {
