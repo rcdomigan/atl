@@ -364,6 +364,11 @@ namespace atl {
                 code.fn_pntr(fn.value, fn.arity);
                 break;
             }
+            case tag<PrimitiveRecursive>::value: {
+                auto fn = unwrap<PrimitiveRecursive>(input);
+                code.std_function(&fn._fn, fn._parameter_types.size());
+                break;
+            }
             case tag<Procedure>::value: {
                 code.call_procedure(unwrap<Procedure>(input).body);
                 break;

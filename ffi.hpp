@@ -94,7 +94,6 @@ namespace atl {
                     return Any(tag<CxxFn>::value,
                                const_cast<void*>(reinterpret_cast<void const*>(&impl))); }
             };
-
 	};
 
         template<class Fn, Fn fn>
@@ -119,11 +118,11 @@ namespace atl {
 
 	private:
 	    template <std::size_t... Index>
-	    static Any call_packed(std::function<R (Sig...)> fn
-				   , const Any *begin
-				   , Indexer<Index...>) {
-		return
-		    wrap(fn(convert_value::Convert<Sig>::a(begin[Index])...));
+	    static void call_packed(std::function<R (Sig...)> fn
+                                    , PCode::iterator begin
+                                    , Indexer<Index...>) {
+                using namespace byte_code;
+                *begin = to_bytes(atl::value<R>(fn(begin[Index]...)));
 	    }
 	public:
 
@@ -131,12 +130,12 @@ namespace atl {
 	     * using the 'a' for 'apply' convention, builds the wrapped version of fn
 	     * @return: wrapped function
 	     */
-	    static PrimitiveRecursive* a(const std::function<R (Sig...)>& fn, GC *gc
-					 , const std::string& name = "#<PrimitiveRecursive>") {
+	    static PrimitiveRecursive* a(std::function<R (Sig...)> const& fn, GC &gc
+					 , std::string const & name = "#<PrimitiveRecursive>") {
 		static const auto param_t = Metadata::template apply<R,Sig...>::parameter_types();
-		return gc->make<PrimitiveRecursive>
+		return gc.make<PrimitiveRecursive>
 		    (
-		     [fn](const Any *vv, const Any *_) -> Any {
+		     [fn](PCode::iterator vv, PCode::iterator _) {
 			 return call_packed(fn, vv, BuildIndicies<arity> {});
 		     }
 		     , name

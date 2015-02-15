@@ -25,6 +25,7 @@
 // Stack layout the opcodes expect, bottom --> top:
 //   if_                : [pc-of-alternate-branch][predicate-value]
 //   fn_pntr            : [arg1]...[argN][N][function-pointer]
+//   std_function       : [arg1]...[argN][N][function-object-pointer]
 //   push               : *
 //   pop                : [out-going]
 //   jump               : [destination address]
@@ -36,7 +37,7 @@
 //   finish             : -
 
 
-#define ATL_NORMAL_BYTE_CODES (nop)(pop)(if_)(fn_pntr)(jump)(return_)(call_procedure)(argument)(nested_argument)(tail_call)
+#define ATL_NORMAL_BYTE_CODES (nop)(pop)(if_)(fn_pntr)(std_function)(jump)(return_)(call_procedure)(argument)(nested_argument)(tail_call)
 #define ATL_BYTE_CODES (finish)(push)ATL_NORMAL_BYTE_CODES
 
 #define ATL_VM_SPECIAL_BYTE_CODES (finish)      // Have to be interpreted specially by the run/switch statement
@@ -181,6 +182,12 @@ namespace atl {
             return fn_pntr();
         }
 
+        AssembleVM& std_function(PrimitiveRecursive::value_type* fn, size_t arity) {
+            constant(arity);
+            pointer(reinterpret_cast<void*>(fn));
+            return std_function();
+        }
+
         uintptr_t& operator[](size_t offset) { return _begin[offset]; }
 
         void print();
@@ -226,8 +233,9 @@ namespace atl {
         void push() { *(top++) = pc[1]; pc += 2; }
         void pop() { top--; ++pc; }
 
-        void fn_pntr() {
-            auto fn = reinterpret_cast<CxxFn::value_type>(*(top - 1));
+        template<class Fn>
+        void call_cxx_function() {
+            auto fn = reinterpret_cast<Fn>(*(top - 1));
             top -= 2;
             auto n = *top;
 
@@ -238,6 +246,9 @@ namespace atl {
             ++top;
             ++pc;
         }
+
+        void fn_pntr() { call_cxx_function<CxxFn::value_type>(); }
+        void std_function() { call_cxx_function<PrimitiveRecursive::value_type*>(); }
 
         void if_() {
             top -= 2;

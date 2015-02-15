@@ -198,11 +198,11 @@ namespace atl {
 
     // Wrap a C style array
     struct CxxArray {
-	typedef const Any* iterator;
-	typedef const Any* const_iterator;
-	const Any *_begin, *_end;
+	typedef Any const* iterator;
+	typedef Any const* const_iterator;
+	Any const* _begin, *_end;
 
-	CxxArray(const Any* begin, const Any* end)
+	CxxArray(Any const* begin, Any const* end)
 	    : _begin(begin), _end(end) {}
 
 	CxxArray() : _begin(nullptr), _end(nullptr) {}
@@ -211,6 +211,7 @@ namespace atl {
 	const_iterator end() const { return _end; }
 
 	bool empty() const { return begin() == end(); }
+        size_t size() { return _end - _begin; }
     };
 
 
@@ -267,7 +268,8 @@ namespace atl {
     struct PrimitiveRecursive {
 	const std::string _name;
 
-	typedef std::function<Any (const Any* begin, const Any* end)> Fn;
+	typedef std::function<void (PCode::iterator begin, PCode::iterator end)> Fn;
+        typedef Fn value_type;
 	mutable Fn _fn;
 
 	CxxArray _parameter_types;
@@ -279,12 +281,6 @@ namespace atl {
 			   , const std::string& name
 			   , CxxArray range)
 	    : _name(name), _fn(fn), _parameter_types(range) {}
-
-	Any call(const Any* begin, const Any* end) const { return _fn(begin, end); }
-
-	uintptr_t untyped_call(uintptr_t *begin, uintptr_t *end) {
-	    return reinterpret_cast<uintptr_t>(*begin) + reinterpret_cast<uintptr_t>(*end);
-	}
     };
 
     /**
@@ -476,7 +472,7 @@ namespace atl {
 
     struct CxxFn {
         tag_t _tag;
-        typedef void (* value_type)(uintptr_t* begin, uintptr_t* end);
+        typedef void (* value_type)(PCode::iterator begin, PCode::iterator end);
 
 	value_type value;
         size_t arity;

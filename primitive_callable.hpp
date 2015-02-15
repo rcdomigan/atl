@@ -21,20 +21,20 @@ namespace atl {
     Any nullP(Any a) { return is<Null>(a) ? atl_true() : atl_false();  }
 
     namespace primitives {
-	struct MakeSequence {
-	    GC &_gc;
+	// struct MakeSequence {
+	//     GC &_gc;
 
-	    MakeSequence(GC &gc) : _gc(gc) {}
+	//     MakeSequence(GC &gc) : _gc(gc) {}
 
-	    Any operator()(const Any *begin, const Any *end) {
-		auto stack = _gc.dynamic_vector((end - begin) + 2);
-		auto seq = stack->push_seq<Data>();
+	//     void operator()(PCode::iterator begin, PCode::iterator end) {
+	// 	auto stack = _gc.dynamic_vector((end - begin) + 2);
+	// 	auto seq = stack->push_seq<Data>();
 
-		std::copy(begin, end, stack->back_insert_iterator());
-		seq->end_at(stack->end());
-		return wrap(*seq);
-	    }
-	};
+	// 	std::copy(begin, end, stack->back_insert_iterator());
+	// 	seq->end_at(stack->end());
+	// 	return wrap(*seq);
+	//     }
+	// };
 
 	template<class T, T fn>
 	void wrap_fn(Environment& env, const std::string& name) {
@@ -45,7 +45,7 @@ namespace atl {
         template<class T>
         void wrap_function(Environment& env, std::string const& name, std::function<T> fn) {
             env.define(name,
-                       wrap(WrapStdFunction<T>::a(fn, &env.gc, name)));
+                       wrap(WrapStdFunction<T>::a(fn, env.gc, name)));
         }
 
         long bin_add(long a, long b) { return a + b; }
@@ -179,10 +179,10 @@ namespace atl {
 	/** |_____|_|___/\__|___/ **/
 	/***************************/
 
-	auto list_factory = primitives::MakeSequence(gc);
-	env.define("list" ,
-                    gc.amake<PrimitiveRecursive>
-                    (PrimitiveRecursive::Fn(list_factory), "list"));
+	// auto list_factory = primitives::MakeSequence(gc);
+	// env.define("list" ,
+        //             gc.amake<PrimitiveRecursive>
+        //             (PrimitiveRecursive::Fn(list_factory), "list"));
 
 	// TODO: this doesn't make sense in a strongly typed language.
 	// To bad this language isn't strongly typed yet.
@@ -250,14 +250,14 @@ namespace atl {
 	// 	return *vec;
 	//     });
 
-	auto apply_sequence = [](const Any *args, const Any *_) -> Any {
-	    return *(ast_iterator::const_begin(args[0])
-		     + value<Fixnum>(args[1]));
-	};
-	(Applicable(env)).set<Ast>(apply_sequence);
-	(Applicable(env)).set<Data>(apply_sequence);
-	(Applicable(env)).set<Slice>(apply_sequence);
-	(Applicable(env)).set<CxxArray>(apply_sequence);
+	// auto apply_sequence = [](const Any *args, const Any *_) -> Any {
+	//     return *(ast_iterator::const_begin(args[0])
+	// 	     + value<Fixnum>(args[1]));
+	// };
+	// (Applicable(env)).set<Ast>(apply_sequence);
+	// (Applicable(env)).set<Data>(apply_sequence);
+	// (Applicable(env)).set<Slice>(apply_sequence);
+	// (Applicable(env)).set<CxxArray>(apply_sequence);
 
 
 	///////////////////////////////////////////

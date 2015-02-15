@@ -18,9 +18,9 @@ long add2(long a, long b) { return a + b; }
 long sub2(long a, long b) { return a - b; }
 bool equal2(long a, long b) { return a == b; }
 
-auto weq = &WrapFn2<bool (*)(long, long), equal2>::wrapped;
-auto wadd = &WrapFn2<long (*)(long, long), add2>::wrapped;
-auto wsub = &WrapFn2<long (*)(long, long), sub2>::wrapped;
+auto weq = &WrapFnPntr<bool (*)(long, long), equal2>::shimmed;
+auto wadd = &WrapFnPntr<long (*)(long, long), add2>::shimmed;
+auto wsub = &WrapFnPntr<long (*)(long, long), sub2>::shimmed;
 
 void run_code(TinyVM& vm, AssembleVM& assemble) {
 #ifdef DEBUGGING
@@ -44,7 +44,7 @@ TEST_F(VmTest, TestCxxFn2) {
 
     assemble.constant(2)
         .constant(3)
-        .foreign_2(wadd)
+        .fn_pntr(wadd, 2)
         .finish();
 
     assemble.print();
@@ -52,6 +52,51 @@ TEST_F(VmTest, TestCxxFn2) {
     run_code(vm, assemble);
 
     ASSERT_EQ(vm.stack[0], 5);
+}
+
+TEST_F(VmTest, TestSimpleCxxStdFunction) {
+    GC gc;
+    auto shimmed_function = WrapStdFunction<long (long)>::a([&](long vv) -> long {
+            return vv * 3;
+        },
+        gc,
+        "foo");
+
+    assemble.constant(3)
+        .std_function(&shimmed_function->_fn, 1)
+        .finish();
+
+    run_code(vm, assemble);
+}
+
+
+TEST_F(VmTest, TestCxxStdFunction) {
+    // Try using a std::function which has some captured state..
+    GC gc;
+    long multiple = 3;
+
+    auto shimmed_function = WrapStdFunction<long (long)>::a([&](long vv) -> long {
+            return vv * multiple;
+        },
+        gc,
+        "foo");
+
+    assemble.constant(3)
+        .std_function(&shimmed_function->_fn, 1)
+        .finish();
+
+    run_code(vm, assemble);
+    ASSERT_EQ(vm.stack[0], 9);
+
+
+    multiple = 4;
+
+    assemble.constant(3)
+        .std_function(&shimmed_function->_fn, 1)
+        .finish();
+
+    run_code(vm, assemble);
+    ASSERT_EQ(vm.stack[0], 12);
 }
 
 TEST_F(VmTest, TestIfTrue) {
@@ -111,7 +156,8 @@ TEST_F(VmTest, TestArguments) {
 
     assemble.argument(2)
 	.argument(1)
-	.foreign_2(&WrapFn2<long (*)(long, long), sub2>::wrapped)
+	.fn_pntr(&WrapFnPntr<long (*)(long, long), sub2>::shimmed,
+                 2)
 	.constant(2) // # args
 	.return_();
 
@@ -127,13 +173,13 @@ TEST_F(VmTest, SymToFunction) {
 
     setup_interpreter(gc, env, parse);
 
-    env.define("add2", WrapFn2<long (*)(long, long), add2>::any());
+    env.define("add2", WrapFnPntr<long (*)(long, long), &add2>::any());
 
     auto fn = env.toplevel.value("add2");
 
     assemble.constant(1)
         .constant(2)
-        .foreign_2(unwrap<CxxFn2>(fn).value)
+        .fn_pntr(unwrap<CxxFn>(fn).value, 2)
         .finish();
 
     run_code(vm, assemble);

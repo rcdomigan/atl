@@ -59,6 +59,7 @@ namespace atl {
 		    vec[0] = aimm<Quote>();
 		    ++vec;
 
+                    ++itr;
 		    parse(vec, itr, end);
 		    quote->end_at(vec.end());
 		    return;

@@ -4,5 +4,6 @@ byte-coded
 test-zipper
 test/parser
 test/compiler
+test/vm_test
 TAGS
 table-bc

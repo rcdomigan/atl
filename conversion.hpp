@@ -90,6 +90,8 @@ namespace atl {
 
 
     namespace get_value {
+        // 'mpl::at' with a default (in other words, the interface the
+        // boost docs advertise).
         template <typename Seq, typename Key, typename Def>
         struct AtDef
             : std::conditional<mpl::has_key<Seq, Key>::value,
@@ -109,25 +111,21 @@ namespace atl {
                 typedef typename std::remove_reference<typename std::remove_pointer<T>::type
                                                        >::type U;
 
-                typedef typename AtDef<CxxToAtlType, U, T>::type Mapped;
+                typedef typename AtDef<CxxToAtlType, U, T>::type AtlType;
 
-                typedef decltype(Mapped::value) Return;
+                typedef decltype(AtlType::value) Return;
 
-                static Return a(Input input) {
-                    return unwrap<Mapped>(input).value;
-                }
+                static Return a(Input input) { return unwrap<AtlType>(input).value; }
             };};
 
         struct GetRefValue {
             template<class T, class Input>
             struct apply {
-                typedef typename AtDef<CxxToAtlType, T, T>::type Mapped;
+                typedef typename AtDef<CxxToAtlType, T, T>::type AtlType;
 
-                typedef decltype(Mapped::value)& Return;
+                typedef decltype(AtlType::value)& Return;
 
-                static Return a(Input input) {
-                    return unwrap<Mapped>(input).value;
-                }
+                static Return a(Input input) { return unwrap<AtlType>(input).value; }
             };};
 
         // is the object referenced or pointed to const?
@@ -142,6 +140,13 @@ namespace atl {
                                 GetConstValue,
                                 GetRefValue
                                 >::type::template apply<T, Input> {};
+
+        template<>
+        struct GetValue<long, long> {
+            typedef Fixnum AtlType;
+            typedef long Return;
+            static Return& a(long& input) { return input; }
+        };
     }
 
     template<class T, class Input>
