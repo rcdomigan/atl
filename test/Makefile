@@ -5,13 +5,5 @@ CXXFLAGS=$(CFLAGS) $(COMMON_FLAGS)
 CXX=g++ $(CXXFLAGS)
 #CXX=clang $(CXXFLAGS) -lc++ -stdlib=libc++
 
-vm_test: ../*hpp vm_test.cpp
-	$(CXX) vm_test.cpp $(GTEST_LINK) -o vm_test
-
-compiler: ../*hpp compiler.cpp
-	$(CXX) compiler.cpp $(GTEST_LINK) -o compiler
-
-parser: parser.cpp ../*.hpp
-	$(CXX) parser.cpp $(GTEST_LINK) -o parser
-
-
+%: %.cpp ../*.hpp
+	$(CXX) $< $(GTEST_LINK) -o $@
