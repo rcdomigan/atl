@@ -58,7 +58,7 @@ namespace atl {
     struct is_reinterperable : public std::false_type {};
 
 
-#define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(Type)(TailCall)(Ast)(Data)
+#define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(Type)(Ast)(Data)
 #define ATL_PIMPL_SEQ (Slice)(String)(Symbol)(Procedure)(Macro)(Undefined)(PCode)(Parameter)
 #define ATL_TYPES_SEQ ATL_REINTERPERABLE_SEQ ATL_PIMPL_SEQ(CxxFunctor)(PrimitiveMacro)(Mark)
 
@@ -227,17 +227,6 @@ namespace atl {
 
 	Backtrack backtrack;
     };
-
-
-    struct TailCall {
-        tag_t _tag;
-        PCode::iterator value;
-
-        TailCall() : _tag(tag<TailCall>::value), value(nullptr) {}
-        TailCall(PCode::iterator value_)
-            : _tag(tag<TailCall>::value), value(value_) {}
-    };
-
 
 
     /* Macro and Procedure have the same data layout, but distinct tags */
