@@ -5,6 +5,8 @@
  * Created on Dec 16, 2014
  */
 
+#include <gtest/gtest.h>
+
 #include "../atl.hpp"
 #include "../helpers.hpp"
 
@@ -12,7 +14,7 @@
 
 #include <iostream>
 #include <vector>
-#include <gtest/gtest.h>
+
 
 using namespace atl;
 using namespace std;
@@ -20,6 +22,15 @@ using namespace std;
 struct ParserTest : public ::testing::Test {
     Atl atl;
 };
+
+TEST_F(ParserTest, Atoms) {
+    ASSERT_EQ(unwrap<Fixnum>(atl.parse.string_("2")).value,
+              2);
+
+    ASSERT_EQ(unwrap<String>(atl.parse.string_("\"Hello, world!\"")).value,
+              "Hello, world!");
+
+}
 
 TEST_F(ParserTest, SimpleIntList) {
     auto parsed = atl.parse.string_("(1 2 3)");
@@ -32,6 +43,9 @@ TEST_F(ParserTest, SimpleIntList) {
     };
 
     for(auto& vv : zip(ast, expected)) {
+#ifdef DEBUGGING
+        cout << "parsed: " << printer::any(*get<0>(vv)) << "\nexpected: " << printer::any(*get<1>(vv)) << endl;
+#endif
         ASSERT_EQ(*get<0>(vv), *get<1>(vv));
     }
 
@@ -53,7 +67,9 @@ TEST_F(ParserTest, NestedIntList) {
     };
 
     for(auto& vv : zip(ast, expected)) {
-        // cout << "parsed: " << printer::any(*get<0>(vv)) << "\nexpected: " << printer::any(*get<1>(vv)) << endl;
+#ifdef DEBUGGING
+        cout << "parsed: " << printer::any(*get<0>(vv)) << "\nexpected: " << printer::any(*get<1>(vv)) << endl;
+#endif
         ASSERT_EQ(*get<0>(vv), *get<1>(vv));
     }
 }
@@ -73,13 +89,31 @@ TEST_F(ParserTest, TestQuote) {
     };
 
     for(auto& vv : zip(ast, expected)) {
+#ifdef DEBUGGING
         cout << "parsed: " << printer::any(*get<0>(vv)) << "\nexpected: " << printer::any(*get<1>(vv)) << endl;
+#endif
         ASSERT_EQ(*get<0>(vv), *get<1>(vv));
     }
 }
 
 
-int main(int argc, char *argv[]) {
-  ::testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
+TEST_F(ParserTest, TestLambda)
+{
+    // I'm making '[[:delim:]]\[[:delim:]]' a reserved symbol for lambda, make sure it's parsed correctly.
+    auto parsed = atl.parse.string_("(\\ (a b) (c d e))");
+    tag_t linkable = tag<Lambda>::value;
+    ASSERT_EQ(unwrap<Ast>(parsed)[0]._tag, linkable);
+
+    parsed = atl.parse.string_("(\\a b\\)");
+    linkable = tag<Symbol>::value;
+    ASSERT_EQ(unwrap<Ast>(parsed)[0]._tag, linkable);
+    ASSERT_EQ(unwrap<Ast>(parsed)[1]._tag, linkable);
+}
+
+TEST_F(ParserTest, TestLet)
+{
+    auto parsed = atl.parse.string_("(let (a b) (a 1 2))");
+    tag_t let_tag = tag<Let>::value;
+
+    ASSERT_EQ(unwrap<Ast>(parsed)[0]._tag, let_tag);
 }
