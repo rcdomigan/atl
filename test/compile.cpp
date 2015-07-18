@@ -16,21 +16,9 @@
 #include <print.hpp>
 
 #include <gtest/gtest.h>
+#include "./testing_utils.hpp"
 
 using namespace atl;
-
-long add2(long a, long b) { return a + b; }
-long sub2(long a, long b) { return a - b; }
-bool equal2(long a, long b) { return a == b; }
-
-void run_code(TinyVM& vm, AssembleVM input) {
-#ifdef DEBUGGING
-    input.print();
-    vm.run_debug(input.main_entry_point, 100);
-#else
-    vm.run(input.main_entry_point);
-#endif
-}
 
 struct CompilerTest : public ::testing::Test {
     GC gc;
@@ -42,21 +30,21 @@ struct CompilerTest : public ::testing::Test {
     CompilerTest() : parse(gc), env(gc), compile(env) {}
 
     virtual void SetUp() {
-        setup_interpreter(gc, env, parse);
+        setup_interpreter(env, parse);
 
-        env.define("equal2", WrapFnPntr<bool (*)(long, long), equal2>::any());
-        env.define("add2", WrapFnPntr<long (*)(long, long), add2>::any());
-        env.define("sub2", WrapFnPntr<long (*)(long, long), sub2>::any());
+        env.define("equal2", WrapStdFunction<bool (long, long)>::any(equal2, gc));
+        env.define("add2", WrapStdFunction<long (long, long)>::any(add2, gc));
+        env.define("sub2", WrapStdFunction<long (long, long)>::any(sub2, gc));
     }
 };
 
 
 TEST_F(CompilerTest, BasicApplication) {
-    compile.any(parse.string_("(add2 2 3)"));
+    compile.any(parse.string_("(add2 5 7)"));
 
     run_code(vm, compile.finish());
 
-    ASSERT_EQ(vm.stack[0], 5);
+    ASSERT_EQ(vm.stack[0], 12);
 }
 
 TEST_F(CompilerTest, NestedApplication) {
@@ -66,6 +54,31 @@ TEST_F(CompilerTest, NestedApplication) {
     run_code(vm, compile.finish());
 
     ASSERT_EQ(vm.stack[0], 13);
+}
+
+TEST_F(CompilerTest, TestCxxStdFunction) {
+    long multiple = 3;
+
+    auto shimmed_function = WrapStdFunction<long (long)>::a([&](long vv) -> long {
+            return vv * multiple;
+        },
+        gc,
+        "foo");
+
+    env.define("foo", wrap(shimmed_function));
+
+    compile.any(parse.string_("(foo 3)"));
+
+    run_code(vm, compile.finish());
+    ASSERT_EQ(vm.stack[0], 9);
+
+    compile.wrapped = AssembleVM(gc.alloc_pcode());
+
+    multiple = 4;
+    compile.any(parse.string_("(foo 3)"));
+
+    run_code(vm, compile.finish());
+    ASSERT_EQ(vm.stack[0], 12);
 }
 
 TEST_F(CompilerTest, BasicLambda) {
@@ -137,7 +150,7 @@ TEST_F(CompilerTest, DefineLambda) {
     compile.any(parse.string_("(define-value my-add3 (\\ (a b c) (add2 a b)))"));
     compile.any(parse.string_("(define-value my-add1 (\\ (a) (my-add3 a a a)))"));
 
-    ASSERT_EQ(unwrap<Procedure>(env.toplevel._local["my-add1"]).tail_params,
+    ASSERT_EQ(unwrap<Procedure>(env.toplevel._local["my-add1"].value).tail_params,
               3);
 }
 
@@ -149,10 +162,4 @@ TEST_F(CompilerTest, SimpleRecursion) {
     run_code(vm, compile.finish());
 
     ASSERT_EQ(vm.stack[0], 5);
-}
-
-
-int main(int argc, char **argv) {
-  ::testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
 }
