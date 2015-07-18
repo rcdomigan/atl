@@ -26,7 +26,7 @@
 //   if_                : [pc-of-alternate-branch][predicate-value]
 //   fn_pntr            : [arg1]...[argN][N][function-pointer]
 //   std_function       : [arg1]...[argN][N][function-object-pointer]
-//   push               : *
+//   push               : [word]
 //   pop                : [out-going]
 //   jump               : [destination address]
 //   call_procedure     : [arg1]...[argN][@closure][next-instruction]<body...>
@@ -86,16 +86,21 @@ namespace atl {
     }
 
 
-    struct AssembleVM {
+    struct AssembleVM
+    {
         typedef uintptr_t value_type;
         typedef value_type* iterator;
+        typedef value_type const* const_iterator;
 
         iterator _begin, _end;
         iterator main_entry_point;
 
+        // TODO: don't think I ended up using this
         std::vector<value_type> offset;
 
-        AssembleVM(uintptr_t *output = nullptr) : _begin(output), _end(output), main_entry_point(output) {
+        AssembleVM(uintptr_t *output = nullptr)
+            : _begin(output), _end(output), main_entry_point(output)
+        {
             offset.push_back(0);
         }
 
@@ -143,8 +148,16 @@ namespace atl {
 
         AssembleVM& pointer(void* cc) { return constant(reinterpret_cast<uintptr_t>(cc)); }
 
+        AssembleVM& push_tagged(const Any& aa) {
+            constant(aa._tag);
+            return pointer(aa.value);
+        }
+
         iterator begin() { return _begin; }
         iterator end() { return _end; }
+        const_iterator begin() const { return _begin; }
+        const_iterator end() const { return _end; }
+
         iterator last() { return _end - 1; }
         value_type back() { return *last(); }
 
@@ -184,29 +197,52 @@ namespace atl {
 
         uintptr_t& operator[](size_t offset) { return _begin[offset]; }
 
-        void print();
+        template<class Range>
+        void print(Range const& range) const
+        {
+            using namespace std;
+
+            int pushing = 0;
+            for(auto& vv : range)
+                {
+                    auto vname = vm_codes::name_or_null(vv);
+
+                    cout << " " << hex << &vv << ": ";
+
+                    if(pushing)
+                        {
+                            --pushing;
+                            cout << "@" << hex << vv;
+                        }
+                    else
+                        {
+                            if(vv == vm_codes::Tag<vm_codes::push>::value)
+                                ++pushing;
+                            cout << vname;
+                        }
+                    cout << endl;
+                }
+        }
+        void dbg();
+        void dbg_to_run();
+        void dbg_explicit(iterator begin, iterator end);
     };
 
-    void AssembleVM::print() {
-        using namespace std;
+    void AssembleVM::dbg()
+    {
+        print(*this);
+    }
 
-        int pushing = 0;
-        for(auto& vv : *this) {
-            auto vname = vm_codes::name_or_null(vv);
+    void AssembleVM::dbg_to_run()
+    {
+        print(make_range(main_entry_point, _end));
+    }
 
-            cout << " " << hex << &vv << ": ";
+    void AssembleVM::dbg_explicit(iterator begin, iterator end)
+    {
+        print(make_range(begin, end));
+    }
 
-            if(pushing) {
-                --pushing;
-                cout << "@" << hex << vv;
-            }
-            else {
-                if(vv == vm_codes::Tag<vm_codes::push>::value)
-                    ++pushing;
-                cout << vname;
-            }
-            cout << endl;
-        }}
 
     struct TinyVM {
         typedef uintptr_t value_type;
@@ -241,8 +277,7 @@ namespace atl {
             ++pc;
         }
 
-        void fn_pntr() { call_cxx_function<CxxFn::value_type>(); }
-        void std_function() { call_cxx_function<PrimitiveRecursive::value_type*>(); }
+        void std_function() { call_cxx_function<CxxFunctor::value_type*>(); }
 
         void if_() {
             top -= 2;

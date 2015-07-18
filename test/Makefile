@@ -5,5 +5,5 @@ CXXFLAGS=$(CFLAGS) $(COMMON_FLAGS)
 CXX=g++ $(CXXFLAGS)
 #CXX=clang $(CXXFLAGS) -lc++ -stdlib=libc++
 
-%: %.cpp ../*.hpp
+%: %.cpp ../*.hpp ./*.hpp
 	$(CXX) $< $(GTEST_LINK) -o $@
