@@ -20,14 +20,13 @@
 
 namespace atl {
     using namespace std;
-    /**
-     * Immediate (wrapped as an Any).  This doesn't require the GC per se, but is related to
-     * initialization and allocation.
-     *
-     * ++add assert (that I am wrapping an immediate).
-     * @tparam T:
-     * @return:
-     */
+
+    // Immediate (wrapped as an Any).  This doesn't require the GC per se, but is related to
+    // initialization and allocation.
+    //
+    // ++add assert (that I am wrapping an immediate).
+    // @tparam T:
+    // @return:
     template<class T>
     Any aimm() { return Any(tag<T>::value, nullptr);  }
 
@@ -53,7 +52,7 @@ namespace atl {
 
 	    typedef size_t mark_t;
 
-	    /* used to hold a mark/unmarked bit and a allocated/free bit */
+	    // used to hold a mark/unmarked bit and a allocated/free bit
 	    mark_t _mark[num_mark_feilds];
 
 	    T *_begin, *_itr, *_end, *_free;
@@ -72,11 +71,10 @@ namespace atl {
 	    T *begin() { return _begin; }
 	    T *end() { return _end; }
 
-	    /**
-	     * @param p: pointer to the object that needs marking
-	     * @return: true if the mark was needed, false if the object was already marked. 
-	     */
-	    bool mark(T *p) {
+            // @param p: pointer to the object that needs marking
+            // @return: true if the mark was needed, false if the object was already marked.
+	    bool mark(T *p)
+            {
 		off_t offset = reinterpret_cast<off_t>( p - _begin)
 		    , mark_bit = static_cast<off_t>(1) << ((offset & _mask) << 1);
 
@@ -86,13 +84,15 @@ namespace atl {
 		return true;
 	    }
 
-	    /* allocates a T from the array, checking _free list first */
-	    T* alloc() {
+	    // allocates a T from the array, checking _free list first
+	    T* alloc()
+            {
 		T *tmp ;
-		if(_free != nullptr) {
-		    tmp = _free;
-		    _free = *reinterpret_cast<T**>(_free);
-		}
+		if(_free != nullptr)
+                    {
+                        tmp = _free;
+                        _free = *reinterpret_cast<T**>(_free);
+                    }
 
 		else if(_itr != _end)
 		    tmp = _itr++;
@@ -151,14 +151,6 @@ namespace atl {
 		if(ptr >= _end)  return 1;
 		return 0; }
 	};
-
-	template<>
-	class Pool<CxxArray> {
-	public:
-	    CxxArray* alloc() {
-		return new CxxArray;
-	    }
-	};
     }
 
     class GC {
@@ -173,7 +165,7 @@ namespace atl {
 	memory_pool::Pool< Undefined > _undefined_heap;
 	memory_pool::Pool< Procedure > _procedure_heap;
 	memory_pool::Pool< String > _string_heap;
-	memory_pool::Pool< PrimitiveRecursive > _primitive_recursive_heap;
+	memory_pool::Pool< CxxFunctor > _primitive_recursive_heap;
 	memory_pool::Pool< Symbol > _symbol_heap;
 	memory_pool::Pool< Parameter > _Parameter_heap;
 	memory_pool::Pool< CxxArray > _array_heap;
@@ -189,8 +181,8 @@ namespace atl {
 	typedef mpl::map< mpl::pair< Undefined , MemberPtr<Undefined, &GC::_undefined_heap > >
 			  , mpl::pair< Procedure , MemberPtr<Procedure, &GC::_procedure_heap > >
 			  , mpl::pair< String , MemberPtr<String, &GC::_string_heap > >
-			  , mpl::pair< PrimitiveRecursive,
-				       MemberPtr<PrimitiveRecursive, &GC::_primitive_recursive_heap > >
+			  , mpl::pair< CxxFunctor,
+				       MemberPtr<CxxFunctor, &GC::_primitive_recursive_heap > >
 			  , mpl::pair< Symbol,  MemberPtr<Symbol, &GC::_symbol_heap > >
                           , mpl::pair< Parameter,  MemberPtr<Parameter, &GC::_Parameter_heap > >
 			  , mpl::pair< CxxArray,  MemberPtr<CxxArray, &GC::_array_heap > >

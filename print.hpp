@@ -119,8 +119,8 @@ namespace atl {
 		    return out << "False";
 	    case tag<String>::value:
 		return out << '"' << *reinterpret_cast<string*>(a.value) << '"';
-	    case tag<PrimitiveRecursive>::value:
-		return out << unwrap<PrimitiveRecursive>(a)._name;
+	    case tag<CxxFunctor>::value:
+		return out << unwrap<CxxFunctor>(a)._name;
 	    case tag<Pointer>::value:
 		if(a.value)
 		    return out << "#<Pointer-" << hex << (reinterpret_cast<long>(a.value) & (256 - 1)) << ">";

@@ -59,8 +59,8 @@ namespace atl {
 
 
 #define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(Type)(TailCall)(Ast)(Data)
-#define ATL_PIMPL_SEQ (CxxArray)(Slice)(String)(Symbol)(Procedure)(Macro)(Undefined)(PCode)(Parameter)(CxxFn)
-#define ATL_TYPES_SEQ ATL_REINTERPERABLE_SEQ ATL_PIMPL_SEQ(PrimitiveRecursive)(Mark)
+#define ATL_PIMPL_SEQ (CxxArray)(Slice)(String)(Symbol)(Procedure)(Macro)(Undefined)(PCode)(Parameter)
+#define ATL_TYPES_SEQ ATL_REINTERPERABLE_SEQ ATL_PIMPL_SEQ(CxxFunctor)(PrimitiveMacro)(Mark)
 
 #define M(r, _, i, elem)						\
     struct elem;							\
@@ -80,11 +80,17 @@ namespace atl {
     BOOST_PP_SEQ_FOR_EACH_I(M, _, ATL_REINTERPERABLE_SEQ)
 #undef M
 
-
-    typedef mpl::vector26< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
+    typedef mpl::vector28< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
 
     template<class T>
     struct tag : public _Tag<typename std::remove_const<T>::type> {};
+
+    // tag template [W]rapped in a regular struct
+    struct WTag
+    {
+        template<class T>
+        struct Apply : public tag<T> {};
+    };
 
     /****************************************************/
     /*  ____        __ _       _ _   _                  */
@@ -263,24 +269,58 @@ namespace atl {
 
     struct Macro { Procedure _proc; };
 
-    class EvaluateAST;
 
-    struct PrimitiveRecursive {
+    struct CxxFunctor
+    {
 	const std::string _name;
 
 	typedef std::function<void (PCode::iterator begin, PCode::iterator end)> Fn;
         typedef Fn value_type;
-	mutable Fn _fn;
+	mutable value_type fn;
 
-	CxxArray _parameter_types;
+        abstract_type::Type const* types;
 
-	PrimitiveRecursive(const Fn& fn, const char* name)
-	    : _name(name), _fn(fn) {}
+	CxxFunctor(const Fn& fn
+                   , const std::string& name
+                   , abstract_type::Type const* tt)
+	    : _name(name), fn(fn), types(tt)
+        {}
+    };
 
-	PrimitiveRecursive(const Fn& fn
-			   , const std::string& name
-			   , CxxArray range)
-	    : _name(name), _fn(fn), _parameter_types(range) {}
+
+    // PrimitiveMacro will recieve two args for its `fn`; the first is
+    // an 'Compile' object, the second is an Ast (the macro itself is
+    // ast[0]).
+    //
+    // Unlike CxxFunctor, the PrimitiveMacro is evaluated at
+    // compile time and returns its _type_ in arg[0].  Any compilation
+    // of the input ast must be done explicitly.
+    struct PrimitiveMacro
+        : public CxxFunctor
+    {
+        static abstract_type::Type const* _type;
+
+        PrimitiveMacro(const CxxFunctor::Fn& fn,
+                       const std::string& name)
+            : CxxFunctor(fn, name, _type)
+        {
+            if(_type == nullptr)
+                _type = new abstract_type::Type(abstract_type::make_concrete({tag<Ast>::value, tag<Undefined>::value}));
+        }
+    };
+    abstract_type::Type const* PrimitiveMacro::_type = nullptr;
+
+    struct Method {
+        typedef std::function<Any (Range<tag_t*>)> Dispatch;
+        Dispatch value;
+
+        Method(Dispatch vv)
+            : value(vv)
+        {}
+    };
+
+
+
     };
 
     /**
@@ -469,18 +509,6 @@ namespace atl {
 	size_t size() const { return end() - begin(); }
 	bool empty() const { return _begin == _end; }
     };
-
-    struct CxxFn {
-        tag_t _tag;
-        typedef void (* value_type)(PCode::iterator begin, PCode::iterator end);
-
-	value_type value;
-        size_t arity;
-
-	constexpr CxxFn(value_type value, size_t arity_) : _tag(tag<CxxFn>::value), value(value), arity(arity_) {}
-        constexpr CxxFn() : _tag(tag<CxxFn>::value), value(nullptr), arity(0) {}
-    };
-
 
 
     /**

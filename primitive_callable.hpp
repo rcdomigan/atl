@@ -13,88 +13,14 @@
 #include "./parser.hpp"
 #include "./helpers.hpp"
 #include "./type_class.hpp"
+#include "./compile.hpp"
+#include "./structs.hpp"
+#include "./interface_helpers.hpp"
 
-#include "./infer.hpp"
 #include "ffi.hpp"
 
 namespace atl {
     Any nullP(Any a) { return is<Null>(a) ? atl_true() : atl_false();  }
-
-    namespace primitives {
-	// struct MakeSequence {
-	//     GC &_gc;
-
-	//     MakeSequence(GC &gc) : _gc(gc) {}
-
-	//     void operator()(PCode::iterator begin, PCode::iterator end) {
-	// 	auto stack = _gc.dynamic_vector((end - begin) + 2);
-	// 	auto seq = stack->push_seq<Data>();
-
-	// 	std::copy(begin, end, stack->back_insert_iterator());
-	// 	seq->end_at(stack->end());
-	// 	return wrap(*seq);
-	//     }
-	// };
-
-	template<class T, T fn>
-	void wrap_fn(Environment& env, const std::string& name) {
-            env.define(name,
-                       WrapFnPntr<T, fn>::any());
-        }
-
-        template<class T>
-        void wrap_function(Environment& env, std::string const& name, std::function<T> fn) {
-            env.define(name,
-                       wrap(WrapStdFunction<T>::a(fn, env.gc, name)));
-        }
-
-        long bin_add(long a, long b) { return a + b; }
-        long bin_sub(long a, long b) { return a - b; }
-        bool arith_eq(long a, long b) { return a == b; }
-
-        bool arith_lt(long a, long b) { return a < b; }
-        bool arith_gt(long a, long b) { return a > b; }
-        bool arith_lt_eq(long a, long b) { return a <= b; }
-        bool arith_gt_eq(long a, long b) { return a >= b; }
-
-        long print(Any a) {
-            cout << printer::any(a);
-            return 0;
-        }
-
-        struct listP {
-            static constexpr char const* name = "list?";
-
-            static bool a(Any vv) {
-		return (vv._tag == tag<Data>::value)
-		    || (vv._tag == tag<Ast>::value)
-		    || (vv._tag == tag<CxxArray>::value);
-	    }
-
-            typedef WrapFnPntr<bool(*)(Any), &a> def;
-        };
-
-        struct emptyP {
-            static constexpr char const* name = "empty?";
-
-            static bool a(Any vv) {
-		switch(vv._tag) {
-		case tag<Data>::value:
-		    return unwrap<Data>(vv).empty();
-		case tag<Ast>::value:
-		    return unwrap<Ast>(vv).empty();
-		case tag<CxxArray>::value:
-		    return unwrap<CxxArray>(vv).empty();
-		}
-		return true;
-	    }
-
-            typedef WrapFnPntr<bool(*)(Any), &a> def;
-        };
-
-        template<class Definition>
-        void def(Environment& env) { env.define(Definition::name,  Definition::def::any()); }
-    }
 
     void setup_typeclasses(Environment& env) {
 	env.type_class_map[typeclass_tag<Applicable>::value] = new Applicable::Map();
@@ -109,9 +35,68 @@ namespace atl {
 	env.define("if", aimm<If>());
 	env.define("#f", atl_false());
 	env.define("#t", atl_true());
+        env.define("define-value", aimm<Define>());
 
-	env.define("define-value", aimm<Define>());
-	env.define("define-macro", aimm<DefineMacro>());
+        auto alloc_ast_type = new abstract_type::Type(abstract_type::make_concrete({tag<Ast>::value}));
+        env.define("__alloc_ast__",
+                   wrap
+                   (env.gc.make<CxxFunctor>
+                    ([&](PCode::iterator begin, PCode::iterator end) -> void
+                     {
+                         auto range = make_range(begin, end);
+                         auto stack = env.gc.dynamic_seq(range.size() + 2);
+                         auto seq = stack->end();
+                         stack->push_back(Any(tag<AstData>::value,
+                                              0));
+
+                         for(auto pair = begin; pair < end; pair += 2)
+                             stack->push_back(Any(pair[1],
+                                                  reinterpret_cast<void*>(pair[0])));
+
+                         seq->value = stack->end();
+                         *begin = reinterpret_cast<PCode::value_type>(seq);
+                     },
+                     "__alloc_ast__",
+                     alloc_ast_type)));
+
+        auto cc = primitives::Constructor(env);
+        mpl::for_each<TypesVec, wrap_t_arg< mpl::placeholders::_1> >(cc);
+
+        wrap_macro(env, ":",
+                   [](PCode::iterator begin, PCode::iterator end)
+                   {
+                       // requires a type-expr followed by an expr.
+                       // The whole shooting match is given the
+                       // Type.value as its type.
+                       auto& eval = *reinterpret_cast<Eval*>(begin[0]);
+                       auto& ast = *reinterpret_cast<Ast*>(begin[1]);
+
+                       tag_t rval;
+                       {
+                           auto frame = eval.compile->save_excursion();
+                           frame.enter_end();
+
+                           // TODO: I this should actually evauate,
+                           // and should return an abstract_type::Type
+                           rval = eval.compile->any(ast[1]);
+                       }
+                       eval.compile->in_place_any(ast[2]);
+
+                       begin[0] = rval;
+                   });
+
+        static auto fn_construct_params = abstract_type::make_concrete({tag<Type>::value, tag<Type>::value});
+        fn_construct_params.front().count = abstract_type::Node::CountType::at_least_one;
+        auto fn_construct
+            = gc.make<CxxFunctor>([&env](PCode::iterator begin, PCode::iterator end)
+                                  {
+                                      auto type = env.gc.make<abstract_type::Type>();
+                                      for(auto& vv : make_range(begin, end))
+                                          type->values.emplace_back(*reinterpret_cast<Type::value_type*>(vv));
+                                      *begin = reinterpret_cast<PCode::value_type>(type);
+                                  }, "->", &fn_construct_params);
+
+        env.define("->", wrap(fn_construct));
 
 	// env.wrap_fn<Any (string)>
 	//     ("import",

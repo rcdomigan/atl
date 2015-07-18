@@ -37,8 +37,8 @@
 //   finish             : -
 
 
-#define ATL_NORMAL_BYTE_CODES (nop)(pop)(if_)(fn_pntr)(std_function)(jump)(return_)(call_procedure)(argument)(nested_argument)(tail_call)
-#define ATL_BYTE_CODES (finish)(push)ATL_NORMAL_BYTE_CODES
+#define ATL_NORMAL_BYTE_CODES (nop)(pop)(if_)(std_function)(jump)(return_)(call_procedure)(argument)(nested_argument)(tail_call)
+#define ATL_BYTE_CODES (finish)(push)(push_word)ATL_NORMAL_BYTE_CODES
 
 #define ATL_VM_SPECIAL_BYTE_CODES (finish)      // Have to be interpreted specially by the run/switch statement
 #define ATL_VM_NORMAL_BYTE_CODES (push)ATL_NORMAL_BYTE_CODES
@@ -176,13 +176,7 @@ namespace atl {
             return tail_call();
         }
 
-        AssembleVM& fn_pntr(CxxFn::value_type fn, size_t arity) {
-            constant(arity);
-            pointer(reinterpret_cast<void*>(fn));
-            return fn_pntr();
-        }
-
-        AssembleVM& std_function(PrimitiveRecursive::value_type* fn, size_t arity) {
+        AssembleVM& std_function(CxxFunctor::value_type* fn, size_t arity) {
             constant(arity);
             pointer(reinterpret_cast<void*>(fn));
             return std_function();

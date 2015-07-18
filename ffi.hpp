@@ -17,34 +17,13 @@
 #include "./conversion.hpp"
 #include "./gc.hpp"
 #include "./helpers.hpp"
+#include "./utility.hpp"
 
-namespace mpl = boost::mpl;
 namespace atl {
-    /* http://loungecpp.wikidot.com/tips-and-tricks%3Aindices
-     * tricky tricky, never gets instantiated, but can get filled out by
-     * the template inference engine.
-     */
-    template<std::size_t ...Is> struct Indexer {};
+    namespace mpl = boost::mpl;
 
-    template <std::size_t N, std::size_t... Is> struct
-    BuildIndicies : BuildIndicies<N-1, N-1, Is...> {};
-
-    template <std::size_t... Is> struct
-    BuildIndicies<0, Is...> : Indexer<Is...> {};
-
-    namespace cxx_functions {
-        namespace convert_value {
-            template<class T>
-            struct PassThrough { static T a(T input) { return input; } };
-
-            template<class T>
-            struct Convert
-                : std::conditional<is_atl_type<T>::value,
-                                   unwrapping::Any<T>,
-                                   get_value::GetValue<T,Any>
-                                   >::type {};
-        }
-
+    namespace cxx_functions
+    {
 	namespace unpack_fn {
 	    template<class Dest, class R, class ... Sig> struct Signature;
 	    template<class Dest, class R, class ... Sig>
@@ -57,54 +36,32 @@ namespace atl {
 		: public Dest::template apply<R, Sig...> {};
 	}
 
+        // Assume a pointer is to a known Atl type (or at least it's
+        // value part), and use that type to annotate the C++ function
+        template<class T>
+        struct GuessTag
+            : public ApplyEval<WTag,
+                               ApplyEval<type_mapping::cxx_to_atl,
+                                         std::remove_pointer<T>
+                                         > >::type
+        {};
 
-	struct Metadata {
+	struct Metadata
+        {
 	    template<class R, class ... Sig>
-	    struct apply {
-		typedef std::array<Any, sizeof...(Sig) + 1> TypeArray; // args + the return value
+	    struct apply
+            {
+                static constexpr size_t arity()
+                { return sizeof...(Sig); }
 
-		static constexpr TypeArray parameter_types() {
-		    return  TypeArray{{ nil< typename type_mapping::cxx_to_atl<Sig>::type
-					     >::value()...,
-				nil<typename type_mapping::cxx_to_atl<R>::type >::value()}};
-		}};
-	};
-
-
-        template<class Fn, Fn fn>
-	struct _WrapFnPntr {
-
-	    template<class R, class ... Arguments>
-	    struct apply {
-
-                template <std::size_t... Index>
-                static void call_packed(PCode::iterator begin,
-                                       Indexer<Index...>) {
-                    using namespace byte_code;
-                    *begin = to_bytes(fn(begin[Index]...));
+                template<class Alloc>
+                static abstract_type::Type* parameter_types(Alloc& gc)
+                {
+                    return gc.template make<abstract_type::Type>(abstract_type::make_concrete({GuessTag<Sig>::value...,
+                                    GuessTag<R>::value}));
                 }
-
-                static void shimmed(PCode::iterator begin, PCode::iterator end) {
-                    call_packed(begin, BuildIndicies<sizeof...(Arguments)>{} );
-                }
-
-                constexpr static CxxFn impl = CxxFn(&shimmed, sizeof...(Arguments));
-
-                static Any any() {
-                    return Any(tag<CxxFn>::value,
-                               const_cast<void*>(reinterpret_cast<void const*>(&impl))); }
             };
 	};
-
-        template<class Fn, Fn fn>
-        template<class R, class ... Arguments>
-        constexpr CxxFn _WrapFnPntr<Fn, fn>::apply<R,Arguments...>::impl;
-
-	template<class Fn, Fn fn>
-	struct WrapFnPntr :
-	    public unpack_fn::Pointer<Metadata, Fn>,
-	    public unpack_fn::Pointer<_WrapFnPntr<Fn, fn>, Fn>
-        {};
 
 
         // wraps a c++ std::function
@@ -112,17 +69,16 @@ namespace atl {
 
 	template<class R, class ... Sig>
 	class WrapStdFunction<R (Sig ...)> :
-	    public Metadata::template apply<R, Sig...> {
-	public:
-	    static const size_t arity = sizeof...(Sig);
-
+	    public Metadata::template apply<R, Sig...>
+        {
 	private:
 	    template <std::size_t... Index>
 	    static void call_packed(std::function<R (Sig...)> fn
                                     , PCode::iterator begin
-                                    , Indexer<Index...>) {
+                                    , Indexer<Index...>)
+            {
                 using namespace byte_code;
-                *begin = to_bytes(atl::value<R>(fn(begin[Index]...)));
+                *begin = to_bytes(atl::value<R>(fn(from_bytes<Sig>(begin[Index])...)));
 	    }
 	public:
 
@@ -130,23 +86,28 @@ namespace atl {
 	     * using the 'a' for 'apply' convention, builds the wrapped version of fn
 	     * @return: wrapped function
 	     */
-	    static PrimitiveRecursive* a(std::function<R (Sig...)> const& fn, GC &gc
-					 , std::string const & name = "#<PrimitiveRecursive>") {
-		static const auto param_t = Metadata::template apply<R,Sig...>::parameter_types();
-		return gc.make<PrimitiveRecursive>
-		    (
-		     [fn](PCode::iterator vv, PCode::iterator _) {
-			 return call_packed(fn, vv, BuildIndicies<arity> {});
+            template<class Alloc>
+	    static CxxFunctor* a(std::function<R (Sig...)> const& fn, Alloc &gc
+                                 , std::string const & name = "#<Unnamed-CxxFunctor>")
+            {
+		return gc.template make<CxxFunctor>
+                    ([fn](PCode::iterator vv, PCode::iterator _)
+                     {
+			 return call_packed(fn, vv, BuildIndicies<WrapStdFunction::arity()> {});
 		     }
 		     , name
-		     , CxxArray(&(*param_t.begin()), &(*param_t.end()))
-		     );
-	    }};
+                     , WrapStdFunction::parameter_types(gc) );
+	    }
+
+            template<class Alloc>
+            static Any any(std::function<R (Sig...)> const& fn, Alloc &gc,
+                           std::string const& name = "#<Unnamed-CxxFunctor>")
+            {
+                return wrap(a(fn, gc, name));
+            }
+        };
     }
 
-
-    template<class Fn, Fn fn>
-    using WrapFnPntr = cxx_functions::WrapFnPntr<Fn, fn>;
 
     template<class Sig>
     using WrapStdFunction = cxx_functions::WrapStdFunction<Sig>;
