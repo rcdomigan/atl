@@ -124,18 +124,14 @@ namespace atl {
 	/**  / ___ \| |  | | |_| | | | | | | | | (_| | |_| | (__  **/
 	/** /_/   \_\_|  |_|\__|_| |_|_| |_| |_|\__,_|\__|_|\___| **/
 	/***********************************************************/
-	wrap_fn<long (*)(long, long), &bin_add>(env, "bin-add");
+	wrap_function<long (long, long)>(env, "add2", [](long a, long b) { return a + b;});
+	wrap_function<long (long, long)>(env, "sub2", [](long a, long b) { return a - b;});
 
-	wrap_fn<long (*)(long, long), &bin_sub>(env, "bin-sub");
-
-
-	wrap_fn<bool (*)(long, long), &arith_eq>(env, "=");
-        wrap_fn<bool (*)(long, long), &arith_lt>(env, "<");
-        wrap_fn<bool (*)(long, long), &arith_gt>(env, ">");
-        wrap_fn<bool (*)(long, long), &arith_lt_eq>(env, "<=");
-        wrap_fn<bool (*)(long, long), &arith_gt_eq>(env, ">=");
-
-        wrap_fn<long (*)(Any), print>(env, "print");
+        wrap_function<bool (long, long)>(env, "=", [](long a, long b) { return a = b;});
+        wrap_function<bool (long, long)>(env, "<", [](long a, long b) { return a < b;});
+        wrap_function<bool (long, long)>(env, ">", [](long a, long b) { return a > b;});
+        wrap_function<bool (long, long)>(env, "<=", [](long a, long b) { return a <= b;});
+        wrap_function<bool (long, long)>(env, ">=", [](long a, long b) { return a >= b;});
 
 	/////////////////////////////////////////////////////////////////////
 	//  ___       _                                 _   _              //
