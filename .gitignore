@@ -5,6 +5,11 @@ test-zipper
 test/parser
 test/compiler
 test/vm_test
+test/test
+test/type_deduction
+test/abstract_type
 test/compile
+test/lists
+test/structs
 TAGS
 table-bc
