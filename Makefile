@@ -24,3 +24,6 @@ byte-coded: ./test/byte_coded.cpp *.hpp
 
 test-zipper: ./test/test_zipper.cpp *.hpp
 	$(CXX) ./test/test_zipper.cpp -o test-zipper
+
+TAGS: ./*.cpp ./*.hpp ./test/*.hpp
+	find -iname "*cpp" -o -iname "*hpp" | etags -
