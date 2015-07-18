@@ -8,10 +8,26 @@
 
 #include <map>
 
-namespace atl {
-    namespace lexical {
-    	struct Map {
-	    typedef std::map<std::string, Any> Impl;
+#include <tiny_vm.hpp>
+#include <abstract_type.hpp>
+
+namespace atl
+{
+    namespace lexical
+    {
+        struct Value
+        {
+            abstract_type::Type metadata;
+            Any value;
+            Value() = default;
+            Value(Any vv, abstract_type::Type const& mm)
+                : metadata(mm), value(vv)
+            {}
+        };
+
+    	struct Map
+        {
+	    typedef std::map<std::string, Value> Impl;
 	    typedef Impl::iterator iterator;
 	    Impl _local;
 	    Map *_prev;
@@ -21,21 +37,30 @@ namespace atl {
 	    Map(GC &gc) : _prev(nullptr), _gc(gc) {}
 	    Map() = delete;
 
+            void define(const std::string& name, Any const& value, abstract_type::Type const& type)
+            {
+                _local[name] = Value(value, type);
+            }
 
-	    void define(const std::string& name, Any value) { _local[name] = value; }
+	    void define(const std::string& name, Any const& value)
+            { define(name, value, abstract_type::make_abstract({value._tag})); }
 
-	    Impl::iterator find(const string& k) {
+	    iterator find(const string& k)
+            {
 		Impl::iterator res = _local.find(k);
-		if(res == _local.end()) {
-		    if(_prev == nullptr) return end();
-		    if( (res = _prev->find(k)) == _prev->end() )
-			return _local.end();
-		    return  res; }
-		return res; }
+		if(res == _local.end())
+                    {
+                        if(_prev == nullptr) return end();
+                        if( (res = _prev->find(k)) == _prev->end() )
+                            return _local.end();
+                        return  res;
+                    }
+		return res;
+            }
 
             // Iterate over _this_ map (doesn't do encosing scope).
-	    Impl::iterator end() { return _local.end(); }
-	    Impl::iterator begin() { return _local.begin(); }
+	    iterator end() { return _local.end(); }
+	    iterator begin() { return _local.begin(); }
 
             Any& value(const std::string& name) {
 		auto i = find(name);
@@ -43,19 +68,24 @@ namespace atl {
 		if (i == end())
 		    throw UnboundSymbolError(std::string("Unbound symbol: ").append(name));
 		else
-		    return i->second;
+		    return i->second.value;
             }
 
 	    Any& value(Symbol& sym) {
                 return value(sym.name);
             }
 
-            void print();
+            void dbg();
 	};
 
-        void Map::print() {
+        void Map::dbg()
+        {
             for(auto& pair : _local)
-                std::cout << pair.first << " = " << printer::any(pair.second) << endl;
+                {
+                    std::cout << pair.first << " = (: " << printer::any(pair.second.value) << " ";
+                    pair.second.metadata.dbg();
+                    std::cout << ")" << std::endl;
+                }
         }
 
         struct MapRAII {
@@ -70,12 +100,15 @@ namespace atl {
 
     struct Environment {
 	std::map<tag_t, void*> type_class_map;
+
 	GC& gc;
 	lexical::Map toplevel;
 
         AssembleVM *pcode;
+        tag_t _struct_tag;
 
-	Environment(GC &_gc) : gc(_gc), toplevel(_gc), pcode(nullptr)
+	Environment(GC &_gc)
+            : gc(_gc), toplevel(_gc), pcode(nullptr), _struct_tag(0)
         { init_types(); }
 
 	Environment() = delete;
@@ -83,6 +116,8 @@ namespace atl {
         void define(const std::string& name, Any value) {
             toplevel.define(name, value);
         }
+
+        tag_t struct_tag() { return _struct_tag++; }
     };
 }
 

@@ -215,18 +215,17 @@ namespace atl {
     };
 
 
+	struct Undefined
+	{
+		typedef std::vector<PCode::iterator> Backtrack;
 
-    struct Undefined {
-	typedef std::vector<PCode::iterator> Backtrack;
+		Backtrack backtrack;
+		abstract_type::Type *type;
 
-	// Information for the compiler ()
-	enum class LexicalBinding {unbound, parameter, indirect_parameter};
-	LexicalBinding binding_type;
-
-	size_t argument_position;
-
-	Backtrack backtrack;
-    };
+		Undefined(abstract_type::Type *tt)
+			: type(tt)
+		{}
+	};
 
 
     /* Macro and Procedure have the same data layout, but distinct tags */
@@ -291,7 +290,15 @@ namespace atl {
     };
 
 
+    struct Type
+    {
+        typedef abstract_type::Type value_type;
+        tag_t _tag;
+        value_type *value;
 
+        Type(abstract_type::Type* type_)
+            : _tag(tag<Type>::value), value(type_)
+        {}
     };
 
     /**
@@ -528,9 +535,66 @@ namespace atl {
 	return primitive_type_names[t];
     }
     const char* type_name(Any a) { return type_name( type_tag(a)); }
+
+
+    ///////////////////////////////////////
+    //  ____       _     _               //
+    // | __ ) _ __(_) __| | __ _  ___ _  //
+    // |  _ \| '__| |/ _` |/ _` |/ _ (_) //
+    // | |_) | |  | | (_| | (_| |  __/_  //
+    // |____/|_|  |_|\__,_|\__, |\___(_) //
+    //                     |___/         //
+    ///////////////////////////////////////
+    // Bridge abstract and concrete types:
+
+    std::ostream& abstract_type::Node::print(std::ostream& out) const
+    {
+        switch(tag)
+            {
+            case SubType::function:
+                type_seq->print(out);
+                break;
+            case SubType::concrete:
+                out << type_name(type);
+                break;
+            case SubType::abstract:
+                out << 'a' << type;
+                break;
+            default:
+                out << "what?";
+                break;
+            }
+
+        switch(count)
+            {
+            case one:
+                break;
+            case at_least_one:
+                out << "+"; break;
+            case zero_or_more:
+                out << "*"; break;
+            }
+
+        return out;
+    }
+
+    // The tag of the returned type of an expression
+    namespace abstract_type
+    {
+        tag_t return_tag(Type const& tt)
+        {
+            if(tt.back().is_concrete())
+                return tt.back().type;
+            else if(tt.back().is_function())
+                return tag<Procedure>::value;
+            else
+                return tag<Undefined>::value;
+        }
+    }
 }
 
-namespace std {
+namespace std
+{
     template<>
     struct iterator_traits<typename atl::Ast::iterator> {
 	typedef size_t difference_type;
