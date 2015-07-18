@@ -59,7 +59,7 @@ namespace atl {
 
 
 #define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(Type)(TailCall)(Ast)(Data)
-#define ATL_PIMPL_SEQ (CxxArray)(Slice)(String)(Symbol)(Procedure)(Macro)(Undefined)(PCode)(Parameter)
+#define ATL_PIMPL_SEQ (Slice)(String)(Symbol)(Procedure)(Macro)(Undefined)(PCode)(Parameter)
 #define ATL_TYPES_SEQ ATL_REINTERPERABLE_SEQ ATL_PIMPL_SEQ(CxxFunctor)(PrimitiveMacro)(Mark)
 
 #define M(r, _, i, elem)						\
@@ -201,24 +201,6 @@ namespace atl {
 
     template<> struct
     tag<std::string*> : public tag<String> {};
-
-    // Wrap a C style array
-    struct CxxArray {
-	typedef Any const* iterator;
-	typedef Any const* const_iterator;
-	Any const* _begin, *_end;
-
-	CxxArray(Any const* begin, Any const* end)
-	    : _begin(begin), _end(end) {}
-
-	CxxArray() : _begin(nullptr), _end(nullptr) {}
-
-	const_iterator begin() const { return _begin; }
-	const_iterator end() const { return _end; }
-
-	bool empty() const { return begin() == end(); }
-        size_t size() { return _end - _begin; }
-    };
 
 
     struct PCode {

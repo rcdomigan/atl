@@ -132,9 +132,6 @@ namespace atl {
 		return out << range(unwrap<Ast>(a));
 	    case tag<Slice>::value:
 		return out << range(unwrap<Slice>(a), '[', ']');
-	    case tag<CxxArray>::value:
-		return out << range(unwrap<CxxArray>(a));
-		return out << "#" << range(unwrap<Data>(a));
 	    case tag<Procedure>::value:
 		return out << "#<\\ "
 			   << ">" << flush;

@@ -12,8 +12,6 @@ namespace atl {
     namespace flat_iterator {
 	const Any* const_begin(const Any aa) {
 	    switch(aa._tag) {
-	    case tag<CxxArray>::value:
-		return unwrap<CxxArray>(aa)._begin;
 	    case tag<Slice>::value:
 		return unwrap<Slice>(aa)._begin;
 	    case tag<Ast>::value:
@@ -25,8 +23,6 @@ namespace atl {
 
 	const Any* const_end(const Any aa) {
 	    switch(aa._tag) {
-	    case tag<CxxArray>::value:
-		return unwrap<CxxArray>(aa)._end;
 	    case tag<Slice>::value:
 		return unwrap<Slice>(aa)._end;
 	    case tag<Ast>::value:
@@ -74,8 +70,6 @@ namespace atl {
     namespace ast_iterator {
 	Ast::const_iterator const_begin(const Any aa) {
 	    switch(aa._tag) {
-	    case tag<CxxArray>::value:
-		return Ast::const_iterator(unwrap<CxxArray>(aa).begin());
 	    case tag<Slice>::value:
 		return unwrap<Slice>(aa).begin();
 	    case tag<Ast>::value:
@@ -87,8 +81,6 @@ namespace atl {
 
 	Ast::const_iterator const_end(const Any aa) {
 	    switch(aa._tag) {
-	    case tag<CxxArray>::value:
-		return Ast::const_iterator(unwrap<CxxArray>(aa).end());
 	    case tag<Slice>::value:
 		return const_cast<const Slice&&>(unwrap<Slice>(aa)).end();
 	    case tag<Ast>::value:
