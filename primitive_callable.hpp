@@ -12,7 +12,6 @@
 #include "./type.hpp"
 #include "./parser.hpp"
 #include "./helpers.hpp"
-#include "./type_class.hpp"
 #include "./compile.hpp"
 #include "./structs.hpp"
 #include "./interface_helpers.hpp"
@@ -21,11 +20,6 @@
 
 namespace atl {
     Any nullP(Any a) { return is<Null>(a) ? atl_true() : atl_false();  }
-
-    void setup_typeclasses(Environment& env) {
-	env.type_class_map[typeclass_tag<Applicable>::value] = new Applicable::Map();
-	env.type_class_map[typeclass_tag<Sequence>::value] = new Sequence::Map();
-    }
 
     void export_recursive_defs(GC &gc, Environment &env, ParseString &parser) {
         using namespace primitives;
@@ -263,9 +257,115 @@ namespace atl {
 	//     });
     }
 
-    void setup_interpreter(GC &gc, Environment &env, ParseString &parser) {
-	setup_typeclasses(env);
-	export_recursive_defs(gc, env, parser);
+                 switch(seq_type)
+                     {
+                     case tag<Ast>::value:
+                         eval.compile->wrapped.std_function(&cons_ast->fn, 3);
+                         *begin = tag<Ast>::value;
+                         return;
+                     default:
+                         throw WrongTypeError
+                             (std::string("cons not defined for ").append(type_name(seq_type)));
+                     }
+             });
+
+
+             // TODO: needs to be type dispatched at compile time.
+             // wrap_function<bool (Any)>(env, "empty?",
+             //                           []( vv)
+             //                           {
+             //                               switch(vv._tag) {
+             //                               case tag<Data>::value:
+             //                                   return unwrap<Data>(vv).empty();
+             //                               case tag<Ast>::value:
+             //                                   return unwrap<Ast>(vv).empty();
+             //                               case tag<CxxArray>::value:
+             //                                   return unwrap<CxxArray>(vv).empty();
+             //                               }
+             //                               return true;
+             //                           });
+
+             // wrap_fn<Any (Data, Data)>(env, "append", [&gc](Data aa, Data bb) {
+             // 	auto output = gc.dynamic_seq();
+             // 	auto data = output->push_seq<Data>();
+
+             // 	std::copy(aa.begin(), aa.end(),
+             // 		  output->back_insert_iterator());
+             // 	std::copy(bb.begin(), bb.end(),
+             // 		  output->back_insert_iterator());
+
+             // 	data->end_at(output->end());
+             // 	return wrap(data);
+             //     });
+
+             // wrap_fn<Any (Data, long)>(env, "take",
+             //      [&gc](Data input, long num) {
+             // 	auto output = gc.dynamic_seq();
+             // 	auto data = output->push_seq<Data>();
+             // 	std::copy(input.begin(), input.begin() + num,
+             // 		  output->back_insert_iterator());
+             // 	data->end_at(output->end());
+             // 	return wrap(data);
+             //     });
+
+             /////////// SLICE //////////
+             // Method slice;
+             // slice.value[tag<Ast>::value] =
+
+             wrap_function<Slice* (Any*, long)>(env, "slice",
+                                                [&gc](Any* raw, long nn) -> Slice*
+                 {
+                     Ast ast(raw);
+                     auto out = gc.make<Slice>(ast.begin() + nn, ast.end());
+                     return out;
+                 });
+
+             // env.define("slice", wrap(slice));
+
+             /////////// TO AST //////////
+             // wrap_fn<Ast (Any)>
+             //     (env, "list->ast",
+             //      [&](Any seq) -> Ast {
+             // 	return deep_copy::to<Ast>(flat_iterator::range(seq), gc);
+             //     });
+
+
+             // auto apply_sequence = [](const Any *args, const Any *_) -> Any {
+             //     return *(ast_iterator::const_begin(args[0])
+             // 	     + value<Fixnum>(args[1]));
+             // };
+             // (Applicable(env)).set<Ast>(apply_sequence);
+             // (Applicable(env)).set<Data>(apply_sequence);
+             // (Applicable(env)).set<Slice>(apply_sequence);
+             // (Applicable(env)).set<CxxArray>(apply_sequence);
+
+
+             ///////////////////////////////////////////
+             //  __  __                       _       //
+             // |  \/  | ___  _ __   __ _  __| |___   //
+             // | |\/| |/ _ \| '_ \ / _` |/ _` / __|  //
+             // | |  | | (_) | | | | (_| | (_| \__ \  //
+             // |_|  |_|\___/|_| |_|\__,_|\__,_|___/  //
+             ///////////////////////////////////////////
+             // Monads
+
+             // env.wrap_fn<Any (Any, Any)>
+             //     (">>=",
+             //      [env](Any fn, Any monad) {
+             //     });
+
+             // // `return` in Haskell
+             // env.wrap_fn<Any (Any)>
+             //     ("unit",
+             //      [env](Any vv) {
+             // 	return 
+             //     });
+             }
+
+    void setup_interpreter(Environment &env, ParseString &parser) {
+        init_types();
+        export_recursive_defs(env.gc, env, parser);
+        define_primitives(env);
     }
 }
 
