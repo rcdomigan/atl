@@ -18,8 +18,8 @@ int main(int argc, char *argv[]) {
 
     while( true ) {
         cout << "> ";
-	interpreter.stream(cin);
-        cout << dec << interpreter.vm.stack[0] <<endl;
+	auto rval = interpreter.stream(cin);
+        cout << dec << printer::any(rval) <<endl;
     }
 
     return 0;

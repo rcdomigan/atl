@@ -6,6 +6,7 @@
  * Created on Feb 07, 2015
  */
 
+#include <type.hpp>
 #include <tiny_vm.hpp>
 #include <primitive_callable.hpp>
 #include <compile.hpp>
@@ -24,23 +25,25 @@ namespace atl {
         TinyVM vm;
 
         Atl() : parse(gc), env(gc), compile(env) {
-            setup_interpreter(gc, env, parse);
+            setup_interpreter(env, parse);
         }
 
-        void eval(Any value) {
+        Any eval(Any value)
+        {
+            auto tag = compile.any(value);
 #ifdef DEBUGGING
-            compile.any(value);
             compile.print();
-            vm.run_debug(compile._wrapped.main_entry_point);
+            vm.run_debug(compile.wrapped.main_entry_point);
 #else
-            compile.any(value);
-            vm.run(compile._wrapped.main_entry_point);
+            vm.run(compile.wrapped.main_entry_point);
 #endif
             compile.repl_reset();
+
+            return Any(tag, reinterpret_cast<void*>(vm.stack[0]));
         }
 
-        void string_(const std::string& ss) { eval(parse.string_(ss)); }
-        void stream(istream& ss) { eval(parse.stream(ss)); }
+        Any string_(const std::string& ss) { return eval(parse.string_(ss)); }
+        Any stream(istream& ss) { return eval(parse.stream(ss)); }
     };
 }
 
