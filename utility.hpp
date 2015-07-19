@@ -20,24 +20,6 @@
 
 #include <boost/mpl/vector.hpp>
 
-template<size_t N>
-struct intC : public std::integral_constant<size_t, N>::type {};
-
-/* Well, std library has some metaprogramming stuff now, but it's missing a lot. */
-struct _void {
-    typedef _void type;
-    /* eats constructor args so I can use it to terminate
-       recursive constructors */
-    template<class ... T>
-    _void(T...) {}
-};
-
-template<class Container, class Tag = typename Container::tag_type>
-struct Size;
-
-template<class Container, size_t Position, class Tag = typename Container::tag_type>
-struct AtC;
-
 template<long Numerator, long Denominator, class Numeric = double>
 struct rational_c {
 
@@ -49,6 +31,223 @@ struct rational_c {
     constexpr static Num value_squared = value * value;
 };
 
+//////////////////////////
+//  _____ __  __ ____   //
+// |_   _|  \/  |  _ \  //
+//   | | | |\/| | |_) | //
+//   | | | |  | |  __/  //
+//   |_| |_|  |_|_|     //
+//////////////////////////
+namespace tmp
+{
+	template<size_t N>
+	struct intC : public std::integral_constant<size_t, N>::type {};
+
+	/* Well, std library has some metaprogramming stuff now, but it's missing a lot. */
+	struct _void
+	{
+		typedef _void type;
+		/* eats constructor args so I can use it to terminate
+		   recursive constructors */
+		template<class ... T>
+		_void(T...) {}
+	};
+
+	template<class Container, class Tag = typename Container::tag_type>
+	struct Size;
+
+	template<class Container, size_t Position, class Tag = typename Container::tag_type>
+	struct AtC;
+
+	template<class T> struct Identity { typedef T type; };
+
+	template<class T, class U = typename T::type>
+	struct IsVoid : std::false_type {};
+
+	template<class T>
+	struct IsVoid<T,_void> : std::true_type {};
+
+	namespace detail
+	{
+		template<class T> struct GetDepth : public intC<T::depth + 1>::type {};
+
+		template<> struct GetDepth<_void> : public intC<0>::type {};
+	}
+
+
+	template<class T>
+	struct Eval : public T::type {};
+
+
+	template<template<class ... U> class Fn, class ... T>
+	struct Apply : Fn<typename T::type...> {};
+
+
+	/**********************************/
+	/*  __  __ ____  _     _     _    */
+	/* |  \/  |  _ \| |   (_)___| |_  */
+	/* | |\/| | |_) | |   | / __| __| */
+	/* | |  | |  __/| |___| \__ \ |_  */
+	/* |_|  |_|_|   |_____|_|___/\__| */
+	/**********************************/
+	/* meta-programming-list; a list of types which can be instantiated to make a sort of tuple.
+	   Having said that; maybe I should generate a std::tuple and use the boost libs.  Well, I've already got this going;
+	   so sticking with it for now
+	*/
+	struct MPList_tag { typedef MPList_tag tag_type; };
+
+	template<class List> struct Car : public Identity<typename List::Car> {};
+	template<> struct Car<_void> : public _void {};
+
+	template<class List> struct Cdr : public Identity<typename List::Cdr> {};
+	template<> struct Cdr<_void> : public _void {};
+
+	template<class T, class Next>
+	struct Cons : public MPList_tag {
+		typedef Cons<T, Next> type;
+
+		typedef T Car;
+		typedef Next Cdr;
+
+		/* I can use the instatiated list at run-time */
+		T value;
+		Next next;
+
+		static const size_t depth = detail::GetDepth<Next>::value;
+	};
+
+	template<class ... List> struct MPList;
+
+	template<class Head, class ... Tail>
+	struct MPList<Head, Tail...> : public Cons<Head, typename MPList<Tail...>::type> {};
+
+	template<> struct MPList<> : public _void {};
+
+	template<class Fn, class Init, class InputList>
+	struct Fold {
+		static_assert( std::is_same<typename InputList::type::tag_type, MPList_tag>::value
+		               , "Fold requires an MPList or Cons cell.");
+		typedef typename InputList::type List;
+		typedef typename
+		Fn::template Apply<typename Car<List>::type
+		                   , typename Fold<Fn, Init, typename Cdr<List>::type>::type
+		                   > type;
+	};
+
+	template<class Fn, class Init>
+	struct Fold<Fn,Init,_void> { typedef typename Init::type type; };
+
+	template<class Flatten, class List>
+	struct map_MPList {
+		template<class Fn>
+		void apply(Fn fn, List& ll) {
+			Flatten::apply(fn, ll);
+
+			map_MPList<Flatten, typename Cdr<List>::type
+			           >::apply(fn, ll.next);
+		}
+	};
+
+
+	template<class List>
+	struct Size<List, MPList_tag> {
+		const static size_t value = List::depth;
+	};
+
+	template<size_t N, class NNs>
+	struct ConsNums {
+		typedef NNs Next;
+		static const size_t value = N;
+		static const size_t depth = detail::GetDepth<Next>::value;
+
+		typedef ConsNums<N, NNs> type;
+	};
+
+	template<size_t ... Rest> struct Nums;
+
+	template<size_t NN, size_t ... Rest>
+	struct Nums<NN, Rest...> {
+		typedef ConsNums<NN, typename Nums<Rest...>::type > type; };
+
+	template<> struct Nums<> : public _void {};
+
+	template<class List>
+	struct LengthMPList : public intC<List::depth> {};
+
+	/****************************************************/
+	/*  ____            _   __        __                */
+	/* |  _ \ __ _  ___| | _\ \      / / __ __ _ _ __   */
+	/* | |_) / _` |/ __| |/ /\ \ /\ / / '__/ _` | '_ \  */
+	/* |  __/ (_| | (__|   <  \ V  V /| | | (_| | |_) | */
+	/* |_|   \__,_|\___|_|\_\  \_/\_/ |_|  \__,_| .__/  */
+	/*                                          |_|     */
+	/****************************************************/
+	struct PackWrap_tag { typedef PackWrap_tag tag_type; };
+
+	/* don't instantiate.  I think I have to make it instantiable to use
+	   inheritance, just don't do it. */
+	template<class ... Args>
+	struct PackWrap : public PackWrap_tag {
+		typedef PackWrap<Args ...> type;
+	};
+
+
+	template<class ... Args>
+	struct Size< PackWrap<Args...>, PackWrap_tag>
+	{
+		static constexpr size_t value = sizeof...(Args);
+	};
+
+
+	template<class ... Args> struct PackHead : public _void {};
+
+	template<class Head, class ... Tail>
+	struct PackHead<Head, Tail...> : public Identity<Head> {};
+
+
+	template <class ... Args> struct PackTail : public _void {};
+
+	template<class Head, class ... Tail>
+	struct PackTail<Head, Tail...> : public PackWrap<Tail...> {};
+
+
+	template<size_t N, class ... Args>
+	struct NthArg;
+
+	template<size_t N, class Head, class ... Tail>
+	struct NthArg<N, Head, Tail...>
+	{
+		typedef NthArg<N - 1, Tail...> type;
+	};
+
+	template<class Head, class ... Tail>
+	struct NthArg<0, Head, Tail...>
+	{
+		typedef Head type;
+	};
+
+
+	template<class ... Args>
+	struct Pack2Array
+	{
+		static constexpr std::array< typename PackHead<Args...>::type::value_type
+		                             , sizeof...(Args)
+		                             > value{{ Args::value... }};
+	};
+
+
+	/* http://loungecpp.wikidot.com/tips-and-tricks%3Aindices
+	 * tricky tricky, never gets instantiated, but can get filled out by
+	 * the template inference engine.
+	 */
+	template<std::size_t ...Is> struct Indexer {};
+
+	template <std::size_t N, std::size_t... Is> struct
+	BuildIndicies : BuildIndicies<N-1, N-1, Is...> {};
+
+	template <std::size_t... Is> struct
+	BuildIndicies<0, Is...> : Indexer<Is...> {};
+}
 
 /**************************************/
 /*     _                              */
@@ -113,121 +312,8 @@ struct MapTuple<FN, Tup, elem, elem> { static void apply(Tup&) {} };
 
 
 template<class FN, class Tup>
-void map_tuple(FN&&, Tup& tup) { MapTuple<FN, typename std::remove_reference<Tup>::type >::apply(tup); }
+void map_tuple(Tup& tup) { MapTuple<FN, typename std::remove_reference<Tup>::type >::apply(tup); }
 
-
-/************************/
-/*  __  __ ____  _      */
-/* |  \/  |  _ \| |     */
-/* | |\/| | |_) | |     */
-/* | |  | |  __/| |___  */
-/* |_|  |_|_|   |_____| */
-/************************/
-template<class T> struct Identity { typedef T type; };
-
-template<class T, class U = typename T::type>
-struct IsVoid : std::false_type {};
-
-template<class T>
-struct IsVoid<T,_void> : std::true_type {};
-
-namespace detail {
-    template<class T> struct GetDepth : public intC<T::depth + 1>::type {};
-
-    template<> struct GetDepth<_void> : public intC<0>::type {};
-}
-
-
-/**********************************/
-/*  __  __ ____  _     _     _    */
-/* |  \/  |  _ \| |   (_)___| |_  */
-/* | |\/| | |_) | |   | / __| __| */
-/* | |  | |  __/| |___| \__ \ |_  */
-/* |_|  |_|_|   |_____|_|___/\__| */
-/**********************************/
-/* meta-programming-list; a list of types which can be instantiated to make a sort of tuple.
-   Having said that; maybe I should generate a std::tuple and use the boost libs.  Well, I've already got this going;
-   so sticking with it for now
-*/
-struct MPList_tag { typedef MPList_tag tag_type; };
-
-template<class List> struct Car : public Identity<typename List::Car> {};
-template<> struct Car<_void> : public _void {};
-
-template<class List> struct Cdr : public Identity<typename List::Cdr> {};
-template<> struct Cdr<_void> : public _void {};
-
-template<class T, class Next>
-struct Cons : public MPList_tag {
-    typedef Cons<T, Next> type;
-
-    typedef T Car;
-    typedef Next Cdr;
-
-    /* I can use the instatiated list at run-time */
-    T value;
-    Next next;
-
-    static const size_t depth = detail::GetDepth<Next>::value;
-};
-
-template<class ... List> struct MPList;
-
-template<class Head, class ... Tail>
-struct MPList<Head, Tail...> : public Cons<Head, typename MPList<Tail...>::type> {};
-
-template<> struct MPList<> : public _void {};
-
-template<class Fn, class Init, class InputList>
-struct Fold {
-    static_assert( std::is_same<typename InputList::type::tag_type, MPList_tag>::value
-		   , "Fold requires an MPList or Cons cell.");
-    typedef typename InputList::type List;
-    typedef typename
-    Fn::template Apply<typename Car<List>::type
-		       , typename Fold<Fn, Init, typename Cdr<List>::type>::type
-		       > type;
-};
-
-template<class Fn, class Init>
-struct Fold<Fn,Init,_void> { typedef typename Init::type type; };
-
-template<class Flatten, class List>
-struct map_MPList {
-    template<class Fn>
-    void apply(Fn fn, List& ll) {
-	Flatten::apply(fn, ll);
-
-	map_MPList<Flatten, typename Cdr<List>::type
-		   >::apply(fn, ll.next);
-    }
-};
-
-
-template<class List>
-struct Size<List, MPList_tag> {
-    const static size_t value = List::depth;
-};
-
-template<size_t N, class NNs>
-struct ConsNums {
-    typedef NNs Next;
-    static const size_t value = N;
-    static const size_t depth = detail::GetDepth<Next>::value;
-
-    typedef ConsNums<N, NNs> type;
-};
-
-template<size_t ... Rest> struct Nums;
-
-template<size_t NN, size_t ... Rest>
-struct Nums<NN, Rest...> {
-    typedef ConsNums<NN, typename Nums<Rest...>::type > type; };
-
-template<> struct Nums<> : public _void {};
-
-template<class List>
-struct LengthMPList : public intC<List::depth> {};
 
 /******************************/
 /*   ____                _    */
@@ -237,17 +323,17 @@ struct LengthMPList : public intC<List::depth> {};
 /*  \____\___/|_| |_|___/\__| */
 /******************************/
 template<class T>
-struct GetConstIterator : public Identity<typename T::const_iterator> {};
+struct GetConstIterator : public tmp::Identity<typename T::const_iterator> {};
 
 template<class T>
-struct GetMutableIterator : public Identity<typename T::iterator> {};
+struct GetMutableIterator : public tmp::Identity<typename T::iterator> {};
 
 /* Tools for dealing with const */
-template<class Container>
+template<class Container, class NoRef = typename std::remove_reference<Container>::type>
 struct GetIterator
-    : public std::conditional< std::is_const<Container>::value
-			       , GetConstIterator<Container>
-			       , GetMutableIterator<Container>
+    : public std::conditional< std::is_const<NoRef>::value
+			       , GetConstIterator<NoRef>
+			       , GetMutableIterator<NoRef>
 			       >::type {};
 
 
@@ -262,26 +348,29 @@ struct GetIterator
 struct IncItr { template<class T> static void apply(T&& t) { ++t; } };
 
 
-// Not quite idomatic; the operator* returns the tuple containing all the _iterators_.
+// Not very idomatic; the operator* returns the tuple containing all the _iterators_.
 // TODO: can I construct a tuple of rvalues from the tuple of iterators?
 template<class ... Types>
-struct RangeItr {
+struct RangeItr
+{
     typedef std::tuple< Types ... > value_type;
     value_type _itrs;
 
     RangeItr() = delete; // : _itrs(Types()...) {}
-    RangeItr( const Types& ... input ) : _itrs(input ...) {}
+    RangeItr(Types const& ... input ) : _itrs(input ...) {}
 
-    RangeItr& operator++() {
-	map_tuple(IncItr(), _itrs);
-	return *this;
+    RangeItr& operator++()
+    {
+        map_tuple<IncItr>(_itrs);
+        return *this;
     }
     value_type& operator*() { return _itrs; }
 
     /* note: only compairs the _first_ element (so I can have ranges of different sizes; stick the shortest range in
        the first position) */
-    bool operator!=(const RangeItr<Types...>& other) {
-	return std::get<0>(other._itrs) != std::get<0>(_itrs);
+    bool operator!=(const RangeItr<Types...>& other)
+    {
+        return std::get<0>(other._itrs) != std::get<0>(_itrs);
     }
 };
 
@@ -315,24 +404,60 @@ struct Range_base {
 };
 
 
-template<class ... Ranges>
+template<class T>
+struct RemoveConstReference
+    : public std::remove_const<typename std::remove_reference<T>::type>
+{};
+
+
+template<bool is_const, class ... Ranges>
 struct Zipper
-    : public Range_base<RangeItr<typename std::remove_reference<Ranges>::type::iterator ...> > {
+{
+    typedef RangeItr<typename std::remove_const<typename GetIterator<Ranges>::type>::type ... > Itr;
+    typedef Zipper<is_const, Ranges...> zipper_type;
 
-    typedef Range_base<RangeItr<typename std::remove_reference<Ranges>::type::iterator ...>
-		       > base_type;
-    typedef RangeItr<typename std::remove_reference<Ranges>::type::iterator ...> Itr;
+    struct ref_type
+        : public Range_base<Itr>
+    {
+        typedef typename zipper_type::Itr Itr;
+        typedef Range_base<Itr> base_type;
 
-    Zipper(Ranges&& ...  pp)
-	: base_type(Itr(pp.begin() ...), Itr(pp.end()...)) {}
+        ref_type(Ranges&& ...  pp)
+            : base_type(Itr(pp.begin() ...), Itr(pp.end()...))
+        {}
 
-    Zipper(const Zipper&) = default;
-    ~Zipper() = default;
+        ref_type(ref_type const&) = default;
+    };
+
+    struct const_type
+        : public Range_base<Itr>
+    {
+        typedef typename zipper_type::Itr Itr;
+        typedef Range_base<Itr> base_type;
+
+        const_type(Ranges const& ...  pp)
+            : base_type(Itr(pp.begin() ...), Itr(pp.end()...))
+        {}
+
+        const_type(const_type const&) = default;
+    };
+
+    typedef typename std::conditional<is_const,
+                                      const_type,
+                                      ref_type
+                                      >::type type;
 };
 
 template<class ... Ranges>
-Zipper<Ranges...> zip(Ranges&& ... rr) {
-    return Zipper<Ranges...>(std::forward<Ranges>(rr)...);
+typename Zipper<false, Ranges...>::type zip(Ranges& ... rr)
+{
+    return typename Zipper<false, Ranges...>::type(std::forward<Ranges>(rr)...);
+}
+
+template<class ... Ranges>
+typename Zipper<true, Ranges const...>::type zip(Ranges const& ... rr)
+{
+    return typename Zipper<true, Ranges const...>::type(std::forward<Ranges const>(rr)...);
 }
 
 
@@ -372,14 +497,14 @@ Range<typename GetIterator<Container>::type > make_range(Container& cc) {
 }
 
 template<class T>
-Range<typename GetIterator<T>::type >  slice(T& container, int begin) {
+Range<typename GetIterator<T>::type >  slice(T& container, size_t begin) {
     return begin_end_to_range<typename GetIterator<T>::type>(container.begin() + begin, container.end());
 }
 
 template<class T>
 Range<typename GetIterator<T>::type > slice(T& tt, int begin, int end) {
-    if(end < 0) return type(tt.begin() + begin, tt.end() + end);
-    else return type(tt.begin() + begin, tt.begin() + end);
+    if(end < 0) return T(tt.begin() + begin, tt.end() + end);
+    else return T(tt.begin() + begin, tt.begin() + end);
 }
 
 // Count up indefinitely
@@ -399,6 +524,7 @@ struct CountingRange {
 	bool operator!=(const Counter& other) const { return other._value != _value; }
     };
     typedef Counter iterator;
+    typedef Counter const_iterator;
 
     iterator begin() const { return Counter(0); }
     iterator end() const { return Counter(std::numeric_limits<value_type>::max()); }
@@ -429,61 +555,15 @@ struct PointerRange {
 template<class Container>
 PointerRange<Container> pointer_range(Container& cc) { return PointerRange<Container>(cc); }
 
-/****************************************************/
-/*  ____            _   __        __                */
-/* |  _ \ __ _  ___| | _\ \      / / __ __ _ _ __   */
-/* | |_) / _` |/ __| |/ /\ \ /\ / / '__/ _` | '_ \  */
-/* |  __/ (_| | (__|   <  \ V  V /| | | (_| | |_) | */
-/* |_|   \__,_|\___|_|\_\  \_/\_/ |_|  \__,_| .__/  */
-/*                                          |_|     */
-/****************************************************/
-struct PackWrap_tag { typedef PackWrap_tag tag_type; };
+template<class Output, class Fn, class Input>
+Output map_range(Fn fn, Input in)
+{
+    Output out;
+    for(auto& vv : in)
+        out.push_back(fn(vv));
 
-/* don't instantiate.  I think I have to make it instantiable to use
-   inheritance, just don't do it. */
-template<class ... Args>
-struct PackWrap : public PackWrap_tag {
-    typedef PackWrap<Args ...> type;
-};
+    return out;
+}
 
-
-template<class ... Args>
-struct Size< PackWrap<Args...>, PackWrap_tag> {
-    static constexpr size_t value = sizeof...(Args);
-};
-
-
-template<class ... Args> struct PackHead : public _void {};
-
-template<class Head, class ... Tail>
-struct PackHead<Head, Tail...> : public Identity<Head> {};
-
-
-template <class ... Args> struct PackTail : public _void {};
-
-template<class Head, class ... Tail>
-struct PackTail<Head, Tail...> : public PackWrap<Tail...> {};
-
-
-template<size_t N, class ... Args>
-struct NthArg;
-
-template<size_t N, class Head, class ... Tail>
-struct NthArg<N, Head, Tail...> {
-    typedef NthArg<N - 1, Tail...> type;
-};
-
-template<class Head, class ... Tail>
-struct NthArg<0, Head, Tail...> {
-    typedef Head type;
-};
-
-
-template<class ... Args>
-struct Pack2Array {
-    static constexpr std::array< typename PackHead<Args...>::type::value_type
-				 , sizeof...(Args)
-				 > value{{ Args::value... }};
-};
 
 #endif

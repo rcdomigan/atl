@@ -85,12 +85,6 @@ namespace atl {
     template<class T>
     struct tag : public _Tag<typename std::remove_const<T>::type> {};
 
-    // tag template [W]rapped in a regular struct
-    struct WTag
-    {
-        template<class T>
-        struct Apply : public tag<T> {};
-    };
 
     /****************************************************/
     /*  ____        __ _       _ _   _                  */
