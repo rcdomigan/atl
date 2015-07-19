@@ -183,108 +183,57 @@ namespace atl {
 	/** |_____|_|___/\__|___/ **/
 	/***************************/
 
-	// auto list_factory = primitives::MakeSequence(gc);
-	// env.define("list" ,
-        //             gc.amake<PrimitiveRecursive>
-        //             (PrimitiveRecursive::Fn(list_factory), "list"));
+        wrap_macro
+            (env,
+             "list",
+             [&](PCode::iterator begin, PCode::iterator end) -> void
+             {
+                 auto& eval = *reinterpret_cast<Eval*>(begin[0]);
+                 auto ast = slice(*reinterpret_cast<Ast*>(begin[1]), 1);
 
-	// TODO: this doesn't make sense in a strongly typed language.
-	// To bad this language isn't strongly typed yet.
-        def<listP>(env);
-        def<emptyP>(env);
+                 for(auto& vv : ast)
+                     eval.compile->push_value(eval.compile->in_place_any(vv));
 
+                 eval.compile->wrapped.std_function(&unwrap<CxxFunctor>(env.toplevel.value("__alloc_ast__")).fn,
+                                                    ast.size() * 2);
 
-	// wrap_fn<Any (Data, Data)>(env, "append", [&gc](Data aa, Data bb) {
-	// 	auto output = gc.dynamic_vector();
-	// 	auto data = output->push_seq<Data>();
-
-	// 	std::copy(aa.begin(), aa.end(),
-	// 		  output->back_insert_iterator());
-	// 	std::copy(bb.begin(), bb.end(),
-	// 		  output->back_insert_iterator());
-
-	// 	data->end_at(output->end());
-	// 	return wrap(data);
-	//     })
-            ;
-
-	// wrap_fn<Any (Data, long)>(env, "take",
-	//      [&gc](Data input, long num) {
-	// 	auto output = gc.dynamic_vector();
-	// 	auto data = output->push_seq<Data>();
-	// 	std::copy(input.begin(), input.begin() + num,
-	// 		  output->back_insert_iterator());
-	// 	data->end_at(output->end());
-	// 	return wrap(data);
-	//     });
-
-	/////////// SLICE //////////
-	// Both Ast and Data have the same memory layout, so the same
-	// `slice` will work on them
-	// auto slice_vec_or_ast = Sequence::Slice();
-	// wrap_fn<Any (Any, long)>
-	//     (env, "slice", [&gc](Any seq, long nn) {
-	// 	using namespace ast_iterator;
-	// 	return wrap(gc.make<Slice>(const_begin(seq) + nn,
-        //                                    const_end(seq)));
-	//     });
-
-	/////////// TO AST //////////
-	// wrap_fn<Ast (Any)>
-	//     (env, "list->ast",
-	//      [&](Any seq) -> Ast {
-	// 	return deep_copy::to<Ast>(flat_iterator::range(seq), gc);
-	//     });
-
-	////////// cons ////////
-	// TODO: make this a monad thing and pass the constructred
-	// list into a tail call.
-	// wrap_fn<Data (Any, Any)>
-	//     (env, "cons",
-	//      [&gc](Any vv, Any seq) -> Data {
-	// 	using namespace ast_iterator;
-	// 	auto output = gc.dynamic_vector();
-	// 	auto vec = output->push_seq<Data>();
-
-	// 	output->push_back(vv);
-	// 	std::copy(const_begin(seq), const_end(seq),
-	// 		  std::back_insert_iterator<GC::DynamicVector>(*output));
-
-	// 	vec->end_at(output->end());
-	// 	return *vec;
-	//     });
-
-	// auto apply_sequence = [](const Any *args, const Any *_) -> Any {
-	//     return *(ast_iterator::const_begin(args[0])
-	// 	     + value<Fixnum>(args[1]));
-	// };
-	// (Applicable(env)).set<Ast>(apply_sequence);
-	// (Applicable(env)).set<Data>(apply_sequence);
-	// (Applicable(env)).set<Slice>(apply_sequence);
-	// (Applicable(env)).set<CxxArray>(apply_sequence);
+                 *begin = tag<Ast>::value;
+             });
 
 
-	///////////////////////////////////////////
-        //  __  __                       _       //
-        // |  \/  | ___  _ __   __ _  __| |___   //
-        // | |\/| |/ _ \| '_ \ / _` |/ _` / __|  //
-        // | |  | | (_) | | | | (_| | (_| \__ \  //
-        // |_|  |_|\___/|_| |_|\__,_|\__,_|___/  //
-        ///////////////////////////////////////////
-	// Monads
+        auto cons_ast = WrapStdFunction<AstData* (PCode::value_type, PCode::value_type, Any*)>::a
+            ([&gc](PCode::value_type value, PCode::value_type type, Any *raw) -> AstData*
+             {
+                 using namespace ast_iterator;
+                 Ast seq(raw);
 
-	// env.wrap_fn<Any (Any, Any)>
-	//     (">>=",
-	//      [env](Any fn, Any monad) {
-	//     });
+                 auto output = gc.dynamic_seq();
+                 auto vec = output->end();
+                 output->push_back(Any(tag<AstData>::value, nullptr));
 
-	// // `return` in Haskell
-	// env.wrap_fn<Any (Any)>
-	//     ("unit",
-	//      [env](Any vv) {
-	// 	return 
-	//     });
-    }
+                 output->push_back(Any(type,
+                                       reinterpret_cast<void*>(value)));
+                 std::copy(seq.begin(), seq.end(),
+                           std::back_insert_iterator<GC::DynamicVector>(*output));
+
+                 vec->value = output->end();
+                 return reinterpret_cast<AstData*>(vec);
+             }
+             , env.gc
+             , "cons-ast");
+
+
+        wrap_macro
+            (env,
+             "cons",
+             [&, cons_ast](PCode::iterator begin, PCode::iterator end) -> void
+             {
+                 auto& eval = *reinterpret_cast<Eval*>(begin[0]);
+                 auto ast = slice(*reinterpret_cast<Ast*>(begin[1]), 1);
+
+                 // push car's (value type)
+                 eval.compile->push_value(eval.compile->in_place_any(ast[0]));
+                 auto seq_type = eval.compile->in_place_any(ast[1]);
 
                  switch(seq_type)
                      {
