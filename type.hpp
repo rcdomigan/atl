@@ -357,16 +357,34 @@ namespace atl {
 	};
     }
 
-    struct Ast {
+
+    struct AstData
+    {
+        tag_t _tag;
+        Any* value;
+        AstData(Any* end)
+            : _tag(tag<AstData>::value), value(end)
+        {}
+    };
+
+    struct Ast
+    {
+        typedef Any* value_type;
 	tag_t _tag;
-	Any* value;
+	value_type value;
 
 	Ast() = delete;
+
+        Ast(Any *begin_end)
+            : _tag(tag<Ast>::value), value(begin_end)
+        {}
+
 	Ast(Any *begin, Any *end)
 	    : _tag(tag<Ast>::value), value(begin)
 	{
 	    value->value = end;
 	}
+
 	Ast(const Ast&) = default;
 
 
@@ -412,48 +430,16 @@ namespace atl {
     };
 
 
-    struct Data {
-	typedef typename Ast::iterator iterator;
-	typedef typename Ast::const_iterator const_iterator;
-
-	tag_t _tag;
-	Any *value;
-
-	iterator begin() { return iterator(value + 1); }
-	const_iterator begin() const { return const_iterator(value + 1); }
-
-	iterator end() { return iterator(reinterpret_cast<Any*>(value->value)); }
-	const_iterator end() const { return const_iterator(reinterpret_cast<Any*>(value->value)); }
-
-	Data(Any *begin, Any *end) : _tag(tag<Data>::value), value(begin) { value->value = (void*)end; }
-	Data() : _tag(tag<Data>::value), value(nullptr) {}
-
-	const Any& operator[](size_t n) const {
-	    auto itr = begin();
-	    itr = itr + n;
-	    return *itr;
-	}
-
-	bool empty() const {
-	    return (value == nullptr) || (value == value->value);
-	}
-	size_t size() const { return end() - begin(); }
-
-	Any* end_at(Any *pos)
-	{ return reinterpret_cast<Any*>(value->value = pos); }
-
-	Any* end_at(const iterator& pos)
-	{ return reinterpret_cast<Any*>(value->value = pos.value); }
+    // Same as Ast, but should get a different tag.
+    struct Data : Ast
+    {
+	Data(Any *begin, Any *end) : Ast(begin, end) {}
     };
 
 
-
-    Ast* make_empty_ast(Any *here) {
-	return new (here)Ast(here + 1, here + 1);
-    }
-
     // A subset of an Ast or Data
-    struct Slice {
+    struct Slice
+    {
 	const Any *_begin, *_end;
 
 	Slice() = delete;
