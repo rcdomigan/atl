@@ -92,6 +92,35 @@ namespace atl {
 
         env.define("->", wrap(fn_construct));
 
+        // wrap_fn<Any (*)(Ast ast)>
+        //     (env, "match"
+        //      [&env](Struct st)
+        //      {
+        //      });
+
+
+        // wrap_fn<Struct (*)(Ast)>
+        //     (env, "Struct",
+        //      [&gc, &env](Ast input) -> Struct {
+        //         type_name = as<String>(input[0]);
+        //         for(auto& vv : slice(input, 1))
+        //             {
+        //                 auto constructor = as<Ast>(vv);
+        //                 for(auto& ww : slice(constructor, 1))
+        //                     {
+                                
+        //                         env.toplevel.define(as<String>(ww[0]));
+        //                     }
+        //             }
+        //     });
+
+        // wrap_fn<Any (*)(Ast ast)>
+        //     (env, "match"
+        //      [&env](Struct st)
+        //      {
+                 
+        //      });
+
 	// env.wrap_fn<Any (string)>
 	//     ("import",
 	//      [parser,en](string s) {
@@ -137,14 +166,14 @@ namespace atl {
 	/////////////////////////////////////////////////////////////////////
 	// introspection
 
-	wrap_function<Any ()>(env, "print-bytecode",
-                                    [env]() {
-                                        if(env.pcode)
-                                            env.pcode->print();
-                                        else
-                                            cout << "environment pcode is not set." << endl;
-                                        return aimm<Null>();
-                                    });
+	wrap_function<long ()>(env, "print-bytecode",
+                               [&env]() {
+                                   if(env.pcode)
+                                       env.pcode->dbg();
+                                   else
+                                       cout << "environment pcode is not set." << endl;
+                                   return 0;
+                               });
 
 	/***************************/
 	/**  _     _     _        **/

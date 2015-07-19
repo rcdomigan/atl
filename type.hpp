@@ -1,5 +1,5 @@
-#ifndef ATL_TYPES_HH
-#define ATL_TYPES_HH
+#ifndef ATL_TYPES_HPP
+#define ATL_TYPES_HPP
 /**
  * @file /home/ryan/programming/atl/types.hpp
  * @author Ryan Domigan <ryan_domigan@sutdents@uml.edu>
@@ -8,9 +8,11 @@
 
 #include <vector>
 #include <set>
+#include <unordered_map>
 #include <type_traits>
 #include <string>
 #include <algorithm>
+#include <iterator>
 
 #include <boost/mpl/at.hpp>
 #include <boost/mpl/size.hpp>
@@ -34,11 +36,11 @@
 #include <boost/preprocessor/stringize.hpp>
 
 #include "./utility.hpp"
+#include "./abstract_type.hpp"
 
 namespace mpl = boost::mpl;
 
 namespace atl {
-    typedef size_t tag_t;
 
     /******************************/
     /*  _____          _ _        */
@@ -58,20 +60,20 @@ namespace atl {
     struct is_reinterperable : public std::false_type {};
 
 
-#define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(Type)(Ast)(Data)
-#define ATL_PIMPL_SEQ (Slice)(String)(Symbol)(Procedure)(Macro)(Undefined)(PCode)(Parameter)
+#define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Data)(Lambda)(Let)(Type)(Ast)(AstData)
+#define ATL_PIMPL_SEQ (Slice)(String)(Symbol)(Procedure)(Macro)(Undefined)(PCode)(Parameter)(Method)(Struct)
 #define ATL_TYPES_SEQ ATL_REINTERPERABLE_SEQ ATL_PIMPL_SEQ(CxxFunctor)(PrimitiveMacro)(Mark)
 
 #define M(r, _, i, elem)						\
-    struct elem;							\
-    template<> struct is_atl_type<elem> : public std::true_type {};	\
-    template<> struct Name<elem> { constexpr static const char* value = BOOST_PP_STRINGIZE( elem ) ; }; \
-    template<> struct _Tag<elem> {					\
-	typedef _Tag<elem> type;					\
-	typedef unsigned int value_type;				\
-	const static value_type value = i;				\
-	operator unsigned int () { return value; }			\
-    };
+	struct elem;							\
+	template<> struct is_atl_type<elem> : public std::true_type {};	\
+	template<> struct Name<elem> { constexpr static const char* value = BOOST_PP_STRINGIZE( elem ) ; }; \
+	template<> struct _Tag<elem> { \
+		typedef _Tag<elem> type; \
+		typedef unsigned int value_type; \
+		const static value_type value = i; \
+		operator tag_t () { return value; } \
+	};
 
     BOOST_PP_SEQ_FOR_EACH_I(M, _, ATL_TYPES_SEQ)
 #undef M
@@ -140,6 +142,22 @@ namespace atl {
 	Fixnum() noexcept : _tag( tag<Fixnum>::value ) , value(0) {}
 	Fixnum(long value) : _tag( tag<Fixnum>::value ), value(value) {}
     };
+    template<>
+    struct tag<long> : public tag<Fixnum> {};
+
+    struct Lambda
+    {
+        tag_t _tag;
+        long value;
+        Lambda() : _tag(tag<Lambda>::value) {}
+    };
+
+    struct Let
+    {
+        tag_t _tag;
+        long value;
+        Let() : _tag(tag<Let>::value) {}
+    };
 
     /*************************/
     /*  ____              _  */
@@ -154,6 +172,8 @@ namespace atl {
 	Bool() : _tag(tag<Bool>::value), value(false) {}
         Bool(bool vv) : _tag(tag<Bool>::value), value(vv) {}
     };
+    template<>
+    struct tag<bool> : public tag<Bool> {};
     Any atl_true() { return Any(tag<Bool>::value, (void*)true); }
     Any atl_false() { return Any(tag<Bool>::value, (void*)false); }
 
@@ -223,15 +243,17 @@ namespace atl {
 
 
     /* Macro and Procedure have the same data layout, but distinct tags */
-    struct Procedure {
+    struct Procedure
+    {
         PCode::iterator body;
         size_t tail_params;
 
-        Procedure(PCode::iterator body_, size_t padding) : body(body_), tail_params(padding) {}
+        tag_t return_type;
+
+        Procedure(PCode::iterator body_, size_t padding, tag_t rtype)
+            : body(body_), tail_params(padding), return_type(rtype)
+        {}
     };
-
-
-    struct Macro { Procedure _proc; };
 
 
     struct CxxFunctor
@@ -322,19 +344,19 @@ namespace atl {
 	    Value& operator*() { return *value; }
 	    const Value& operator*() const { return *value; }
 
-	    IteratorBase& operator++() {
-		using namespace std;
-		if( ((value->_tag == tag<Ast>::value) || (value->_tag == tag<Data>::value))
-		       && (value->value == value + 1))
-		    value = &*reinterpret_cast<typename
-						conditional<is_const<Value>::value,
-							    add_const<Ast>,
-							    Identity<Ast>
-							    >::type::type*
-						>(value)->end();
-		else
-		    ++value;
-		return *this; }
+		IteratorBase& operator++() {
+			using namespace std;
+			if( ((value->_tag == tag<Ast>::value) || (value->_tag == tag<Data>::value))
+			    && (value->value == value + 1))
+				value = &*reinterpret_cast<typename
+				                           conditional<is_const<Value>::value,
+				                                       add_const<Ast>,
+				                                       tmp::Identity<Ast>
+				                                       >::type::type*
+				                           >(value)->end();
+			else
+				++value;
+			return *this; }
 
 	    IteratorBase operator+(size_t n) const {
 		IteratorBase itr = *this;
@@ -449,7 +471,6 @@ namespace atl {
 	template<class Itr>
 	Slice(Itr begin, Itr end)
 	    : _begin(&*begin), _end(&*end) {}
-
 
 	Slice(const Slice&) = default;
 
@@ -593,5 +614,6 @@ namespace std
 	typedef forward_iterator_tag iterator_category;
     };
 }
+
 
 #endif

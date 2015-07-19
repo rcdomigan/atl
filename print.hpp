@@ -42,7 +42,8 @@ namespace atl {
 	PrintRange<Range> range(const Range& rr, char open='(', char close=')') {
 	    return PrintRange<Range>(rr, open, close);
 	}
-	PrintAny any(const Any& aa) { return PrintAny(aa); }
+
+	PrintAny any(Any const& aa) { return PrintAny(aa); }
 
 	void print_atom_debug(const Any& vv, std::ostream& out) {
 	    out << "@" << &vv
@@ -105,11 +106,21 @@ namespace atl {
 	    using namespace std;
 	    switch(a._tag) {
 	    case tag<Undefined>::value:
-		return out << "#<Undefined:" << hex << trim_addr(a.value) << ">";
+                {
+                    out << "#<Undefined ";
+                    return out << ":" << hex << trim_addr(a.value) << ">";
+                }
 
 	    case tag<Symbol>::value:
                 return out << "'" << unwrap<string>(a);
-
+            case tag<Type>::value:
+                {
+                    out << "#{";
+                    if(unwrap<Type>(a).value == nullptr)
+                        return out << "???}";
+                    else
+                        return unwrap<Type>(a).value->print(out) << "}";
+                }
 	    case tag<Fixnum>::value:
 		return out << value<Fixnum>(a);
 	    case tag<Bool>::value:
@@ -140,9 +151,12 @@ namespace atl {
 	    }}
     }
 
-    void dbg_print_any(Any vv) {
-        cout << printer::any(vv) << endl;
-    }
+    void dbg_any(Any vv)
+    { cout << printer::any(vv) << endl; }
+
+    void dbg_ast(Ast& vv)
+    { cout << printer::range(vv) << endl; }
+
 }
 
 
