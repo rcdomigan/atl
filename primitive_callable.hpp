@@ -13,7 +13,6 @@
 #include "./parser.hpp"
 #include "./helpers.hpp"
 #include "./compile.hpp"
-#include "./structs.hpp"
 #include "./interface_helpers.hpp"
 
 #include "ffi.hpp"
@@ -57,14 +56,11 @@ namespace atl {
         mpl::for_each<TypesVec, wrap_t_arg< mpl::placeholders::_1> >(cc);
 
         wrap_macro(env, ":",
-                   [](PCode::iterator begin, PCode::iterator end)
+                   [](Eval &eval, PrimitiveMacro::Input const& ast)
                    {
                        // requires a type-expr followed by an expr.
                        // The whole shooting match is given the
                        // Type.value as its type.
-                       auto& eval = *reinterpret_cast<Eval*>(begin[0]);
-                       auto& ast = *reinterpret_cast<Ast*>(begin[1]);
-
                        tag_t rval;
                        {
                            auto frame = eval.compile->save_excursion();
@@ -72,11 +68,10 @@ namespace atl {
 
                            // TODO: I this should actually evauate,
                            // and should return an abstract_type::Type
-                           rval = eval.compile->any(ast[1]);
+                           rval = eval.compile->any(ast[0]);
                        }
-                       eval.compile->in_place_any(ast[2]);
-
-                       begin[0] = rval;
+                       eval.compile->in_place_any(ast[1]);
+                       return rval;
                    });
 
         static auto fn_construct_params = abstract_type::make_concrete({tag<Type>::value, tag<Type>::value});
@@ -186,18 +181,15 @@ namespace atl {
         wrap_macro
             (env,
              "list",
-             [&](PCode::iterator begin, PCode::iterator end) -> void
+             [&](Eval& eval, PrimitiveMacro::Input const& ast) -> tag_t
              {
-                 auto& eval = *reinterpret_cast<Eval*>(begin[0]);
-                 auto ast = slice(*reinterpret_cast<Ast*>(begin[1]), 1);
-
                  for(auto& vv : ast)
                      eval.compile->push_value(eval.compile->in_place_any(vv));
 
                  eval.compile->wrapped.std_function(&unwrap<CxxFunctor>(env.toplevel.value("__alloc_ast__")).fn,
                                                     ast.size() * 2);
 
-                 *begin = tag<Ast>::value;
+                 return tag<Ast>::value;
              });
 
 
@@ -226,11 +218,8 @@ namespace atl {
         wrap_macro
             (env,
              "cons",
-             [&, cons_ast](PCode::iterator begin, PCode::iterator end) -> void
+             [&, cons_ast](Eval& eval, PrimitiveMacro::Input const& ast) -> tag_t
              {
-                 auto& eval = *reinterpret_cast<Eval*>(begin[0]);
-                 auto ast = slice(*reinterpret_cast<Ast*>(begin[1]), 1);
-
                  // push car's (value type)
                  eval.compile->push_value(eval.compile->in_place_any(ast[0]));
                  auto seq_type = eval.compile->in_place_any(ast[1]);
@@ -239,8 +228,7 @@ namespace atl {
                      {
                      case tag<Ast>::value:
                          eval.compile->wrapped.std_function(&cons_ast->fn, 3);
-                         *begin = tag<Ast>::value;
-                         return;
+                         return tag<Ast>::value;
                      default:
                          throw WrongTypeError
                              (std::string("cons not defined for ").append(type_name(seq_type)));
@@ -343,7 +331,6 @@ namespace atl {
     void setup_interpreter(Environment &env, ParseString &parser) {
         init_types();
         export_recursive_defs(env.gc, env, parser);
-        define_primitives(env);
     }
 }
 

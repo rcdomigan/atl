@@ -13,6 +13,8 @@
 
 #include "./compile.cpp"
 #include "./parser.cpp"
+#include "./macros.cpp"
+
 // #include "./type_deduction.cpp"
 #include "./vm.cpp"
 

@@ -185,20 +185,146 @@ namespace atl {
 	Pointer(void *value) : _tag(tag<Pointer>::value), value(value) {}
     };
 
-    /*********************/
-    /**  _ __     _     **/
-    /** |_)| |\/||_)|   **/
-    /** | _|_|  ||  |_  **/
-    /**           pimpl **/
-    /*********************/
-    struct Parameter {
-        size_t offset, hops;
-        Parameter(size_t offset_, size_t hops_) : offset(offset_), hops(hops_) {}
-    };
+	/*********************/
+	/**  _ __     _     **/
+	/** |_)| |\/||_)|   **/
+	/** | _|_|  ||  |_  **/
+	/**           pimpl **/
+	/*********************/
+	namespace ast_helper
+	{
+		// This is really a special iterator for when I have nested
+		// arrays.  I don't know when that would happen other than in
+		// generating ASTs.
+		template<class Value>
+		struct IteratorBase
+		{
+			Value *value;
+			IteratorBase(Value* vv) : value(vv) {}
+			IteratorBase() = default;
 
-    struct Symbol {
-	std::string name;
-	Symbol(const std::string& name_) : name(name_) {}
+			Value& operator*() { return *value; }
+			const Value& operator*() const { return *value; }
+
+			IteratorBase& operator++()
+			{
+				using namespace std;
+				if( ((value->_tag == tag<Ast>::value) || (value->_tag == tag<Data>::value))
+				    && (value->value == value + 1))
+					value = &*reinterpret_cast<typename
+					                           conditional<is_const<Value>::value,
+					                                       add_const<Ast>,
+					                                       tmp::Identity<Ast>
+					                                       >::type::type*
+					                           >(value)->end();
+				else
+					++value;
+				return *this;
+			}
+
+			IteratorBase operator+(size_t n) const
+			{
+				IteratorBase itr = *this;
+				for(size_t i = 0; i < n; ++i)
+					++itr;
+				return itr;
+			}
+
+			size_t operator-(IteratorBase other) const
+			{
+				size_t n = 0;
+				for(; other != *this; ++other, ++n);
+				return n;
+			}
+
+			bool operator!=(const IteratorBase<Value>& j) const {return j.value != value;}
+
+			bool operator==(const IteratorBase<Value>& j) const {return j.value == value;}
+
+			std::ostream& print(std::ostream& out) const { return out << value; }
+		};
+	}
+
+	struct AstData
+	{
+		tag_t _tag;
+		Any* value;
+		AstData(Any* end)
+			: _tag(tag<AstData>::value), value(end)
+		{}
+	};
+
+	struct Ast
+	{
+		typedef Any* value_type;
+		tag_t _tag;
+		value_type value;
+
+		Ast() = delete;
+
+		Ast(Any *begin_end)
+			: _tag(tag<Ast>::value), value(begin_end)
+		{}
+
+		Ast(Any *begin, Any *end)
+			: _tag(tag<Ast>::value), value(begin)
+		{
+			value->value = end;
+		}
+
+		Ast(const Ast&) = default;
+
+		typedef ast_helper::IteratorBase<Any> iterator;
+		typedef ast_helper::IteratorBase<const Any> const_iterator;
+
+		friend std::ostream& operator<<(std::ostream& out, const iterator& itr) { return itr.print(out); }
+		friend std::ostream& operator<<(std::ostream& out, const const_iterator& itr) { return itr.print(out); }
+
+		Any& operator[](size_t n) {
+			auto itr = begin();
+			itr = itr + n;
+			return *itr;
+		}
+
+		const Any& operator[](size_t n) const {
+			auto itr = begin();
+			itr = itr + n;
+			return *itr;
+		}
+
+		Any* flat_begin() { return value + 1; }
+		Any* flat_end() { return reinterpret_cast<Any*>(value->value); }
+		const Any* flat_begin() const { return value + 1; }
+		const Any* flat_end() const { return reinterpret_cast<Any*>(value->value); }
+
+		iterator begin() { return iterator(flat_begin()); }
+		const_iterator begin() const { return const_iterator(flat_begin()); }
+
+		iterator end() { return iterator(flat_end()); }
+		const_iterator end() const { return const_iterator(flat_end()); }
+
+
+		Any* end_at(Any *pos)
+		{ return reinterpret_cast<Any*>(value->value = pos); }
+
+		Any* end_at(const iterator& pos)
+		{ return reinterpret_cast<Any*>(value->value = pos.value); }
+
+		size_t size() const { return end() - begin(); }
+
+		bool empty() const { return value == value->value; }
+	};
+
+	struct Parameter
+	{
+		size_t offset, hops;
+		Parameter(size_t offset_, size_t hops_) : offset(offset_), hops(hops_) {}
+	};
+
+    struct Symbol
+    {
+	    std::string name;
+	    Symbol(const std::string& name_) : name(name_) {}
     };
 
     struct String {
@@ -273,28 +399,21 @@ namespace atl {
         {}
     };
 
+	struct Eval;
 
-    // PrimitiveMacro will recieve two args for its `fn`; the first is
-    // an 'Compile' object, the second is an Ast (the macro itself is
-    // ast[0]).
-    //
-    // Unlike CxxFunctor, the PrimitiveMacro is evaluated at
-    // compile time and returns its _type_ in arg[0].  Any compilation
-    // of the input ast must be done explicitly.
     struct PrimitiveMacro
-        : public CxxFunctor
     {
-        static abstract_type::Type const* _type;
+	    using Input = Range<Ast::iterator>;
+	    using Fn = std::function<tag_t (Eval&, Input const&)>;
 
-        PrimitiveMacro(const CxxFunctor::Fn& fn,
-                       const std::string& name)
-            : CxxFunctor(fn, name, _type)
-        {
-            if(_type == nullptr)
-                _type = new abstract_type::Type(abstract_type::make_concrete({tag<Ast>::value, tag<Undefined>::value}));
-        }
+	    std::string const name;
+	    Fn fn;
+
+        PrimitiveMacro(Fn const& fn_,
+                       const std::string& name_)
+	        : name(name_), fn(fn_)
+        {}
     };
-    abstract_type::Type const* PrimitiveMacro::_type = nullptr;
 
     struct Method {
         typedef std::function<Any (Range<tag_t*>)> Dispatch;
@@ -331,127 +450,6 @@ namespace atl {
     /** / \_|_|_  _ ._  **/
     /** \_/ |_| |(/_|   **/
     /*********************/
-    namespace ast_helper {
-	// This is really a special iterator for when I have nested
-	// arrays.  I don't know when that would happen other than in
-	// generating ASTs.
-	template<class Value>
-	struct IteratorBase {
-	    Value *value;
-	    IteratorBase(Value* vv) : value(vv) {}
-	    IteratorBase() = default;
-
-	    Value& operator*() { return *value; }
-	    const Value& operator*() const { return *value; }
-
-		IteratorBase& operator++() {
-			using namespace std;
-			if( ((value->_tag == tag<Ast>::value) || (value->_tag == tag<Data>::value))
-			    && (value->value == value + 1))
-				value = &*reinterpret_cast<typename
-				                           conditional<is_const<Value>::value,
-				                                       add_const<Ast>,
-				                                       tmp::Identity<Ast>
-				                                       >::type::type*
-				                           >(value)->end();
-			else
-				++value;
-			return *this; }
-
-	    IteratorBase operator+(size_t n) const {
-		IteratorBase itr = *this;
-		for(size_t i = 0; i < n; ++i)
-		    ++itr;
-		return itr;
-	    }
-
-	    size_t operator-(IteratorBase other) const {
-		size_t n = 0;
-		for(; other != *this; ++other, ++n);
-		return n;
-	    }
-
-	    bool operator!=(const IteratorBase<Value>& j) const {return j.value != value;}
-
-	    bool operator==(const IteratorBase<Value>& j) const {return j.value == value;}
-
-	    std::ostream& print(std::ostream& out) const { return out << value; }
-	};
-    }
-
-
-    struct AstData
-    {
-        tag_t _tag;
-        Any* value;
-        AstData(Any* end)
-            : _tag(tag<AstData>::value), value(end)
-        {}
-    };
-
-    struct Ast
-    {
-        typedef Any* value_type;
-	tag_t _tag;
-	value_type value;
-
-	Ast() = delete;
-
-        Ast(Any *begin_end)
-            : _tag(tag<Ast>::value), value(begin_end)
-        {}
-
-	Ast(Any *begin, Any *end)
-	    : _tag(tag<Ast>::value), value(begin)
-	{
-	    value->value = end;
-	}
-
-	Ast(const Ast&) = default;
-
-
-	typedef ast_helper::IteratorBase<Any> iterator;
-	typedef ast_helper::IteratorBase<const Any> const_iterator;
-
-	friend std::ostream& operator<<(std::ostream& out, const iterator& itr) { return itr.print(out); }
-	friend std::ostream& operator<<(std::ostream& out, const const_iterator& itr) { return itr.print(out); }
-
-	Any& operator[](size_t n) {
-	    auto itr = begin();
-	    itr = itr + n;
-	    return *itr;
-	}
-
-	const Any& operator[](size_t n) const {
-	    auto itr = begin();
-	    itr = itr + n;
-	    return *itr;
-	}
-
-	Any* flat_begin() { return value + 1; }
-	Any* flat_end() { return reinterpret_cast<Any*>(value->value); }
-	const Any* flat_begin() const { return value + 1; }
-	const Any* flat_end() const { return reinterpret_cast<Any*>(value->value); }
-
-	iterator begin() { return iterator(flat_begin()); }
-	const_iterator begin() const { return const_iterator(flat_begin()); }
-
-	iterator end() { return iterator(flat_end()); }
-	const_iterator end() const { return const_iterator(flat_end()); }
-
-
-	Any* end_at(Any *pos)
-	{ return reinterpret_cast<Any*>(value->value = pos); }
-
-	Any* end_at(const iterator& pos)
-	{ return reinterpret_cast<Any*>(value->value = pos.value); }
-
-	size_t size() const { return end() - begin(); }
-
-	bool empty() const { return value == value->value; }
-    };
-
-
     // Same as Ast, but should get a different tag.
     struct Data : Ast
     {
