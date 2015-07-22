@@ -33,9 +33,3 @@ TEST(Utilities, test_map_range)
     for(auto zz : zip(vec2, expected))
         ASSERT_EQ(*get<0>(zz), *get<1>(zz));
 }
-
-
-int main(int argc, char *argv[]) {
-  ::testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
-}

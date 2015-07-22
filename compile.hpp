@@ -263,14 +263,12 @@ namespace atl
                     {
                         auto& fn = unwrap<PrimitiveMacro>(head).fn;
                         Eval eval(this);
-                        std::array<PCode::value_type, 2> stack({reinterpret_cast<PCode::value_type>(&eval),
-                                                                reinterpret_cast<PCode::value_type>(&ast)});
-                        fn(stack.begin(), stack.end());
+                        auto type = fn(eval, slice(ast, 1));
 
                         return _Form(aimm<Null>(),
                                      0,
                                      FormTag::done,
-                                     stack[0]);
+                                     type);
                     }
                 case tag<If>::value:
                     {

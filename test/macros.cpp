@@ -11,7 +11,7 @@
 #include <unordered_set>
 
 #include <atl.hpp>
-// #include <annotate.hpp>
+#include <interface_helpers.hpp>
 
 using namespace std;
 using namespace atl;
@@ -22,8 +22,27 @@ struct TestMacros : public ::testing::Test
 };
 
 
-TEST_F(TestMacros, testing)
+TEST_F(TestMacros, test_primitives)
 {
-    auto macro = atl.string_
-        ("(define-macro (add3 ast) (list add2 (car ast) (list add2 (cadr ast) (caddr ast))))")
+	using namespace primitives;
+	Any first_item, second_item;
+
+	wrap_macro(atl.env, "foo",
+	           [&](Eval& eval, PrimitiveMacro::Input const& ast)
+	           {
+		           first_item = ast[0];
+		           second_item = ast[1];
+		           return tag<If>::value;
+	           });
+	auto rtag = atl.compile.any(atl.parse.string_("(foo bar baz)"));
+	auto tmp_tag = tag<If>::value;
+	ASSERT_EQ(rtag,
+	          tmp_tag);
+	tmp_tag = tag<Symbol>::value;
+	ASSERT_EQ(first_item._tag,
+	          tmp_tag);
+	ASSERT_EQ((unwrap<Symbol>(first_item).name),
+	          "bar");
+	ASSERT_EQ((unwrap<Symbol>(second_item).name),
+	          "baz");
 }

@@ -11,8 +11,11 @@
 
 #include "./testing_utils.hpp"
 
+#include "./utility.cpp"
 #include "./compile.cpp"
 #include "./parser.cpp"
+#include "./macros.cpp"
+
 // #include "./type_deduction.cpp"
 #include "./vm.cpp"
 

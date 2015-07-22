@@ -24,6 +24,8 @@ namespace atl {
 
 	namespace cxx_functions
 	{
+		using namespace tmp;
+
 		namespace unpack_fn {
 			template<class Dest, class R, class ... Sig> struct Signature;
 			template<class Dest, class R, class ... Sig>
@@ -36,19 +38,10 @@ namespace atl {
 				: public Dest::template apply<R, Sig...> {};
 		}
 
-		// Assume a pointer is to a known Atl type (or at least it's
-		// value part), and use that type to annotate the C++ function
-		struct TagMeta
-		{
-			template<class T>
-			using Apply = tag<T>;
-		};
-
 		template<class T>
 		struct GuessTag
-			: public Apply<TagMeta,
-			               Apply<type_mapping::cxx_to_atl,
-			                     std::remove_pointer<T> >
+			: public Apply<tag, Apply<type_mapping::cxx_to_atl,
+			                          std::remove_pointer<T> >
 			               >::type
 		{};
 

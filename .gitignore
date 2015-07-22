@@ -3,6 +3,7 @@ test-vm
 byte-coded
 test-zipper
 test/parser
+test/macros
 test/compiler
 test/vm_test
 test/test

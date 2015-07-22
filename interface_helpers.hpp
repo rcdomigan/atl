@@ -13,7 +13,7 @@ namespace atl
 {
     namespace primitives
     {
-	    void wrap_macro(Environment& env, const std::string& name, CxxFunctor::Fn fn)
+	    void wrap_macro(Environment& env, const std::string& name, PrimitiveMacro::Fn fn)
         {
             env.define(name, wrap(new PrimitiveMacro(fn, name)));
         }
