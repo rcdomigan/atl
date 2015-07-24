@@ -16,7 +16,7 @@
 #include "./parser.cpp"
 #include "./macros.cpp"
 
-// #include "./type_deduction.cpp"
+#include "./type_deduction.cpp"
 #include "./vm.cpp"
 
 #include "./lists.cpp"
