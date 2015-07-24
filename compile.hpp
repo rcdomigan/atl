@@ -298,6 +298,10 @@ namespace atl
                             padding = max(consiquent.pad_to,
                                           alternate.pad_to);
 
+                        if(consiquent.result_tag != alternate.result_tag)
+	                        throw WrongTypeError
+		                        ("Both branches of an if clause must return the same type");
+
                         return _Form(aimm<Null>(), padding, FormTag::done,
                                      consiquent.result_tag);
                     }
