@@ -267,6 +267,43 @@ namespace atl
 		template<class R>
 		R from_bytes(value_type input) { return Caster<R>::a(input); }
 	}
+
+
+	namespace make_ast
+	{
+		using DynamicVector = memory_pool::DynamicVector;
+
+		typedef std::function<void (DynamicVector&)> ast_composer;
+		template<class T>
+		ast_composer lift(T tt) {
+			return [tt](DynamicVector& space)
+				{ space.push_back(wrap(tt)); };
+		}
+
+		struct _Run
+		{
+			DynamicVector& space;
+			_Run(DynamicVector& ss) : space(ss) {}
+
+			template<class Fn>
+			void operator()(Fn &fn) { fn(space); }
+		};
+
+		template<class ... Args>
+		std::function<Ast* (DynamicVector&)> make(Args ... args)
+		{
+			auto tup = make_tuple(args...);
+			return [tup](DynamicVector& space) -> Ast*
+				{
+					auto ast = space.template push_seq<Ast>();
+					_Run do_apply(space);
+
+					foreach_tuple(do_apply, tup);
+					ast->end_at(space.end());
+					return ast;
+				};
+		}
+	}
 }
 
 #endif

@@ -176,3 +176,26 @@ TEST_F(ListTest, test_cons)
     auto result = atl.string_("(cons 0 '(1))");
     cout << printer::any(result) << endl;
 }
+
+TEST_F(ListTest, test_make_ast)
+{
+	using namespace make_ast;
+
+	{
+		auto ast = make(lift(1), lift(2), lift(3))
+			(*atl.env.gc.dynamic_seq());
+
+		assert_equiv((*ast),
+		             unwrap<Ast>(atl.parse.string_("(1 2 3)")));
+	}
+
+	{
+		auto ast = make(lift(1),
+		                make(lift(2), lift(3)),
+		                lift(4))
+			(*atl.env.gc.dynamic_seq());
+
+		assert_equiv((*ast),
+		             unwrap<Ast>(atl.parse.string_("(1 (2 3) 4)")));
+	}
+}
