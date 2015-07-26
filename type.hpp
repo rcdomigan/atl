@@ -76,8 +76,7 @@ namespace atl
     template<class T>
     struct is_reinterperable : public std::false_type {};
 
-
-#define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Data)(Lambda)(Let)(Type)(Ast)(AstData)
+#define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(Let)(Type)(Ast)(AstData)
 #define ATL_PIMPL_SEQ (Slice)(String)(Symbol)(Procedure)(Macro)(Undefined)(Parameter)(Method)(Struct)
 #define ATL_TYPES_SEQ ATL_REINTERPERABLE_SEQ ATL_PIMPL_SEQ(CxxFunctor)(PrimitiveMacro)(Mark)
 
@@ -99,7 +98,7 @@ namespace atl
     BOOST_PP_SEQ_FOR_EACH_I(M, _, ATL_REINTERPERABLE_SEQ)
 #undef M
 
-    typedef mpl::vector27< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
+    typedef mpl::vector26< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
 
     template<class T>
     struct tag : public _Tag<typename std::remove_const<T>::type> {};
@@ -226,7 +225,7 @@ namespace atl
 			IteratorBase& operator++()
 			{
 				using namespace std;
-				if( ((value->_tag == tag<Ast>::value) || (value->_tag == tag<Data>::value))
+				if( ((value->_tag == tag<Ast>::value))
 				    && (value->value == value + 1))
 					value = &*reinterpret_cast<typename
 					                           conditional<is_const<Value>::value,
@@ -455,14 +454,6 @@ namespace atl
     /** / \_|_|_  _ ._  **/
     /** \_/ |_| |(/_|   **/
     /*********************/
-    // Same as Ast, but should get a different tag.
-    struct Data : Ast
-    {
-	Data(Any *begin, Any *end) : Ast(begin, end) {}
-    };
-
-
-    // A subset of an Ast or Data
     struct Slice
     {
 	const Any *_begin, *_end;

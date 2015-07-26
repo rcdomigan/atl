@@ -18,8 +18,7 @@ namespace atl
 			case tag<Slice>::value:
 				return unwrap<Slice>(aa)._begin;
 			case tag<Ast>::value:
-			case tag<Data>::value:
-				return &*unwrap<Data>(aa).begin();
+				return &*unwrap<Ast>(aa).begin();
 			}
 			throw std::string("Can only get the Ast iterators for certain types");
 		}
@@ -29,17 +28,13 @@ namespace atl
 			case tag<Slice>::value:
 				return unwrap<Slice>(aa)._end;
 			case tag<Ast>::value:
-			case tag<Data>::value:
-				return &*unwrap<Data>(aa).end();
+				return &*unwrap<Ast>(aa).end();
 			}
 			throw std::string("Can only get the Ast iterators for certain types");
 		}
 
 		Any* begin(Any aa) { return const_cast<Any*>(const_begin(aa)); }
 		Any* end(Any aa) { return const_cast<Any*>(const_end(aa)); }
-
-		Any* begin(Data aa) { return aa.value + 1; }
-		Any* end(Data aa) { return reinterpret_cast<Any*>(aa.value->value); }
 
 		Any* begin(const Range<Any*>& input) { return input.begin(); }
 		Any* end(const Range<Any*>& input) { return input.end(); }
@@ -79,8 +74,7 @@ namespace atl
 			case tag<Slice>::value:
 				return unwrap<Slice>(aa).begin();
 			case tag<Ast>::value:
-			case tag<Data>::value:
-				return unwrap<Data>(aa).begin();
+				return unwrap<Ast>(aa).begin();
 			}
 			throw std::string("Can only get the Ast iterators for certain types");
 		}
@@ -90,8 +84,7 @@ namespace atl
 			case tag<Slice>::value:
 				return const_cast<const Slice&&>(unwrap<Slice>(aa)).end();
 			case tag<Ast>::value:
-			case tag<Data>::value:
-				return unwrap<Data>(aa).end();
+				return unwrap<Ast>(aa).end();
 			}
 			throw std::string("Can only get the Ast iterators for certain types");
 		}
@@ -140,23 +133,24 @@ namespace atl
 			while(itr != seq.end()) {
 				switch(itr->_tag) {
 				case tag<Ast>::value:
-				case tag<Data>::value: {
-					auto end_inner = _to<Seq>(make_range(begin(*itr),
-					                                     end(*itr)),
-					                          store);
-					if((end_inner < seq.end()) &&
-					   (end_inner > itr))
-						itr = end_inner;
-					else
-						++itr;
-					continue;
-				}
-				case tag<Slice>::value: {
-					_to<Seq>(make_range(begin(*itr),
-					                    end(*itr)),
-					         store);
-					break;
-				}
+					{
+						auto end_inner = _to<Seq>(make_range(begin(*itr),
+						                                     end(*itr)),
+						                          store);
+						if((end_inner < seq.end()) &&
+						   (end_inner > itr))
+							itr = end_inner;
+						else
+							++itr;
+						continue;
+					}
+				case tag<Slice>::value:
+					{
+						_to<Seq>(make_range(begin(*itr),
+						                    end(*itr)),
+						         store);
+						break;
+					}
 				default:
 					store.push_back(*itr);
 				}
@@ -181,33 +175,36 @@ namespace atl
 			auto frame = store.push_seq<Seq>();
 			auto itr = seq.begin();
 
-			while(itr != seq.end()) {
-				switch(itr->_tag) {
-				case tag<Ast>::value:
-				case tag<Data>::value: {
-					auto end_inner = _map<Seq>(fn,
-					                           make_range(begin(*itr),
-					                                      end(*itr)),
-					                           store);
-					if((end_inner < seq.end()) &&
-					   (end_inner > itr))
-						itr = end_inner;
-					else
-						++itr;
-					continue;
+			while(itr != seq.end())
+				{
+					switch(itr->_tag)
+						{
+						case tag<Ast>::value:
+							{
+								auto end_inner = _map<Seq>(fn,
+								                           make_range(begin(*itr),
+								                                      end(*itr)),
+								                           store);
+								if((end_inner < seq.end()) &&
+								   (end_inner > itr))
+									itr = end_inner;
+								else
+									++itr;
+								continue;
+							}
+						case tag<Slice>::value:
+							{
+								_map<Seq>(fn,
+								          make_range(begin(*itr),
+								                     end(*itr)),
+								          store);
+								break;
+							}
+						default:
+							store.push_back(fn(*itr));
+						}
+					++itr;
 				}
-				case tag<Slice>::value: {
-					_map<Seq>(fn,
-					          make_range(begin(*itr),
-					                     end(*itr)),
-					          store);
-					break;
-				}
-				default:
-					store.push_back(fn(*itr));
-				}
-				++itr;
-			}
 
 			frame->end_at(store.end());
 			return itr;

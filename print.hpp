@@ -137,8 +137,6 @@ namespace atl {
 		    return out << "#<Pointer-" << hex << (reinterpret_cast<long>(a.value) & (256 - 1)) << ">";
 		else
 		    return out << "#<Pointer-NULL>";
-	    case tag<Data>::value:
-		return out << "'" << range(unwrap<Data>(a));
 	    case tag<Ast>::value:
 		return out << range(unwrap<Ast>(a));
 	    case tag<Slice>::value:
