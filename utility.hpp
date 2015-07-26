@@ -249,6 +249,18 @@ namespace tmp
 	BuildIndicies<0, Is...> : Indexer<Is...> {};
 }
 
+
+template<class Fn, class ... Args, std::size_t... Index>
+static typename std::result_of<Fn (Args...)>::type _apply_tuple(Fn& fn, std::tuple<Args...>& args, tmp::Indexer<Index...>)
+{ return fn(std::get<Index>(args)...); }
+
+template<class Fn, class ... Args>
+static typename std::result_of<Fn (Args...)>::type apply_tuple(Fn& fn, std::tuple<Args...>& args)
+{
+	return _apply_tuple(fn, args, tmp::BuildIndicies<sizeof...(Args)> {});
+}
+
+
 /**************************************/
 /*     _                              */
 /*    / \   _ __ _ __ __ _ _   _ ___  */
@@ -314,6 +326,26 @@ struct MapTuple<FN, Tup, elem, elem> { static void apply(Tup&) {} };
 template<class FN, class Tup>
 void map_tuple(Tup& tup) { MapTuple<FN, typename std::remove_reference<Tup>::type >::apply(tup); }
 
+
+
+template<class Tup, size_t elem = 0, size_t last = std::tuple_size<Tup>::value>
+struct ForeachTuple
+{
+	template<class Fn>
+	static void apply(Fn& fn, Tup& tup)
+	{
+		fn( std::get<elem>(tup) );
+		ForeachTuple<Tup,elem + 1, last>::apply(fn, tup);
+	}
+};
+
+template<class Tup, size_t elem>
+struct ForeachTuple<Tup, elem, elem>
+{ template<class Fn>  static void apply(Fn&, Tup&) {} };
+
+template<class Fn, class Tup>
+void foreach_tuple(Fn& fn, Tup& tup)
+{ ForeachTuple<typename std::remove_reference<Tup>::type >::apply(fn, tup); }
 
 /******************************/
 /*   ____                _    */
