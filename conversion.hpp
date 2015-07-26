@@ -106,6 +106,9 @@ namespace atl {
 	}
 
 
+	template<class T>
+	static inline Any wrap() { return Any(tag<T>::value, nullptr); }
+
 	namespace get_value
 	{
 		using namespace tmp;

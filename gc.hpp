@@ -22,19 +22,6 @@ namespace atl
 {
 	using namespace std;
 
-	// Immediate (wrapped as an Any).  This doesn't require the GC per se, but is related to
-	// initialization and allocation.
-	//
-	// ++add assert (that I am wrapping an immediate).
-	// @tparam T:
-	// @return:
-	template<class T>
-	Any aimm() { return Any(tag<T>::value, nullptr);  }
-
-	Any aimm(Any *ptr) { return Any(tag<Pointer>::value, (void*)ptr);  }
-
-	Any aimm(long num) { return Any(tag<Fixnum>::value, (void*)num);  }
-
 	/*****************/
 	/*	 ____  ____  */
 	/*	/ ___|/ ___| */

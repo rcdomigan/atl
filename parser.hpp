@@ -71,7 +71,7 @@ namespace atl
                     case '\'':
                         {		/* quote */
                             auto quote = vec.push_seq<Ast>();
-                            vec[0] = aimm<Quote>();
+                            vec[0] = wrap<Quote>();
                             ++vec;
 
                             ++itr;
@@ -136,15 +136,15 @@ namespace atl
 
                             if(string_is_number(scratch))
                                 {
-                                    vec[0] = aimm( atoi(scratch.c_str()) );
+                                    vec[0] = wrap( atoi(scratch.c_str()) );
                                 }
                             else if(scratch == "\\") // Lambda
                                 {
-                                    vec[0] = aimm<Lambda>();
+                                    vec[0] = wrap<Lambda>();
                                 }
                             else if(scratch == "let")
                                 {
-                                    vec[0] = aimm<Let>();
+                                    vec[0] = wrap<Let>();
                                 }
                             else
                                 {

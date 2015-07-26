@@ -37,9 +37,9 @@ TEST_F(ParserTest, SimpleIntList) {
     auto ast = flat_iterator::range(parsed);
 
     auto expected = vector<Any>{
-        aimm(1),
-        aimm(2),
-        aimm(3)
+        wrap(1),
+        wrap(2),
+        wrap(3)
     };
 
     for(auto& vv : zip(ast, expected)) {
@@ -59,11 +59,11 @@ TEST_F(ParserTest, NestedIntList) {
     auto begin = unwrap<Ast>(parsed).value;
 
     auto expected = vector<Any>{
-        aimm(1), aimm(2),
+        wrap(1), wrap(2),
         begin[3],
         Any(tag<Any>::value, begin + 7), // the pointer to the end of '(4 5)
-        aimm(4), aimm(5),
-        aimm(3)
+        wrap(4), wrap(5),
+        wrap(3)
     };
 
     for(auto& vv : zip(ast, expected)) {
@@ -84,8 +84,8 @@ TEST_F(ParserTest, TestQuote) {
         Any(tag<Quote>::value),
         begin[2],               // the (pointer to point to end of) quoted list
         Any(tag<Any>::value, begin + 6), // end of quoted list
-        aimm(2),
-        aimm(3)
+        wrap(2),
+        wrap(3)
     };
 
     for(auto& vv : zip(ast, expected)) {

@@ -25,12 +25,12 @@ namespace atl
 	{
 		using namespace primitives;
 
-		env.define("\\", aimm<Lambda>());
-		env.define("quote", aimm<Quote>());
-		env.define("if", aimm<If>());
+		env.define("\\", wrap<Lambda>());
+		env.define("quote", wrap<Quote>());
+		env.define("if", wrap<If>());
 		env.define("#f", atl_false());
 		env.define("#t", atl_true());
-		env.define("define-value", aimm<Define>());
+		env.define("define-value", wrap<Define>());
 
 		auto alloc_ast_type = new abstract_type::Type(abstract_type::make_concrete({tag<Ast>::value}));
 		env.define("__alloc_ast__",

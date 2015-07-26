@@ -282,7 +282,7 @@ namespace atl
                     {
                         // TODO: copy?  Not sure how to handle this with GC.
                         code.pointer(ast[1].value);
-                        return _Form(aimm<Null>(),
+                        return _Form(wrap<Null>(),
                                      0,
                                      FormTag::done,
                                      ast[1]._tag);
@@ -293,7 +293,7 @@ namespace atl
                         Eval eval(this);
                         auto type = fn(eval, slice(ast, 1));
 
-                        return _Form(aimm<Null>(),
+                        return _Form(wrap<Null>(),
                                      0,
                                      FormTag::done,
                                      type);
@@ -333,7 +333,7 @@ namespace atl
 		                         .append(" and ")
 		                         .append(type_name(alternate.result_tag)));
 
-                        return _Form(aimm<Null>(), padding, FormTag::done,
+                        return _Form(wrap<Null>(), padding, FormTag::done,
                                      consiquent.result_tag);
                     }
                 case tag<Ast>::value:
@@ -411,7 +411,7 @@ namespace atl
                         if(_env->_prev == nullptr)
                             wrapped.main_entry_point = code.pos_end();
 
-                        return _Form(aimm<Null>(), 0, FormTag::done, body_result.result_tag);
+                        return _Form(wrap<Null>(), 0, FormTag::done, body_result.result_tag);
                     }
                 default:
                     return result(head, 0, FormTag::function);
@@ -437,7 +437,7 @@ namespace atl
 
             auto atom_result = [&]()
                 {
-                    return _Compile(aimm<Null>(), 0, input._tag);
+                    return _Compile(wrap<Null>(), 0, input._tag);
                 };
 
         compile_value:
@@ -556,7 +556,7 @@ namespace atl
             case tag<Type>::value:
                 {
                     code.pointer(value<Type>(input));
-                    return _Compile(aimm<Null>(), 0, abstract_type::return_tag(*value<Type>(input)));
+                    return _Compile(wrap<Null>(), 0, abstract_type::return_tag(*value<Type>(input)));
                 }
             case tag<CxxFunctor>::value:
                 {
@@ -564,7 +564,7 @@ namespace atl
 
                     // TODO: check arity against the CxxFunctions types.
                     code.std_function(&fn.fn, context.expression.size() - 1);
-                    return _Compile(aimm<Null>(), 0, abstract_type::return_tag(*fn.types));
+                    return _Compile(wrap<Null>(), 0, abstract_type::return_tag(*fn.types));
                 }
             case tag<Method>::value:
                 {
@@ -577,14 +577,14 @@ namespace atl
                 {
                     auto proc = unwrap<Procedure>(input);
                     code.call_procedure(proc.body);
-                    return _Compile(aimm<Null>(), 0, proc.return_type);
+                    return _Compile(wrap<Null>(), 0, proc.return_type);
                 }
 
             default:
                 {
                     throw std::string("Illegal syntax or something.");
                 }}
-            return _Compile(aimm<Null>(), 0, tag<Any>::value);
+            return _Compile(wrap<Null>(), 0, tag<Any>::value);
         }
 
         // For recursive entry (as with primitive macros).  The code
