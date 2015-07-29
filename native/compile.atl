@@ -1,0 +1,14 @@
+(define-function (toplevel ast env)
+  (if (is-tag? (ast 0) (tag 'define-macro))
+    (insert-env
+     env
+     ((ast 1) 0)
+     (ast 2))
+    env))
+
+
+(define-main (ast env)
+  (let (env' (fold (\ (env transform) (transform env))
+                   env
+                   (map toplevel ast)))
+    (map toplevel )))

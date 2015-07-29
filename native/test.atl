@@ -1,0 +1,7 @@
+(def (assert op args io)
+  (if (apply op args)
+    io
+    (io "Failed assert" (to-string op) (to-string args))))
+
+(def (main io)
+  (test-macros ))

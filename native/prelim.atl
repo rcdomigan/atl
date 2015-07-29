@@ -1,0 +1,64 @@
+;;;;;;;;;;;;;;;;;;;;;;;;
+;;;  ____        __  ;;;
+;;; |  _ \  ___ / _| ;;;
+;;; | | | |/ _ \ |_  ;;;
+;;; | |_| |  __/  _| ;;;
+;;; |____/ \___|_|   ;;;
+;;;;;;;;;;;;;;;;;;;;;;;;
+; def allows the (def (foo a b) (...))  short form in place of
+; (define-value foo (\ (a b) (...)))
+(define-macro
+  (def ast)
+  (Ast
+   define-value
+   ((ast 0) 0)
+   (Ast \ (slice (ast 0) 1)
+        (ast 1))))
+
+;;;;;;;;;;;;;;;;;;;;;;;
+;;;  _         _    ;;;
+;;; | |    ___| |_  ;;;
+;;; | |   / _ \ __| ;;;
+;;; | |__|  __/ |_  ;;;
+;;; |_____\___|\__| ;;;
+;;;;;;;;;;;;;;;;;;;;;;;
+;; auxilary function for 'let', breaks a let parameter list into a
+;; list of symbols and a list of values.
+(def (let-symbols/values lst)
+  (if (Null? lst)
+    (list '() '())
+    ((\ (params/args) (list (cons (car lst) (car params/args))
+                     (cons (cadr lst) (cadr params/args))))
+     (let-symbols/values (cddr lst)))))
+
+;; the let form
+(define-macro
+  (let lst)
+  ((\ (args) (cons (list \ (car args) (cadr lst))
+                   (cadr args)))
+   (let-symbol-names (car lst))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;     _         _ _   _                    _   _       ;;;
+;;;    / \   _ __(_) |_| |__  _ __ ___   ___| |_(_) ___  ;;;
+;;;   / _ \ | '__| | __| '_ \| '_ ` _ \ / _ \ __| |/ __| ;;;
+;;;  / ___ \| |  | | |_| | | | | | | | |  __/ |_| | (__  ;;;
+;;; /_/   \_\_|  |_|\__|_| |_|_| |_| |_|\___|\__|_|\___| ;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def (apply-operator operator acc lst)
+  (if (Null? lst)
+    acc
+    (apply-operator operator
+                    (operator acc (car lst))
+                    (cdr lst))))
+
+(define-macro
+  (+ lst)
+  (list apply-operator bin-add (car lst)
+        (cons 'list (cdr lst))))
+
+(define-macro
+  (- lst)
+  (list apply-operator bin-sub (car lst)
+        (cons 'list (cdr lst))))
+

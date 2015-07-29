@@ -1,4 +1,0 @@
-;; An Ast->Encode compiler
-(require 'prelim)
-
-(def (annotate-tail-calls (Ast _ formals body)) ())
