@@ -222,11 +222,11 @@ namespace atl
 	}
 
 	namespace byte_code {
-		typedef typename PCode::value_type value_type;
+		typedef typename vm_stack::value_type value_type;
 		template<class T>
-		PCode::value_type to_bytes(T input)
+		vm_stack::value_type to_bytes(T input)
 		{
-			return reinterpret_cast<PCode::value_type>(input);
+			return reinterpret_cast<vm_stack::value_type>(input);
 		}
 
 		// TODO: use the `std::is_integral` and static cast for all integral (and floating?) types.

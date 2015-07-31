@@ -40,7 +40,23 @@
 
 namespace mpl = boost::mpl;
 
-namespace atl {
+namespace atl
+{
+	namespace pcode
+	{
+		typedef uintptr_t  value_type;
+		// todo: switch iterator use to Offset so it remains valid if
+		// the structure being pointed into resizes
+		typedef value_type* iterator;
+		typedef size_t Offset;
+	}
+
+	namespace vm_stack
+	{
+		typedef uintptr_t  value_type;
+		typedef value_type* iterator;
+	}
+
 
     /******************************/
     /*  _____          _ _        */
@@ -61,7 +77,7 @@ namespace atl {
 
 
 #define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Data)(Lambda)(Let)(Type)(Ast)(AstData)
-#define ATL_PIMPL_SEQ (Slice)(String)(Symbol)(Procedure)(Macro)(Undefined)(PCode)(Parameter)(Method)(Struct)
+#define ATL_PIMPL_SEQ (Slice)(String)(Symbol)(Procedure)(Macro)(Undefined)(Parameter)(Method)(Struct)
 #define ATL_TYPES_SEQ ATL_REINTERPERABLE_SEQ ATL_PIMPL_SEQ(CxxFunctor)(PrimitiveMacro)(Mark)
 
 #define M(r, _, i, elem)						\
@@ -82,7 +98,7 @@ namespace atl {
     BOOST_PP_SEQ_FOR_EACH_I(M, _, ATL_REINTERPERABLE_SEQ)
 #undef M
 
-    typedef mpl::vector28< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
+    typedef mpl::vector27< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
 
     template<class T>
     struct tag : public _Tag<typename std::remove_const<T>::type> {};
@@ -343,21 +359,9 @@ namespace atl {
     tag<std::string*> : public tag<String> {};
 
 
-    struct PCode {
-	typedef uintptr_t  value_type;
-	typedef value_type* iterator;
-
-	tag_t tag;
-	uintptr_t *value;
-
-	PCode() : tag(atl::tag<PCode>::value), value(nullptr) {}
-	PCode(uintptr_t *vv) : tag(atl::tag<PCode>::value), value(vv) {}
-    };
-
-
 	struct Undefined
 	{
-		typedef std::vector<PCode::iterator> Backtrack;
+		typedef std::vector<pcode::iterator> Backtrack;
 
 		Backtrack backtrack;
 		abstract_type::Type *type;
@@ -371,12 +375,12 @@ namespace atl {
     /* Macro and Procedure have the same data layout, but distinct tags */
     struct Procedure
     {
-        PCode::iterator body;
+        vm_stack::iterator body;
         size_t tail_params;
 
         tag_t return_type;
 
-        Procedure(PCode::iterator body_, size_t padding, tag_t rtype)
+        Procedure(vm_stack::iterator body_, size_t padding, tag_t rtype)
             : body(body_), tail_params(padding), return_type(rtype)
         {}
     };
@@ -386,7 +390,7 @@ namespace atl {
     {
 	const std::string _name;
 
-	typedef std::function<void (PCode::iterator begin, PCode::iterator end)> Fn;
+	typedef std::function<void (vm_stack::iterator begin, vm_stack::iterator end)> Fn;
         typedef Fn value_type;
 	mutable value_type fn;
 

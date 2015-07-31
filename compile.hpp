@@ -60,11 +60,11 @@ namespace atl
 
     struct Compile
     {
-        typedef PCode::iterator iterator;
+        typedef AssembleVM::iterator iterator;
 
         lexical::Map *_env;     // pushing a scope mutates where this points
         GC& gc;
-        PCode::value_type* output;
+        AssembleVM::value_type* output;
 
         AssembleVM wrapped;
 
@@ -84,7 +84,7 @@ namespace atl
             }
 
             ~SkipBlock()
-            { *_skip_to = reinterpret_cast<PCode::value_type>(code.end()); }
+            { *_skip_to = reinterpret_cast<pcode::value_type>(code.end()); }
         };
 
 
@@ -158,7 +158,7 @@ namespace atl
         struct SavedExcursion
         {
             Compile *compile;
-            PCode::iterator main_entry, end;
+            AssembleVM::iterator main_entry, end;
 
             void enter_end()
             { compile->wrapped.main_entry_point = end; }
@@ -183,8 +183,8 @@ namespace atl
         _Form form(Ast ast, AssembleVM& code, Context context)
         {
             using namespace std;
-            typedef PCode::value_type value_type;
-            typedef PCode::iterator iterator;
+            typedef pcode::value_type value_type;
+            typedef AssembleVM::iterator iterator;
 
             auto head = ast[0];
             auto result = [&head](Any aa, size_t ss, FormTag ff)
@@ -568,7 +568,7 @@ namespace atl
 
         // Lets macros reach in and explicitly add values to the
         // PCode.  todo: This is not an ideal abstraction.
-        PCode::iterator push_value(PCode::value_type value)
+        vm_stack::iterator push_value(vm_stack::value_type value)
         {
             auto rval = wrapped._end;
             wrapped.constant(value);

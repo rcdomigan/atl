@@ -341,7 +341,7 @@ namespace atl {
             default: return false;
             }}
 
-        void run_debug(PCode::iterator enter, unsigned int max_steps = 1000) {
+        void run_debug(vm_stack::iterator enter, unsigned int max_steps = 1000) {
             top = stack;
             pc = enter;
 

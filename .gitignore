@@ -5,12 +5,12 @@ test-zipper
 test/parser
 test/macros
 test/compiler
-test/vm_test
 test/test
 test/type_deduction
 test/abstract_type
 test/compile
 test/lists
 test/structs
+test/vm
 TAGS
 table-bc

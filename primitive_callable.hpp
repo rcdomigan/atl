@@ -36,7 +36,7 @@ namespace atl
 		env.define("__alloc_ast__",
 		           wrap
 		           (env.gc.make<CxxFunctor>
-		            ([&](PCode::iterator begin, PCode::iterator end) -> void
+		            ([&](vm_stack::iterator begin, vm_stack::iterator end) -> void
 		            {
 			            auto range = make_range(begin, end);
 			            auto stack = env.gc.dynamic_seq(range.size() + 2);
@@ -49,7 +49,7 @@ namespace atl
 				                                 reinterpret_cast<void*>(pair[0])));
 
 			            seq->value = stack->end();
-			            *begin = reinterpret_cast<PCode::value_type>(seq);
+			            *begin = reinterpret_cast<vm_stack::value_type>(seq);
 		            },
 			            "__alloc_ast__",
 			            alloc_ast_type)));
@@ -79,12 +79,12 @@ namespace atl
 		static auto fn_construct_params = abstract_type::make_concrete({tag<Type>::value, tag<Type>::value});
 		fn_construct_params.front().count = abstract_type::Node::CountType::at_least_one;
 		auto fn_construct
-			= gc.make<CxxFunctor>([&env](PCode::iterator begin, PCode::iterator end)
+			= gc.make<CxxFunctor>([&env](vm_stack::iterator begin, vm_stack::iterator end)
 			                      {
 				                      auto type = env.gc.make<abstract_type::Type>();
 				                      for(auto& vv : make_range(begin, end))
 					                      type->values.emplace_back(*reinterpret_cast<Type::value_type*>(vv));
-				                      *begin = reinterpret_cast<PCode::value_type>(type);
+				                      *begin = reinterpret_cast<vm_stack::value_type>(type);
 			                      }, "->", &fn_construct_params);
 
 		env.define("->", wrap(fn_construct));
@@ -147,8 +147,8 @@ namespace atl
 			 });
 
 
-		auto cons_ast = WrapStdFunction<AstData* (PCode::value_type, PCode::value_type, Any*)>::a
-			([&gc](PCode::value_type value, PCode::value_type type, Any *raw) -> AstData*
+		auto cons_ast = WrapStdFunction<AstData* (vm_stack::value_type, vm_stack::value_type, Any*)>::a
+			([&gc](vm_stack::value_type value, vm_stack::value_type type, Any *raw) -> AstData*
 			 {
 				 using namespace ast_iterator;
 				 Ast seq(raw);
