@@ -57,6 +57,7 @@ namespace atl
 		auto cc = primitives::Constructor(env);
 		mpl::for_each<TypesVec, wrap_t_arg< mpl::placeholders::_1> >(cc);
 
+		// (: A a) declares a to be of type A
 		wrap_macro(env, ":",
 		           [](Eval &eval, PrimitiveMacro::Input const& ast)
 		           {
@@ -119,7 +120,7 @@ namespace atl
 		wrap_function<long ()>(env, "print-bytecode",
 		                       [&env]() {
 			                       if(env.pcode)
-				                       env.pcode->dbg();
+				                       dbg_code(*env.pcode->output);
 			                       else
 				                       cout << "environment pcode is not set." << endl;
 			                       return 0;

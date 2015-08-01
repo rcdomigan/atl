@@ -37,11 +37,11 @@
 //   finish             : -
 
 
-#define ATL_NORMAL_BYTE_CODES (nop)(pop)(if_)(std_function)(jump)(return_)(call_procedure)(argument)(nested_argument)(tail_call)
-#define ATL_BYTE_CODES (finish)(push)(push_word)ATL_NORMAL_BYTE_CODES
+#define ATL_NORMAL_BYTE_CODES (nop)(push)(pop)(if_)(std_function)(jump)(return_)(call_procedure)(argument)(nested_argument)(tail_call)
+#define ATL_BYTE_CODES (finish)(push_word)ATL_NORMAL_BYTE_CODES
 
 #define ATL_VM_SPECIAL_BYTE_CODES (finish)      // Have to be interpreted specially by the run/switch statement
-#define ATL_VM_NORMAL_BYTE_CODES (push)ATL_NORMAL_BYTE_CODES
+#define ATL_VM_NORMAL_BYTE_CODES ATL_NORMAL_BYTE_CODES
 
 #define ATL_ASSEMBLER_SPECIAL_BYTE_CODES (push) // overloads the no argument version
 #define ATL_ASSEMBLER_NORMAL_BYTE_CODES (finish)ATL_NORMAL_BYTE_CODES
@@ -49,322 +49,305 @@
 
 namespace atl {
 
-    namespace vm_codes {
-        template<class T> struct Name;
-        template<class T> struct Tag;
+	namespace vm_codes {
+		template<class T> struct Name;
+		template<class T> struct Tag;
 
-        const size_t number_of_instructions = BOOST_PP_SEQ_SIZE(ATL_BYTE_CODES);
+		const size_t number_of_instructions = BOOST_PP_SEQ_SIZE(ATL_BYTE_CODES);
 
-        namespace values {
-            enum code { BOOST_PP_SEQ_ENUM(ATL_BYTE_CODES) };
-        }
+		namespace values {
+			enum code { BOOST_PP_SEQ_ENUM(ATL_BYTE_CODES) };
+		}
 
 #define M(r, data, i, instruction)                                      \
-        struct instruction;                                             \
-        template<> struct Tag<instruction> { static const tag_t value = i; }; \
-        template<> struct Name<instruction> { constexpr static const char* value = BOOST_PP_STRINGIZE(instruction); };
+		struct instruction; \
+		template<> struct Tag<instruction> { static const tag_t value = i; }; \
+		template<> struct Name<instruction> { constexpr static const char* value = BOOST_PP_STRINGIZE(instruction); };
 
-        BOOST_PP_SEQ_FOR_EACH_I(M, _, ATL_BYTE_CODES)
+		BOOST_PP_SEQ_FOR_EACH_I(M, _, ATL_BYTE_CODES)
 #undef M
 
 #define M(r, data, i, instruction) BOOST_PP_COMMA_IF(i) Name<instruction>::value
 
-        static const char *instruction_names[] = { BOOST_PP_SEQ_FOR_EACH_I(M, _, ATL_BYTE_CODES) };
+		static const char *instruction_names[] = { BOOST_PP_SEQ_FOR_EACH_I(M, _, ATL_BYTE_CODES) };
 #undef M
 
-        static const char* name(tag_t instruction) {
-            if(instruction >= number_of_instructions)
-                return "<CODE UNDEFINED>";
-            return instruction_names[instruction];
-        }
+		static const char* name(tag_t instruction) {
+			if(instruction >= number_of_instructions)
+				return "<CODE UNDEFINED>";
+			return instruction_names[instruction];
+		}
 
-        static const char* name_or_null(tag_t instruction) {
-            if(instruction >= number_of_instructions)
-                return nullptr;
-            return instruction_names[instruction];
-        }
-    }
+		static const char* name_or_null(tag_t instruction) {
+			if(instruction >= number_of_instructions)
+				return nullptr;
+			return instruction_names[instruction];
+		}
+	}
+
+	typedef GC::PCodeAccumulator Code;
+
+	void dbg_code(Code const& code)
+	{
+		using namespace std;
+
+		int pushing = 0;
+		size_t pos = 0;
+		for(auto& vv : code)
+			{
+				auto vname = vm_codes::name_or_null(vv);
+
+				cout << " " << pos << ": ";
+
+				if(pushing)
+					{
+						--pushing;
+						cout << "@" << vv;
+					}
+				else
+					{
+						if(vv == vm_codes::Tag<vm_codes::push>::value)
+							++pushing;
+						cout << vname;
+					}
+				cout << endl;
+				++pos;
+			}
+	}
 
 
-    struct AssembleVM
-    {
-        typedef uintptr_t value_type;
-        typedef value_type* iterator;
-        typedef value_type const* const_iterator;
+	struct AssembleVM
+	{
+		typedef uintptr_t value_type;
+		typedef Code::const_iterator const_iterator;
 
-        iterator _begin, _end;
-        iterator main_entry_point;
+		Code* output;
 
-        // TODO: don't think I ended up using this
-        std::vector<value_type> offset;
+		pcode::Offset main_entry_point;
 
-        AssembleVM(uintptr_t *output = nullptr)
-            : _begin(output), _end(output), main_entry_point(output)
-        {
-            offset.push_back(0);
-        }
-
-
-
-
-
+		AssembleVM(GC::PCodeAccumulator *output_)
+			: output(output_), main_entry_point(0)
+		{}
 
 #define M(r, data, instruction) AssembleVM& instruction() {             \
-            *_end = vm_codes::Tag<vm_codes::instruction>::value;        \
-            ++_end;                                                     \
-            return *this;                                               \
-        }
-        BOOST_PP_SEQ_FOR_EACH(M, _, ATL_ASSEMBLER_NORMAL_BYTE_CODES)
+			_push_back(vm_codes::Tag<vm_codes::instruction>::value); \
+			return *this; \
+		}
+		BOOST_PP_SEQ_FOR_EACH(M, _, ATL_ASSEMBLER_NORMAL_BYTE_CODES)
 #undef M
 
-        AssembleVM& push() {
-            *_end = vm_codes::Tag<vm_codes::push>::value;
-            ++_end;
+		void _push_back(uintptr_t cc) { output->push_back(cc); }
 
-            ++offset.back();
-            return *this;
-        }
+		AssembleVM& constant(uintptr_t cc) {
+			push();
+			_push_back(cc);
+			return *this;
+		}
 
-        AssembleVM& constant(uintptr_t cc) {
-            push();
-            *_end = cc;
-            ++_end;
-            return *this;
-        }
+		AssembleVM& pointer(void* cc) { return constant(reinterpret_cast<value_type>(cc)); }
 
-        AssembleVM& pointer(void* cc) { return constant(reinterpret_cast<uintptr_t>(cc)); }
+		AssembleVM& push_tagged(const Any& aa) {
+			constant(aa._tag);
+			return pointer(aa.value);
+		}
 
-        AssembleVM& push_tagged(const Any& aa) {
-            constant(aa._tag);
-            return pointer(aa.value);
-        }
+		void pop_back() { output->pop_back(); }
+		void clear()
+		{
+			main_entry_point = 0;
+			output->clear();
+		}
 
-        iterator begin() { return _begin; }
-        iterator end() { return _end; }
-        const_iterator begin() const { return _begin; }
-        const_iterator end() const { return _end; }
+		const_iterator begin() const { return output->begin(); }
+		const_iterator end() const { return output->end(); }
+		bool empty() const { return output->empty(); }
 
-        iterator last() { return _end - 1; }
-        value_type back() { return *last(); }
-
-
-        AssembleVM& call_procedure(uintptr_t* body) {
-            constant(reinterpret_cast<uintptr_t>(body));
-            return call_procedure();
-        }
-
-        AssembleVM& argument(uintptr_t offset) {
-            constant(offset);
-            return argument();
-        }
-
-        AssembleVM& nested_argument(uintptr_t offset, uintptr_t hops) {
-            constant(offset);
-            constant(hops);
-            return nested_argument();
-        }
-
-        AssembleVM& return_(size_t num_args) {
-            constant(num_args);
-            return return_();
-        }
-
-        AssembleVM& tail_call(size_t num_args, iterator proc) {
-            constant(num_args);
-            pointer(proc);
-            return tail_call();
-        }
-
-        AssembleVM& std_function(CxxFunctor::value_type* fn, size_t arity) {
-            constant(arity);
-            pointer(reinterpret_cast<void*>(fn));
-            return std_function();
-        }
-
-        uintptr_t& operator[](size_t offset) { return _begin[offset]; }
-
-        template<class Range>
-        void print(Range const& range) const
-        {
-            using namespace std;
-
-            int pushing = 0;
-            for(auto& vv : range)
-                {
-                    auto vname = vm_codes::name_or_null(vv);
-
-                    cout << " " << hex << &vv << ": ";
-
-                    if(pushing)
-                        {
-                            --pushing;
-                            cout << "@" << hex << vv;
-                        }
-                    else
-                        {
-                            if(vv == vm_codes::Tag<vm_codes::push>::value)
-                                ++pushing;
-                            cout << vname;
-                        }
-                    cout << endl;
-                }
-        }
-        void dbg();
-        void dbg_to_run();
-        void dbg_explicit(iterator begin, iterator end);
-    };
-
-    void AssembleVM::dbg()
-    {
-        print(*this);
-    }
-
-    void AssembleVM::dbg_to_run()
-    {
-        print(make_range(main_entry_point, _end));
-    }
-
-    void AssembleVM::dbg_explicit(iterator begin, iterator end)
-    {
-        print(make_range(begin, end));
-    }
+		// iterator last() { return _end - 1; }
+		pcode::Offset pos_last() { return output->size() - 1;}
+		pcode::Offset pos_end() { return output->size(); }
+		value_type back() { return output->back(); }
 
 
-    struct TinyVM {
-        typedef uintptr_t value_type;
-        typedef uintptr_t* iterator;
+		// Takes the offset to the body
+		AssembleVM& call_procedure(pcode::Offset body) {
+			constant(reinterpret_cast<value_type>(body));
+			return call_procedure();
+		}
 
-        iterator pc;
-        iterator top;           // 1 past last value
-        iterator call_stack;
+		AssembleVM& argument(uintptr_t offset) {
+			constant(offset);
+			return argument();
+		}
 
-        value_type stack[100];
+		AssembleVM& nested_argument(uintptr_t offset, uintptr_t hops) {
+			constant(offset);
+			constant(hops);
+			return nested_argument();
+		}
 
-        TinyVM() : top(stack), call_stack(stack) {}
+		AssembleVM& return_(size_t num_args) {
+			constant(num_args);
+			return return_();
+		}
 
-        value_type back() { return *(top - 1); }
+		AssembleVM& tail_call(size_t num_args, size_t proc) {
+			constant(num_args);
+			constant(proc);
+			return tail_call();
+		}
 
-        void nop() { ++pc; }
+		AssembleVM& std_function(CxxFunctor::value_type* fn, size_t arity) {
+			constant(arity);
+			pointer(reinterpret_cast<void*>(fn));
+			return std_function();
+		}
 
-        void push() { *(top++) = pc[1]; pc += 2; }
-        void pop() { top--; ++pc; }
+		uintptr_t& operator[](size_t offset) { return (*output)[offset]; }
+	};
 
-        template<class Fn>
-        void call_cxx_function() {
-            auto fn = reinterpret_cast<Fn>(*(top - 1));
-            top -= 2;
-            auto n = *top;
 
-            auto end = top;
-            top -= n;
+	struct TinyVM
+	{
+		typedef uintptr_t value_type;
+		typedef uintptr_t* iterator;
 
-            (*fn)(top, end);
-            ++top;
-            ++pc;
-        }
+		vm_stack::Offset pc;
+		Code const* code;
+		iterator top;           // 1 past last value
+		iterator call_stack;
 
-        void std_function() { call_cxx_function<CxxFunctor::value_type*>(); }
+		value_type stack[100];
 
-        void if_() {
-            top -= 2;
-            if(top[1] != 0) ++pc;
-            else pc = reinterpret_cast<uintptr_t*>(*top);
-        }
+		TinyVM() : top(stack), call_stack(stack) {}
 
-        void jump() { --top; pc = reinterpret_cast<uintptr_t*>(*top); }
+		value_type back() { return *(top - 1); }
 
-        void call_procedure() {
-            *top        = reinterpret_cast<value_type>(pc + 1);    // next instruction
-            pc          = reinterpret_cast<uintptr_t*>(back());
-            *(top - 1)  = reinterpret_cast<uintptr_t>(call_stack); // store the enclosing frame
-            call_stack  = top - 1;                                 // update the frame
-            ++top;
-        }
+		void nop() { ++pc; }
 
-        void argument() {
-            --top;
-            *top = *(call_stack - *top);
-            ++top; ++pc;
-        }
+		void push() { *(top++) = (*code)[pc + 1]; pc += 2; }
+		void pop() { top--; ++pc; }
 
-        void nested_argument() {
-            throw std::string("TODO");
-        }
+		template<class Fn>
+		void call_cxx_function() {
+			auto fn = reinterpret_cast<Fn>(*(top - 1));
+			top -= 2;
+			auto n = *top;
 
-        void return_() {
-            auto num_args = back();
-            auto result   = *(top - 2);
-            top           = call_stack - num_args;
-            pc            = reinterpret_cast<iterator>(call_stack[1]);
-            call_stack    = reinterpret_cast<iterator>(call_stack[0]);
+			auto end = top;
+			top -= n;
 
-            *top = result; ++top;
-        }
+			(*fn)(top, end);
+			++top;
+			++pc;
+		}
 
-        void tail_call() {
-            // move N arguments from the top of the stack to dst
-            top -= 2;
-            auto next_pc = top[1];
-            auto nn = top[0];
+		void std_function() { call_cxx_function<CxxFunctor::value_type*>(); }
 
-            for(auto iitr = top - nn,
-                    dest = call_stack - nn;
-                    iitr != top;
-                    ++iitr, ++dest)
-                *dest = *iitr;
+		void if_() {
+			top -= 2;
+			if(top[1] != 0) ++pc;
+			else pc = *top;
+		}
 
-            pc = reinterpret_cast<iterator>(next_pc);
-            top = call_stack + 2;
-        }
+		void jump() { --top; pc = *top; }
 
-        bool step() {
-            switch(*pc) {
+		void call_procedure() {
+			*top        = reinterpret_cast<value_type>(pc + 1);    // next instruction
+			pc          = back();
+			*(top - 1)  = reinterpret_cast<uintptr_t>(call_stack); // store the enclosing frame
+			call_stack  = top - 1;                                 // update the frame
+			++top;
+		}
+
+		void argument() {
+			--top;
+			*top = *(call_stack - *top);
+			++top; ++pc;
+		}
+
+		void nested_argument() {
+			throw std::string("TODO");
+		}
+
+		void return_() {
+			auto num_args = back();
+			auto result   = *(top - 2);
+			top           = call_stack - num_args;
+			pc            = call_stack[1];
+			call_stack    = reinterpret_cast<iterator>(call_stack[0]);
+
+			*top = result; ++top;
+		}
+
+		void tail_call() {
+			// move N arguments from the top of the stack to dst
+			top -= 2;
+			auto next_pc = top[1];
+			auto nn = top[0];
+
+			for(auto iitr = top - nn,
+				    dest = call_stack - nn;
+			    iitr != top;
+			    ++iitr, ++dest)
+				*dest = *iitr;
+
+			pc = next_pc;
+			top = call_stack + 2;
+		}
+
+		bool step(Code const& code)
+		{
+			switch(code[pc])
+				{
 #define M(r, data, instruction) case vm_codes::values::instruction: instruction(); return false;
-                BOOST_PP_SEQ_FOR_EACH(M, _, ATL_VM_NORMAL_BYTE_CODES)
+					BOOST_PP_SEQ_FOR_EACH(M, _, ATL_VM_NORMAL_BYTE_CODES)
 #undef M
-            case vm_codes::values::finish:
-                    return true;
-            default: return false;
-            }}
+				case vm_codes::values::finish:
+						return true;
+				default: return false;
+				}
+		}
 
-        void run_debug(vm_stack::iterator enter, unsigned int max_steps = 1000) {
+		void run_debug(Code const& code, vm_stack::Offset enter, unsigned int max_steps = 1000) {
             top = stack;
             pc = enter;
+            this->code = &code;
 
-            for(unsigned int i = 0; i < max_steps; ++i) {
-                std::cout << "====================\n"
-                          << "= " << vm_codes::name(*pc) << "\n"
-                          << "= call stack: " << hex << call_stack << " pc: " << pc << "\n"
-                          << "====================" << std::endl;
-                if(step()) break;
-                print_stack();
-            }
-            print_stack();
-        }
+			for(unsigned int i = 0; i < max_steps; ++i) {
+				std::cout << "====================\n"
+				          << "= " << vm_codes::name(code[pc]) << "\n"
+				          << "= call stack: " << call_stack << " pc: " << pc << "\n"
+				          << "====================" << std::endl;
+				if(step(code)) break;
+				print_stack();
+			}
+			print_stack();
+		}
 
-        void run(iterator in) {
-            pc = in;
-            top = stack;
+		void run(Code const& code, vm_stack::Offset in) {
+			pc = in;
+			top = stack;
+			this->code = &code;
 
-            while(true) {
-                switch(*pc) {
+			while(true) {
+				switch(code[pc]) {
 #define M(r, data, instruction) case vm_codes::values::instruction: instruction(); break;
-                    BOOST_PP_SEQ_FOR_EACH(M, _, ATL_VM_NORMAL_BYTE_CODES)
+					BOOST_PP_SEQ_FOR_EACH(M, _, ATL_VM_NORMAL_BYTE_CODES)
 #undef M
-                case vm_codes::values::finish:
-                        return;
-                }}}
+				case vm_codes::values::finish:
+						return;
+				}}}
 
-        iterator begin() { return stack; }
-        iterator end() { return top; }
+		iterator begin() { return stack; }
+		iterator end() { return top; }
 
-        void print_stack() {
-            using namespace std;
+		void print_stack() {
+			using namespace std;
 
-            for(auto vv : pointer_range(*this))
-                cout << " " << hex << vv << ": @" << *vv << endl;
-        }
-    };
+			for(auto vv : pointer_range(*this))
+				cout << " " << vv << ": @" << *vv << endl;
+		}
+	};
 }
 
 // Set the flag to compile this as an app that just prints the byte
@@ -373,7 +356,7 @@ namespace atl {
 int main() {
     using namespace std;
     using namespace atl::vm_codes;
-#define M(r, data, instruction) cout << setw(15) << BOOST_PP_STRINGIZE(instruction) ": " << hex << Tag<instruction>::value << endl;
+#define M(r, data, instruction) cout << setw(15) << BOOST_PP_STRINGIZE(instruction) ": " << Tag<instruction>::value << endl;
     BOOST_PP_SEQ_FOR_EACH(M, _, ATL_BYTE_CODES);
 #undef M
 

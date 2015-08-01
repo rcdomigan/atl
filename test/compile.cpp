@@ -42,7 +42,7 @@ struct CompilerTest : public ::testing::Test {
 TEST_F(CompilerTest, BasicApplication) {
     compile.any(parse.string_("(add2 5 7)"));
 
-    run_code(vm, compile.finish());
+    run_code(vm, compile.wrapped);
 
     ASSERT_EQ(vm.stack[0], 12);
 }
@@ -51,7 +51,7 @@ TEST_F(CompilerTest, NestedApplication) {
     auto ast = parse.string_("(add2 (sub2 7 5) (add2 8 3))");
     compile.any(ast);
 
-    run_code(vm, compile.finish());
+    run_code(vm, compile.wrapped);
 
     ASSERT_EQ(vm.stack[0], 13);
 }
@@ -69,15 +69,15 @@ TEST_F(CompilerTest, TestCxxStdFunction) {
 
     compile.any(parse.string_("(foo 3)"));
 
-    run_code(vm, compile.finish());
+    run_code(vm, compile.wrapped);
     ASSERT_EQ(vm.stack[0], 9);
 
-    compile.wrapped = AssembleVM(gc.alloc_pcode());
+    compile.wrapped = AssembleVM(&gc.alloc_pcode());
 
     multiple = 4;
     compile.any(parse.string_("(foo 3)"));
 
-    run_code(vm, compile.finish());
+    run_code(vm, compile.wrapped);
     ASSERT_EQ(vm.stack[0], 12);
 }
 
@@ -95,7 +95,7 @@ TEST_F(CompilerTest, IfTrue) {
     auto ast = parse.string_("(if #t 3 4)");
     compile.any(ast);
 
-    run_code(vm, compile.finish());
+    run_code(vm, compile.wrapped);
     ASSERT_EQ(vm.stack[0], 3);
 }
 
@@ -103,7 +103,7 @@ TEST_F(CompilerTest, IfFalse) {
     auto ast = parse.string_("(if #f 3 4)");
     compile.any(ast);
 
-    run_code(vm, compile.finish());
+    run_code(vm, compile.wrapped);
     ASSERT_EQ(vm.stack[0], 4);
 }
 
@@ -111,7 +111,7 @@ TEST_F(CompilerTest, LambdaWithIf) {
     auto ast = parse.string_("((\\ (a b) (if (equal2 a b) (add2 a b) (sub2 a b))) 7 3)");
     compile.any(ast);
 
-    run_code(vm, compile.finish());
+    run_code(vm, compile.wrapped);
 
     ASSERT_EQ(vm.stack[0], 4);
 }
@@ -124,7 +124,7 @@ TEST_F(CompilerTest, BasicDefine) {
     ast = parse.string_("(add2 foo foo)");
     compile.any(ast);
 
-    run_code(vm, compile.finish());
+    run_code(vm, compile.wrapped);
 
     ASSERT_EQ(vm.stack[0], 6);
 }
@@ -137,7 +137,7 @@ TEST_F(CompilerTest, Backpatch) {
     ast = parse.string_("(define-value foo 3)");
     compile.any(ast);
 
-    run_code(vm, compile.finish());
+    run_code(vm, compile.wrapped);
 
     ASSERT_EQ(vm.stack[0], 6);
 }
@@ -159,7 +159,7 @@ TEST_F(CompilerTest, SimpleRecursion) {
     compile.any(parse.string_("(define-value simple-recur (\\ (a b) (if (equal2 0 a) b (simple-recur (sub2 a 1) (add2 b 1)))))"));
     compile.any(parse.string_("(simple-recur 3 2)"));
 
-    run_code(vm, compile.finish());
+    run_code(vm, compile.wrapped);
 
     ASSERT_EQ(vm.stack[0], 5);
 }

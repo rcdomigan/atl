@@ -6,8 +6,8 @@
 
 #include <tiny_vm.hpp>
 #include <primitive_callable.hpp>
-#include <compile.hpp>
-#include <parser.hpp>
+// #include <compile.hpp>
+// #include <parser.hpp>
 #include <environment.hpp>
 #include "./testing_utils.hpp"
 
@@ -17,11 +17,11 @@ using namespace atl;
 
 struct VmTest : public ::testing::Test
 {
-    TinyVM::value_type code[100];
-    TinyVM vm;
+	std::vector<pcode::value_type> code;
+	TinyVM vm;
     AssembleVM assemble;
 
-    VmTest() : assemble(code) {}
+    VmTest() : assemble(&code) {}
 };
 
 TEST_F(VmTest, TestCxxFn2)
@@ -93,19 +93,19 @@ TEST_F(VmTest, TestCxxStdFunction)
 TEST_F(VmTest, TestIfTrue)
 {
     assemble.pointer(nullptr);
-    auto alternate_ptr = assemble.last();
+    auto alternate_ptr = assemble.pos_last();
 
     assemble.constant(1)
         .if_()
         .constant(5)            // consequent
         .pointer(nullptr);
-    auto end_of_alt = assemble.last();
+    auto end_of_alt = assemble.pos_last();
     assemble.jump();
 
-    *alternate_ptr = reinterpret_cast<TinyVM::value_type>(assemble.end());
+    assemble[alternate_ptr] = assemble.pos_end();
     assemble.constant(9);        // alternate
 
-    *end_of_alt = reinterpret_cast<TinyVM::value_type>(assemble.end());
+    assemble[end_of_alt] = assemble.pos_end();
     assemble.finish();
 
     run_code(vm, assemble);
@@ -116,19 +116,19 @@ TEST_F(VmTest, TestIfTrue)
 TEST_F(VmTest, TestIfFalse)
 {
     assemble.pointer(nullptr);
-    auto alternate_ptr = assemble.last();
+    auto alternate_ptr = assemble.pos_last();
 
     assemble.constant(0)
         .if_()
         .constant(5)            // consequent
         .pointer(nullptr);
-    auto end_of_alt = assemble.last();
+    auto end_of_alt = assemble.pos_last();
     assemble.jump();
 
-    *alternate_ptr = reinterpret_cast<TinyVM::value_type>(assemble.end());
+    assemble[alternate_ptr] = assemble.pos_end();
     assemble.constant(9);        // alternate
 
-    *end_of_alt = reinterpret_cast<TinyVM::value_type>(assemble.end());
+    assemble[end_of_alt] = assemble.pos_end();
     assemble.finish();
 
     run_code(vm, assemble);
@@ -143,12 +143,12 @@ TEST_F(VmTest, TestArguments)
     assemble.constant(5)
 	.constant(3)
 	.pointer(nullptr);
-    auto procedure_address = assemble.last();
+    auto procedure_address = assemble.pos_last();
 
     assemble.call_procedure()
 	.finish();
 
-    *procedure_address = reinterpret_cast<uintptr_t>(assemble.end());
+    assemble[procedure_address] = assemble.pos_end();
 
     assemble.argument(2)
 	.argument(1)
@@ -188,19 +188,19 @@ TEST_F(VmTest, SymToFunction)
 TEST_F(VmTest, SMoveN)
 {
     assemble.pointer(nullptr);
-    auto after_defs = assemble.last(); // skip over function definitions
+    auto after_defs = assemble.pos_last(); // skip over function definitions
     assemble.jump();
 
-    auto enter_tail_call = assemble.end();
+    auto enter_tail_call = assemble.pos_end();
     assemble.finish();
 
-    auto enter_setup = assemble.end();
+    auto enter_setup = assemble.pos_end();
     assemble.constant(2)
         .constant(3)
         .constant(4)
         .tail_call(3, enter_tail_call);
 
-    *after_defs = reinterpret_cast<uintptr_t>(assemble.end());
+    assemble[after_defs] = assemble.pos_end();
     assemble.constant(1)
         .constant(0)
         .constant(0)

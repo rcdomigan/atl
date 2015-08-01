@@ -55,6 +55,7 @@ namespace atl
 	{
 		typedef uintptr_t  value_type;
 		typedef value_type* iterator;
+		typedef size_t Offset;
 	}
 
 
@@ -361,7 +362,7 @@ namespace atl
 
 	struct Undefined
 	{
-		typedef std::vector<pcode::iterator> Backtrack;
+		typedef std::vector<pcode::Offset> Backtrack;
 
 		Backtrack backtrack;
 		abstract_type::Type *type;
@@ -375,12 +376,12 @@ namespace atl
     /* Macro and Procedure have the same data layout, but distinct tags */
     struct Procedure
     {
-        vm_stack::iterator body;
+	    pcode::Offset body;
         size_t tail_params;
 
         tag_t return_type;
 
-        Procedure(vm_stack::iterator body_, size_t padding, tag_t rtype)
+	    Procedure(pcode::Offset body_, size_t padding, tag_t rtype)
             : body(body_), tail_params(padding), return_type(rtype)
         {}
     };

@@ -34,13 +34,13 @@ struct TrivialFunctions
     {}
 };
 
-void run_code(atl::TinyVM& vm, atl::AssembleVM input)
+void run_code(atl::TinyVM& vm, atl::AssembleVM& input)
 {
 #ifdef DEBUGGING
-    input.print();
-    vm.run_debug(input.main_entry_point, 100);
+	atl::dbg_code(*input.output);
+    vm.run_debug(*input.output, input.main_entry_point, 100);
 #else
-    vm.run(input.main_entry_point);
+    vm.run(*input.output, input.main_entry_point);
 #endif
 }
 

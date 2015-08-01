@@ -18,6 +18,13 @@ namespace atl
 
     namespace compile_helpers
     {
+	    // If an inner procedures is referencing argument in its
+	    // closure I have to follow return addresses to 'hop' up to
+	    // the enclosed parameters.
+	    //
+	    // TODO: It should be possible to compute fixed offsets in may
+	    // cases (if the inner function is tail recursive or not
+	    // recursive) rather than hopping at runtime
         struct IncHopRAII
         {
             lexical::Map *env;
@@ -60,31 +67,32 @@ namespace atl
 
     struct Compile
     {
-        typedef AssembleVM::iterator iterator;
+        typedef AssembleVM::const_iterator iterator;
+	    typedef pcode::Offset Offset;
 
         lexical::Map *_env;     // pushing a scope mutates where this points
         GC& gc;
-        AssembleVM::value_type* output;
+	    GC::PCodeAccumulator& output;
 
         AssembleVM wrapped;
 
         Compile(Environment& env)
-            : _env(&env.toplevel), gc(env.gc),  output(gc.alloc_pcode()), wrapped(AssembleVM(output))
+            : _env(&env.toplevel), gc(env.gc),  output(gc.alloc_pcode()), wrapped(&output)
         {}
 
         struct SkipBlock
         {
-            iterator _skip_to;
+	        pcode::Offset _skip_to;
             AssembleVM& code;
             SkipBlock(AssembleVM& code_) : code(code_)
             {
                 code.pointer(nullptr);
-                _skip_to = code.last(); // skip over the lambda body when running the code
+                _skip_to = code.pos_last();
                 code.jump();
             }
 
             ~SkipBlock()
-            { *_skip_to = reinterpret_cast<pcode::value_type>(code.end()); }
+	        { code[_skip_to] = code.pos_end(); }
         };
 
 
@@ -158,18 +166,19 @@ namespace atl
         struct SavedExcursion
         {
             Compile *compile;
-            AssembleVM::iterator main_entry, end;
+	        pcode::Offset main_entry, end;
 
             void enter_end()
             { compile->wrapped.main_entry_point = end; }
 
             SavedExcursion(Compile* comp)
-                : compile(comp), main_entry(comp->wrapped.main_entry_point), end(comp->wrapped._end)
+                : compile(comp), main_entry(comp->wrapped.main_entry_point),
+                  end(comp->wrapped.pos_end())
             {}
 
             ~SavedExcursion()
             {
-                compile->wrapped._end = end;
+                compile->repl_reset();
                 compile->wrapped.main_entry_point = main_entry;
             }
         };
@@ -183,8 +192,6 @@ namespace atl
         _Form form(Ast ast, AssembleVM& code, Context context)
         {
             using namespace std;
-            typedef pcode::value_type value_type;
-            typedef AssembleVM::iterator iterator;
 
             auto head = ast[0];
             auto result = [&head](Any aa, size_t ss, FormTag ff)
@@ -221,11 +228,11 @@ namespace atl
                         // inline with the rest of the code.  I could save
                         // some jumps if the lambda bodies where gathered in
                         // one place in the closure.
-                        iterator entry_point;
+                        pcode::Offset entry_point;
 
                         auto compile_body = [&]()
                             {
-                                entry_point = code.end();
+                                entry_point = code.pos_end();
                                 auto comp_val = _compile(ast[2], code, context);
 
                                 // Might need to allocate for more params to make the tail call happy
@@ -272,9 +279,9 @@ namespace atl
                     }
                 case tag<If>::value:
                     {
-                        auto will_jump = [&]() -> iterator {
+	                    auto will_jump = [&]() -> pcode::Offset {
                             code.pointer(nullptr);
-                            return code.last();
+                            return code.pos_last();
                         };
 
                         auto alt_address = will_jump();
@@ -288,10 +295,10 @@ namespace atl
                         code.jump();
 
                         // alternate
-                        *alt_address = reinterpret_cast<value_type>(code.end());
+                        code[alt_address] = code.pos_end();
                         auto alternate = compile_tail(ast[3]);
 
-                        *after_alt = reinterpret_cast<value_type>(code.end());
+                        code[after_alt] = code.pos_end();
 
                         auto padding = 0;
                         if(context.tail)
@@ -323,7 +330,7 @@ namespace atl
                         auto sym = unwrap<Symbol>(ast[1]);
                         Any value = ast[2];
 
-                        iterator entry_point;
+                        pcode::Offset entry_point;
 
                         Any def;
                         auto found = _env->_local.find(sym.name);
@@ -364,7 +371,7 @@ namespace atl
                                 // treat non-procedure expression as
                                 // thunks,the procedure call mechanism
                                 // to actually get a value.
-                                entry_point = code.end();
+                                entry_point = code.pos_end();
                                 body_result = def_compile(ast[2]);
 
                                 code.return_(0);
@@ -373,12 +380,12 @@ namespace atl
                             }
 
                         for(auto& vv : unwrap<Undefined>(def).backtrack)
-                            *vv = reinterpret_cast<value_type>(entry_point);
+                            code[vv] = entry_point;
 
                         _env->define(sym.name, value);
 
                         if(_env->_prev == nullptr)
-                            wrapped.main_entry_point = code.end();
+                            wrapped.main_entry_point = code.pos_end();
 
                         return _Form(aimm<Null>(), 0, FormTag::done, body_result.result_tag);
                     }
@@ -469,7 +476,7 @@ namespace atl
                                     // break.
                                     code.constant(rest.size())
                                         .pointer(nullptr);
-                                    unwrap<Undefined>(fn).backtrack.push_back(code.last());
+                                    unwrap<Undefined>(fn).backtrack.push_back(code.pos_last());
 
                                     code.tail_call();
 
@@ -500,7 +507,7 @@ namespace atl
             case tag<Undefined>::value:
                 {
                     code.pointer(nullptr);
-                    unwrap<Undefined>(input).backtrack.push_back(code.last());
+                    unwrap<Undefined>(input).backtrack.push_back(code.pos_last());
 
                     // Assume a thunk will get patched in later.
                     code.call_procedure();
@@ -560,20 +567,16 @@ namespace atl
         // generated isn't cleanly terminated.
         tag_t in_place_any(Any ast)
         {
-            if(wrapped.back() == vm_codes::Tag<vm_codes::finish>::value)
-                --wrapped._end;
+	        if(!wrapped.empty() && wrapped.back() == vm_codes::Tag<vm_codes::finish>::value)
+	            wrapped.pop_back();
 
             return _compile(ast, wrapped, Context(false, false, unwrap<Ast>(ast))).result_tag;
         }
 
         // Lets macros reach in and explicitly add values to the
         // PCode.  todo: This is not an ideal abstraction.
-        vm_stack::iterator push_value(vm_stack::value_type value)
-        {
-            auto rval = wrapped._end;
-            wrapped.constant(value);
-            return rval;
-        }
+        void push_value(vm_stack::value_type value)
+        { wrapped.constant(value); }
 
         // For most external use.  The generated code can be passed to
         // the VM for evaluation.
@@ -587,28 +590,27 @@ namespace atl
         // Reset the pcode entry point to compile another expression (as for the REPL).
         void repl_reset()
         {
-            wrapped._end = wrapped.main_entry_point;
+	        wrapped.output->erase(wrapped.output->begin() + wrapped.main_entry_point,
+	                              wrapped.output->end());
         }
 
         void reset()
-        {
-            wrapped._end = wrapped.main_entry_point = wrapped._begin;
-        }
+        { wrapped.clear(); }
 
-        void print();
+        void dbg();
     };
 
-    void Compile::print()
+    void Compile::dbg()
     {
         cout << "Main entry point: " << wrapped.main_entry_point << endl;
-        wrapped.dbg();
+        dbg_code(*wrapped.output);
     }
 
     Any Eval::any(Any input)
     {
         auto saved_excursion = compile->save_excursion();
         auto tag = compile->any(input);
-        vm.run(compile->wrapped.main_entry_point);
+        vm.run(*compile->wrapped.output, compile->wrapped.main_entry_point);
         return Any(tag, reinterpret_cast<void*>(vm.stack[0]));
     }
 }

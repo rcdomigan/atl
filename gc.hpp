@@ -212,7 +212,7 @@ namespace atl
 			return result;
 		}
 	public:
-		typedef vm_stack::value_type* PCodeAccumulator;
+		typedef std::vector<pcode::value_type> PCodeAccumulator;
 		std::vector<PCodeAccumulator> code_blocks;
 
 		void mark_and_sweep()
@@ -249,7 +249,7 @@ namespace atl
 
 		PCodeAccumulator& alloc_pcode()
 		{
-			code_blocks.push_back(new vm_stack::value_type[100]);
+			code_blocks.emplace_back();
 			return code_blocks.back();
 		}
 
