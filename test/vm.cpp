@@ -34,7 +34,7 @@ TEST_F(VmTest, TestCxxFn2)
         .std_function(&fns.wadd->fn, 2)
         .finish();
 
-    run_code(vm, std::move(assemble));
+    run_code(vm, assemble);
 
     ASSERT_EQ(vm.stack[0], 5);
 }
@@ -55,7 +55,7 @@ TEST_F(VmTest, TestSimpleCxxStdFunction)
         .std_function(&unwrap<CxxFunctor>(fn).fn, 1)
         .finish();
 
-    run_code(vm, std::move(assemble));
+    run_code(vm, assemble);
 
     ASSERT_EQ(vm.stack[0], 9);
 }
@@ -77,17 +77,16 @@ TEST_F(VmTest, TestCxxStdFunction)
         .std_function(&shimmed_function->fn, 1)
         .finish();
 
-    run_code(vm, std::move(assemble));
+    run_code(vm, assemble);
     ASSERT_EQ(vm.stack[0], 9);
 
-    assemble = AssembleVM(code); // steal back the PCode buffer
     multiple = 4;
 
     assemble.constant(3)
         .std_function(&shimmed_function->fn, 1)
         .finish();
 
-    run_code(vm, std::move(assemble));
+    run_code(vm, assemble);
     ASSERT_EQ(vm.stack[0], 12);
 }
 
@@ -109,7 +108,7 @@ TEST_F(VmTest, TestIfTrue)
     *end_of_alt = reinterpret_cast<TinyVM::value_type>(assemble.end());
     assemble.finish();
 
-    run_code(vm, std::move(assemble));
+    run_code(vm, assemble);
 
     ASSERT_EQ(vm.stack[0], 5);
 }
@@ -132,7 +131,7 @@ TEST_F(VmTest, TestIfFalse)
     *end_of_alt = reinterpret_cast<TinyVM::value_type>(assemble.end());
     assemble.finish();
 
-    run_code(vm, std::move(assemble));
+    run_code(vm, assemble);
 
     ASSERT_EQ(vm.stack[0], 9);
 }
@@ -158,7 +157,7 @@ TEST_F(VmTest, TestArguments)
 	.constant(2) // # args
 	.return_();
 
-    run_code(vm, std::move(assemble));
+    run_code(vm, assemble);
 
     ASSERT_EQ(vm.stack[0], 2);
 }
@@ -181,7 +180,7 @@ TEST_F(VmTest, SymToFunction)
         .std_function(&unwrap<CxxFunctor>(fn).fn, 2)
         .finish();
 
-    run_code(vm, std::move(assemble));
+    run_code(vm, assemble);
 
     ASSERT_EQ(vm.stack[0], 3);
 }
@@ -208,7 +207,7 @@ TEST_F(VmTest, SMoveN)
         .constant(0)
         .call_procedure(enter_setup);
 
-    run_code(vm, std::move(assemble));
+    run_code(vm, assemble);
 
     for(int i = 0; i < 4; ++i)
         ASSERT_EQ(vm.stack[i], i + 1);

@@ -104,24 +104,10 @@ namespace atl {
             offset.push_back(0);
         }
 
-        AssembleVM(AssembleVM&& other)
-            : _begin(std::move(other._begin)),
-              _end(std::move(other._end)),
-              main_entry_point(std::move(other.main_entry_point)),
-              offset(std::move(other.offset)) {}
 
-        AssembleVM& operator=(AssembleVM&& other) {
-            using namespace std;
 
-            offset.clear();
-            offset = move(other.offset);
 
-            _begin = move(other._begin);
-            _end = move(other._end);
-            main_entry_point = move(other.main_entry_point);
 
-            return *this;
-        }
 
 #define M(r, data, instruction) AssembleVM& instruction() {             \
             *_end = vm_codes::Tag<vm_codes::instruction>::value;        \

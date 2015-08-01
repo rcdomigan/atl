@@ -595,11 +595,6 @@ namespace atl
             wrapped._end = wrapped.main_entry_point = wrapped._begin;
         }
 
-        AssembleVM&& finish()
-        {
-            return std::move(wrapped);
-        }
-
         void print();
     };
 
