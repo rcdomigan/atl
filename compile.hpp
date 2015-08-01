@@ -76,10 +76,27 @@ namespace atl
 
         AssembleVM wrapped;
 
+	    bool _do_type_check;
+	    struct SupressTypeCheck
+	    {
+		    Compile& compile;
+		    SupressTypeCheck(Compile& compile_) : compile(compile_)
+		    { compile._do_type_check = false; }
+		    ~SupressTypeCheck()
+		    { compile._do_type_check = true; }
+	    };
+
         Compile(Environment& env)
-            : _env(&env.toplevel), gc(env.gc),  output(gc.alloc_pcode()), wrapped(&output)
+	        : _env(&env.toplevel), gc(env.gc),  output(gc.alloc_pcode()), wrapped(&output),
+	          _do_type_check(true)
         {}
 
+	    // Ignore type errors where possible
+	    SupressTypeCheck supress_type_check()
+	    { return SupressTypeCheck(*this); }
+
+	    // Setup a VM jump instruction which skips over the code
+	    // defined during the SkipBlock instance's lifetime.
         struct SkipBlock
         {
 	        pcode::Offset _skip_to;
@@ -305,9 +322,12 @@ namespace atl
                             padding = max(consiquent.pad_to,
                                           alternate.pad_to);
 
-                        if(consiquent.result_tag != alternate.result_tag)
+                        if(_do_type_check && (consiquent.result_tag != alternate.result_tag))
 	                        throw WrongTypeError
-		                        ("Both branches of an if clause must return the same type");
+		                        (std::string("Both branches of an if clause must return the same type: got ")
+		                         .append(type_name(consiquent.result_tag))
+		                         .append(" and ")
+		                         .append(type_name(alternate.result_tag)));
 
                         return _Form(aimm<Null>(), padding, FormTag::done,
                                      consiquent.result_tag);

@@ -156,6 +156,7 @@ TEST_F(CompilerTest, DefineLambda) {
 
 
 TEST_F(CompilerTest, SimpleRecursion) {
+	auto no_check = compile.supress_type_check();
     compile.any(parse.string_("(define-value simple-recur (\\ (a b) (if (equal2 0 a) b (simple-recur (sub2 a 1) (add2 b 1)))))"));
     compile.any(parse.string_("(simple-recur 3 2)"));
 
