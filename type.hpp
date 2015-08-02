@@ -389,19 +389,19 @@ namespace atl
 
     struct CxxFunctor
     {
-	const std::string _name;
+	    const std::string _name;
 
 	typedef std::function<void (vm_stack::iterator begin, vm_stack::iterator end)> Fn;
         typedef Fn value_type;
 	mutable value_type fn;
 
-        abstract_type::Type const* types;
+	    abstract_type::Type const* types;
 
-	CxxFunctor(const Fn& fn
-                   , const std::string& name
-                   , abstract_type::Type const* tt)
-	    : _name(name), fn(fn), types(tt)
-        {}
+	    CxxFunctor(const Fn& fn
+	               , const std::string& name
+	               , abstract_type::Type const* tt)
+		    : _name(name), fn(fn), types(tt)
+	    {}
     };
 
 	struct Eval;
