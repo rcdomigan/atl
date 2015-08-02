@@ -81,16 +81,6 @@ TEST_F(CompilerTest, TestCxxStdFunction) {
     ASSERT_EQ(vm.stack[0], 12);
 }
 
-TEST_F(CompilerTest, BasicLambda) {
-    auto ast = parse.string_("((\\ (a b) (add2 a b)) 4 7)");
-
-    compile.any(ast);
-
-    run_code(vm, compile.finish());
-
-    ASSERT_EQ(vm.stack[0], 11);
-}
-
 TEST_F(CompilerTest, IfTrue) {
     auto ast = parse.string_("(if #t 3 4)");
     compile.any(ast);
@@ -105,6 +95,16 @@ TEST_F(CompilerTest, IfFalse) {
 
     run_code(vm, compile.wrapped);
     ASSERT_EQ(vm.stack[0], 4);
+}
+
+TEST_F(CompilerTest, BasicLambda) {
+    auto ast = parse.string_("((\\ (a b) (add2 a b)) 4 7)");
+
+    compile.any(ast);
+
+    run_code(vm, compile.wrapped);
+
+    ASSERT_EQ(vm.stack[0], 11);
 }
 
 TEST_F(CompilerTest, LambdaWithIf) {
