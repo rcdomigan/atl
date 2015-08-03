@@ -348,6 +348,14 @@ namespace atl
 		gc.mark( a );
 		mark_args(gc, as...);
 	}
+
+	struct Arena
+	{
+		memory_pool::DynamicVector* dynamic_seq(size_t size = 100)
+		{
+			return new memory_pool::DynamicVector(100);
+		}
+	};
 }
 
 namespace std
