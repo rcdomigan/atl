@@ -95,11 +95,22 @@ struct DeclareType : public TypeBasics {};
 TEST_F(DeclareType, deduced_tag_test)
 {
     // can't actually evauate; 'a' has no value.
-    ASSERT_TRUE(is<Bool>(atl.compile.any(atl.parse.string_("(: Bool a)"))));
+    ASSERT_TRUE(is<Fixnum>(atl.compile.any(atl.parse.string_("(: Fixnum a)"))));
 }
 
+TEST_F(DeclareType, test_simple)
+{
+    // can't actually evauate; 'a' has no value.
+    ASSERT_TRUE(is<Fixnum>(atl.compile.any(atl.parse.string_("(add2 (: Fixnum 2) 3)"))));
+
+    atl.compile.reset();
+    ASSERT_EQ(unwrap<Fixnum>(atl.string_("(add2 (: Fixnum 2) 3)")).value,
+              5);
+}
+
+
 // Test that throwing in a type declaration doesn't break simple statements.
-TEST_F(DeclareType, usable_in_expression)
+TEST_F(DeclareType, usable_in_lambda)
 {
     auto tag = atl.compile.any(atl.parse.string_("(\\ (a) (add2 (: Fixnum a) 2))"));
     ASSERT_TRUE(is<Fixnum>(tag));

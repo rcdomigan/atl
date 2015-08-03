@@ -73,7 +73,7 @@ namespace atl {
 		private:
 			template <std::size_t... Index>
 			static void call_packed(std::function<R (Sig...)> fn
-			                        , PCode::iterator begin
+			                        , vm_stack::iterator begin
 			                        , tmp::Indexer<Index...>)
 			{
 				using namespace byte_code;
@@ -90,7 +90,7 @@ namespace atl {
 			                     , std::string const & name = "#<Unnamed-CxxFunctor>")
 			{
 				return gc.template make<CxxFunctor>
-					([fn](PCode::iterator vv, PCode::iterator _)
+					([fn](vm_stack::iterator vv, vm_stack::iterator _)
 					 {
 						 return call_packed(fn, vv, tmp::BuildIndicies<WrapStdFunction::arity()> {});
 					 }

@@ -33,9 +33,9 @@ namespace atl {
             auto tag = compile.any(value);
 #ifdef DEBUGGING
             compile.print();
-            vm.run_debug(compile.wrapped.main_entry_point);
+            vm.run_debug(*compile.wrapped.output, compile.wrapped.main_entry_point);
 #else
-            vm.run(compile.wrapped.main_entry_point);
+            vm.run(*compile.wrapped.output, compile.wrapped.main_entry_point);
 #endif
             compile.repl_reset();
 
