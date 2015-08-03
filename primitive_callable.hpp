@@ -161,7 +161,7 @@ namespace atl
 				 output->push_back(Any(type,
 				                       reinterpret_cast<void*>(value)));
 				 std::copy(seq.begin(), seq.end(),
-				           std::back_insert_iterator<GC::DynamicVector>(*output));
+				           std::back_insert_iterator<memory_pool::DynamicVector>(*output));
 
 				 vec->value = output->end();
 				 return reinterpret_cast<AstData*>(vec);

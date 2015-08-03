@@ -145,6 +145,80 @@ namespace atl
 				if(ptr >= _end)	 return 1;
 				return 0; }
 		};
+
+		struct DynamicVector
+		{
+			typedef Any* iterator;
+			typedef const Any* const_iterator;
+			typedef Any value_type;
+
+			Any *_buffer, *_end, *_buffer_end;
+
+			DynamicVector(size_t initial_size)
+			{
+				_buffer = new Any[initial_size + 1];
+				_buffer++;	// reserve for the array end pointer
+				_end = _buffer;
+				_buffer_end = _buffer + initial_size;
+			}
+
+			DynamicVector(const DynamicVector&) = default;
+
+			iterator begin() { return _buffer; }
+			iterator end() { return _end; }
+
+			const_iterator begin() const { return _buffer; }
+			const_iterator end() const { return _end; }
+
+			Any& back() { return *(_end - 1); }
+
+			template<class T>
+			T* push_seq()
+			{
+				T *result = new (_end)T(_end + 1, _end + 1);
+				_end += 2;
+				return result;
+			}
+
+			void push_back(const Any& input)
+			{
+				*_end = input;
+				++_end;
+			}
+
+			Any pop_back()
+			{
+				--_end;
+				return _end[1];
+			}
+			void pop_back(size_t nn) { _end -= nn; }
+
+			void resize(size_t n) { } // TODO
+
+			DynamicVector& operator++()
+			{
+				++_end;
+				return *this;
+			}
+			DynamicVector operator++(int)
+			{
+				DynamicVector vec = *this;
+				++_end;
+				return vec;
+			}
+			Any& operator*() { return *_end; }
+			DynamicVector& operator+=(size_t n)
+			{
+				_end += n;
+				return *this;
+			}
+			Any& operator[](size_t n) { return _end[n]; }
+
+			std::back_insert_iterator<memory_pool::DynamicVector> back_insert_iterator()
+			{
+				return std::back_insert_iterator<memory_pool::DynamicVector>(*this);
+			}
+		};
 	}
 
 	class GC
@@ -252,85 +326,10 @@ namespace atl
 			return Any( tag<Type>::value , make<Type>(args...));
 		}
 
-		// Mixed metaphore struct.
-		// This is a container that behaves a bit like an iterator.
-		struct DynamicVector
+		memory_pool::DynamicVector* dynamic_seq(size_t initial_size = 100)
 		{
-			typedef Any* iterator;
-			typedef const Any* const_iterator;
-			typedef Any value_type;
-
-			Any *_buffer, *_end, *_buffer_end;
-
-			DynamicVector(size_t initial_size)
-			{
-				_buffer = new Any[initial_size + 1];
-				_buffer++;	// reserve for the array end pointer
-				_end = _buffer;
-				_buffer_end = _buffer + initial_size;
-			}
-
-			DynamicVector(const DynamicVector&) = default;
-
-			iterator begin() { return _buffer; }
-			iterator end() { return _end; }
-
-			const_iterator begin() const { return _buffer; }
-			const_iterator end() const { return _end; }
-
-			Any& back() { return *(_end - 1); }
-
-			template<class T>
-			T* push_seq()
-			{
-				T *result = new (_end)T(_end + 1, _end + 1);
-				_end += 2;
-				return result;
-			}
-
-			void push_back(const Any& input)
-			{
-				*_end = input;
-				++_end;
-			}
-
-			Any pop_back()
-			{
-				--_end;
-				return _end[1];
-			}
-			void pop_back(size_t nn) { _end -= nn; }
-
-			void resize(size_t n) { } // TODO
-
-			DynamicVector& operator++()
-			{
-				++_end;
-				return *this;
-			}
-			DynamicVector operator++(int)
-			{
-				DynamicVector vec = *this;
-				++_end;
-				return vec;
-			}
-			Any& operator*() { return *_end; }
-			DynamicVector& operator+=(size_t n)
-			{
-				_end += n;
-				return *this;
-			}
-			Any& operator[](size_t n) { return _end[n]; }
-
-			std::back_insert_iterator<GC::DynamicVector> back_insert_iterator()
-			{
-				return std::back_insert_iterator<GC::DynamicVector>(*this);
-			}
-		};
-
-		std::unique_ptr<DynamicVector> dynamic_seq(size_t initial_size = 100)
-		{
-			return std::move(std::unique_ptr<DynamicVector>(new DynamicVector(initial_size)));
+			using DynamicVector = memory_pool::DynamicVector;
+			return new DynamicVector(initial_size);
 		}
 	};
 
@@ -354,7 +353,7 @@ namespace atl
 namespace std
 {
 	template<>
-	struct iterator_traits<atl::GC::DynamicVector>
+	struct iterator_traits<atl::memory_pool::DynamicVector>
 	{
 		typedef size_t difference_type;
 		typedef atl::Any value_type;

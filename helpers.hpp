@@ -123,7 +123,7 @@ namespace atl
 
 	namespace deep_copy {
 		template<class Seq>
-		Any* _to(Range<Any*> seq, GC::DynamicVector& store) {
+		Any* _to(Range<Any*> seq, memory_pool::DynamicVector& store) {
 			using namespace flat_iterator;
 
 
@@ -169,7 +169,8 @@ namespace atl
 		}
 
 		template<class Seq, class Fn>
-		Any* _map(Fn& fn, Range<Any*> seq, GC::DynamicVector& store) {
+		Any* _map(Fn& fn, Range<Any*> seq, memory_pool::DynamicVector& store)
+		{
 			using namespace flat_iterator;
 
 			auto frame = store.push_seq<Seq>();
