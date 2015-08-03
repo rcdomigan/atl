@@ -72,7 +72,6 @@ namespace atl
 
         lexical::Map *_env;     // pushing a scope mutates where this points
         GC& gc;
-	    GC::PCodeAccumulator& output;
 
         AssembleVM wrapped;
 
@@ -87,8 +86,13 @@ namespace atl
 	    };
 
         Compile(Environment& env)
-	        : _env(&env.toplevel), gc(env.gc),  output(gc.alloc_pcode()), wrapped(&output),
+	        : _env(&env.toplevel), gc(env.gc), wrapped(&gc.alloc_pcode()),
 	          _do_type_check(true)
+	    {}
+
+	    Compile(lexical::Map& env, GC& gc_, GC::PCodeAccumulator& output_)
+		    : _env(&env), gc(gc), wrapped(&output_),
+		      _do_type_check(true)
         {}
 
 	    // Ignore type errors where possible
