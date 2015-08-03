@@ -164,3 +164,43 @@ TEST_F(CompilerTest, SimpleRecursion) {
 
     ASSERT_EQ(vm.stack[0], 5);
 }
+
+
+TEST_F(CompilerTest, multiple_functions)
+{
+	auto no_check = compile.supress_type_check();
+
+	compile.any(parse.string_
+	            ("(define-value simple-recur (\\ (a b) (if (equal2 0 a) b (simple-recur (sub2 a 1) (add2 b 1)))))"));
+	compile.any(parse.string_
+	            ("(define-value simple-recur2 (\\ (a b) (if (equal2 0 a) b (simple-recur2 (sub2 a 1) (add2 b 4 )))))"));
+	compile.any(parse.string_
+	            ("(add2 (simple-recur 2 3) (simple-recur2 2 0))"));
+
+	run_code(vm, compile.wrapped);
+	ASSERT_EQ(vm.stack[0], 13);
+}
+
+TEST_F(CompilerTest, relocate_pcode)
+{
+	GC::PCodeAccumulator code1(10), code2(10);
+	code1.clear();
+
+	compile.wrapped.output = &code1;
+	auto no_check = compile.supress_type_check();
+
+	compile.any(parse.string_
+	            ("(define-value simple-recur (\\ (a b) (if (equal2 0 a) b (simple-recur (sub2 a 1) (add2 b 1)))))"));
+
+	code2 = code1;
+	compile.wrapped.output = &code2;
+
+	compile.any(parse.string_
+	            ("(define-value simple-recur2 (\\ (a b) (if (equal2 0 a) b (simple-recur2 (sub2 a 1) (add2 b 4 )))))"));
+	compile.any(parse.string_
+	            ("(add2 (simple-recur 2 3) (simple-recur2 2 0))"));
+
+	run_code(vm, compile.wrapped);
+	ASSERT_GT(code2.capacity(), 10);
+	ASSERT_EQ(vm.stack[0], 13);
+}
