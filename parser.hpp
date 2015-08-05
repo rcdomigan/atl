@@ -53,7 +53,7 @@ namespace atl
 	}
 
 	template<class Itr>
-	void parse(GC::DynamicVector &vec, Itr &&itr, Itr &&end) {
+	void parse(memory_pool::DynamicVector &vec, Itr &&itr, Itr &&end) {
 	    for(; itr != end; ++itr) {
 		switch(*itr)
                     {
