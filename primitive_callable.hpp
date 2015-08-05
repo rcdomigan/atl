@@ -135,7 +135,7 @@ namespace atl
 		/***************************/
 		wrap_macro
 			(env,
-			 "list",
+			 "Ast",
 			 [&](Eval& eval, PrimitiveMacro::Input const& ast) -> tag_t
 			 {
 				 for(auto& vv : ast)

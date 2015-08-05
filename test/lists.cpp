@@ -90,7 +90,7 @@ struct ListTest : public ::testing::Test
 };
 
 
-TEST_F(ListTest, test_ast)
+TEST_F(ListTest, test_equiv_ast)
 {
     // Test manually constructed asts and my test harness's equiv
     // function.
@@ -153,19 +153,19 @@ TEST_F(ListTest, test_slice)
 TEST_F(ListTest, test_list)
 {
     {
-        auto rval = atl.string_("(list 1 2 3)");
+        auto rval = atl.string_("(Ast 1 2 3)");
         assert_equiv((unwrap<Ast>(rval)),
                      (unwrap<Ast>(atl.parse.string_("(1 2 3)"))));
     }
 
     {
-        auto rval = atl.string_("(list 1 (list 2 3))");
+        auto rval = atl.string_("(Ast 1 (Ast 2 3))");
         assert_equiv((unwrap<Ast>(rval)),
                      (unwrap<Ast>(atl.parse.string_("(1 (2 3))"))));
     }
 
     {
-        auto rval = atl.string_("(list 1 (list 2 3) 4)");
+        auto rval = atl.string_("(Ast 1 (Ast 2 3) 4)");
         assert_equiv((unwrap<Ast>(rval)),
                      (unwrap<Ast>(atl.parse.string_("(1 (2 3) 4)"))));
     }
