@@ -14,6 +14,7 @@
 
 #include <iostream>
 #include <vector>
+#include <sstream>
 
 
 using namespace atl;
@@ -116,4 +117,17 @@ TEST_F(ParserTest, TestLet)
     tag_t let_tag = tag<Let>::value;
 
     ASSERT_EQ(unwrap<Ast>(parsed)[0]._tag, let_tag);
+}
+
+TEST_F(ParserTest, test_stream_parsing)
+{
+	string contents = "(a b c)";
+	stringstream as_stream(contents);
+
+	auto a = unwrap<Ast>(atl.parse.string_(contents));
+	auto b = unwrap<Ast>(atl.parse.stream(as_stream));
+
+	for(auto& vv : zip(a, b))
+		ASSERT_EQ(unwrap<Symbol>(*get<0>(vv)).name,
+		          unwrap<Symbol>(*get<1>(vv)).name);
 }
