@@ -22,8 +22,12 @@ TEST(TestGC, test__make_ast_gc_and_arena)
 	GC gc;
 	Arena arena;
 
-	auto ast0 = make_ast(gc, wrap(1), wrap(2), wrap(3));
-	auto ast1 = make_ast(arena, wrap(1), wrap(2), wrap(3));
+	using namespace make_ast;
+	auto ast0 = make_ast::make(lift(1), lift(2), lift(3))
+		(*gc.dynamic_seq());
+
+	auto ast1 = make_ast::make(lift(1), lift(2), lift(3))
+		(*arena.dynamic_seq());
 
 	for(auto zz : zip(*ast0, *ast1))
 		ASSERT_EQ((*get<0>(zz)), (*get<1>(zz)));
