@@ -147,17 +147,21 @@ namespace atl
     /**  | ._ _ ._ _  _  _|o _._|_ _   **/
     /** _|_| | || | |(/_(_||(_| |_(/_  **/
     /************************************/
-    struct Define {
-	tag_t _tag;
-	Define() : _tag(tag<Define>::value) {}  };
+	struct Define
+	{
+		tag_t _tag;
+		Define() : _tag(tag<Define>::value) {}
+	};
 
-    struct Fixnum {
-	tag_t _tag;
-	long value;
 
-	Fixnum() noexcept : _tag( tag<Fixnum>::value ) , value(0) {}
-	Fixnum(long value) : _tag( tag<Fixnum>::value ), value(value) {}
-    };
+	struct Fixnum
+	{
+		tag_t _tag;
+		long value;
+
+		Fixnum() noexcept : _tag( tag<Fixnum>::value ) , value(0) {}
+		Fixnum(long value) : _tag( tag<Fixnum>::value ), value(value) {}
+	};
     template<>
     struct tag<long> : public tag<Fixnum> {};
 
@@ -456,31 +460,35 @@ namespace atl
     /*********************/
     struct Slice
     {
-	const Any *_begin, *_end;
+	    const Any *_begin, *_end;
 
-	Slice() = delete;
-	Slice(const Any *begin, const Any *end)
-	    : _begin(begin), _end(end) {}
+	    Slice() = delete;
+	    Slice(const Any *begin, const Any *end)
+		    : _begin(begin), _end(end) {}
 
-	template<class Itr>
-	Slice(Itr begin, Itr end)
-	    : _begin(&*begin), _end(&*end) {}
+	    template<class Itr>
+	    Slice(Itr begin, Itr end)
+		    : _begin(&*begin), _end(&*end) {}
 
-	Slice(const Slice&) = default;
+	    Slice(Ast& ast)
+		    : _begin(ast.flat_begin()), _end(ast.flat_end())
+	    {}
 
-	typedef typename Ast::const_iterator iterator;
-	typedef typename Ast::const_iterator const_iterator;
+	    Slice(const Slice&) = default;
 
-	const Any& operator[](size_t n) const { return *(begin() + n); }
+	    typedef typename Ast::const_iterator iterator;
+	    typedef typename Ast::const_iterator const_iterator;
 
-	iterator begin() { return iterator(_begin); }
-	const_iterator begin() const { return const_iterator(_begin); }
+	    const Any& operator[](size_t n) const { return *(begin() + n); }
 
-	iterator end() { return iterator(_end); }
-	const_iterator end() const { return const_iterator(_end); }
+	    iterator begin() { return iterator(_begin); }
+	    const_iterator begin() const { return const_iterator(_begin); }
 
-	size_t size() const { return end() - begin(); }
-	bool empty() const { return _begin == _end; }
+	    iterator end() { return iterator(_end); }
+	    const_iterator end() const { return const_iterator(_end); }
+
+	    size_t size() const { return end() - begin(); }
+	    bool empty() const { return _begin == _end; }
     };
 
 
