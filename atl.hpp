@@ -42,8 +42,19 @@ namespace atl {
             return Any(tag, reinterpret_cast<void*>(vm.stack[0]));
         }
 
-        Any string_(const std::string& ss) { return eval(parse.string_(ss)); }
-        Any stream(istream& ss) { return eval(parse.stream(ss)); }
+	    // Parse, compile, and run the first sexpr in a string
+        Any string_(const std::string& ss) {
+	        return eval(parse.string_(ss));
+        }
+
+	    // Parse, compile, and run all the sexprs in a stream
+        Any stream(istream& ss)
+	    {
+		    Any rval;
+		    while(ss.peek() != EOF)
+			    rval = eval(parse.stream(ss));
+		    return rval;
+	    }
     };
 }
 

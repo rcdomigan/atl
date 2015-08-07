@@ -182,7 +182,13 @@ namespace atl
 	    auto vec = _gc.dynamic_seq();
 	    **vec = nil<Null>::value();
 
-	    parse(*vec, istream_iterator<char>(stream), istream_iterator<char>() );
+	    auto itr = istreambuf_iterator<char>(stream),
+		    end = istreambuf_iterator<char>();
+	    parse(*vec, itr, end);
+
+	    // Swallow any following whitepace or comments so the caller
+	    // of the parser doesn't have to check.
+	    skip_ws_and_comments(itr, end);
 
 	    stream.flags(initial_flags);
 	    return *vec->begin();

@@ -131,3 +131,40 @@ TEST_F(ParserTest, test_stream_parsing)
 		ASSERT_EQ(unwrap<Symbol>(*get<0>(vv)).name,
 		          unwrap<Symbol>(*get<1>(vv)).name);
 }
+
+TEST_F(ParserTest, test_multi_line_stream_parsing)
+{
+	string contents = "(1 2 3)\n\n(4 5 6)";
+	stringstream as_stream(contents);
+
+	auto a = unwrap<Ast>(atl.parse.stream(as_stream));
+	auto b = unwrap<Ast>(atl.parse.stream(as_stream));
+
+	vector<int> expected = {1, 2, 3};
+	for(auto& vv : zip(a, expected))
+		ASSERT_EQ(unwrap<Fixnum>(*get<0>(vv)).value,
+		          *get<1>(vv));
+
+	expected = {4, 5, 6};
+	for(auto& vv : zip(b, expected))
+		ASSERT_EQ(unwrap<Fixnum>(*get<0>(vv)).value,
+		          *get<1>(vv));
+
+}
+
+TEST_F(ParserTest, test_comments)
+{
+	string contents = ";; (a b c)\n (2 3 4)";
+
+	auto res = unwrap<Ast>(atl.parse.string_(contents));
+
+    auto expected = vector<Any>{
+        wrap(2),
+        wrap(3),
+        wrap(4)
+    };
+
+	for(auto& vv : zip(res, expected))
+		ASSERT_EQ(unwrap<Fixnum>(*get<0>(vv)).value,
+		          unwrap<Fixnum>(*get<1>(vv)).value);
+}
