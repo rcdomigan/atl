@@ -3,6 +3,7 @@ test-vm
 byte-coded
 test-zipper
 test/abstract_type
+test/atl
 test/compile
 test/gc
 test/lists
