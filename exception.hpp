@@ -9,19 +9,24 @@
 #include <exception>
 
 namespace atl {
-    struct WrongTypeError : public std::runtime_error {
-	WrongTypeError(const std::string& what_arg) : std::runtime_error(what_arg) {}
-	WrongTypeError(const char* what_arg) : std::runtime_error(what_arg) {}
-    };
+	struct WrongTypeError : public std::runtime_error {
+		WrongTypeError(const std::string& what_arg) : std::runtime_error(what_arg) {}
+		WrongTypeError(const char* what_arg) : std::runtime_error(what_arg) {}
+	};
 
-    struct UnbalancedParens : public std::runtime_error {
-	UnbalancedParens(const std::string& what_arg) : std::runtime_error(what_arg) {}
-	UnbalancedParens(const char* what_arg) : std::runtime_error(what_arg) {}
-    };
+	struct UnbalancedParens : public std::runtime_error {
+		UnbalancedParens(const std::string& what_arg) : std::runtime_error(what_arg) {}
+		UnbalancedParens(const char* what_arg) : std::runtime_error(what_arg) {}
+	};
 
-    struct UnboundSymbolError : public std::runtime_error {
-        UnboundSymbolError(const std::string& what_arg) : std::runtime_error(what_arg) {}
-    };
+	struct MultiExpressionString : public std::runtime_error {
+		MultiExpressionString(const std::string& what_arg) : std::runtime_error(what_arg) {}
+		MultiExpressionString(const char* what_arg) : std::runtime_error(what_arg) {}
+	};
+
+	struct UnboundSymbolError : public std::runtime_error {
+		UnboundSymbolError(const std::string& what_arg) : std::runtime_error(what_arg) {}
+	};
 }
 
 #endif

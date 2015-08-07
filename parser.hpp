@@ -40,6 +40,23 @@ namespace atl
     class ParseString
     {
     private:
+
+	template<class Itr>
+	void skip_ws_and_comments(Itr &itr, Itr const& end)
+	{
+		for(; itr != end; ++itr)
+			{
+				if(*itr == ';')
+					for(; (itr != end) && (*itr != '\n'); ++itr);
+				else if(!std::isspace(*itr))
+					return;
+
+				if(*itr == '\n')
+					++_line;
+			}
+	}
+
+
 	GC &_gc;
 	unsigned long _line;
 
@@ -169,7 +186,17 @@ namespace atl
 	Any& string_(const std::string& input) {
 	    auto vec = _gc.dynamic_seq();
 	    **vec = nil<Null>::value();
-	    parse(*vec, input.begin(), input.end());
+
+	    auto itr = input.begin(),
+		    end = input.end();
+	    parse(*vec, itr, end);
+
+	    // Check that there was just one expression in our string
+	    while(itr != input.end() && std::isspace(*itr)) ++itr;
+	    if(itr != input.end())
+		    throw MultiExpressionString(std::string("More than one expression in `")
+		                                .append(input)
+		                                .append("`"));
 
 	    return *vec->begin();
 	}
