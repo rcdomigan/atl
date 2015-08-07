@@ -23,20 +23,34 @@
 #include "./helpers.hpp"
 #include "./print.hpp"
 
+
 namespace atl
 {
-    // A simple minded parser, this just transforms a string into an Ast.  There are a couple of reserved symbols:
+    // A simple minded parser, this just transforms a string into an
+    // Ast.  There are a couple of reserved symbols:
+    //
     //   '(' ')'         : Open and close an Ast branch
-    //   DELIM '\\' DELIM : After much debate, I'm making Lambda a reserved word.  In principle, I'd like everything to be a
-    //                     usable symbol at local scope.  This may still change (should I be able to do something like
-    //                     `(def foo \ )  ((foo (a b) (+ a b)) 1 2)`)?
-    //   DELIM 'let' DELIM: Simalar to lambda, if I'm going to getting Hindly Milner with polymorphic let is going to be much easier
-    //                      If I can get a tagged type.
-    //   DELIM '\''      : 'n expands to (quote n) (should probably be a macro).  Can still be used as part of a variable name (ie x and x' are both
-    //                     valid symbols).
-    //   '\"'            : starts and ends a string literal
-    //   DELIM 0..9 DELIM: a number (a number must be all digits ie 124567, possibly with a decimal point.  If there is a non-digit ie 12345a, it
-    //                     is a symbol.  hex/octal/binary representations are not a thing ATM).
+    //
+    //   DELIM '\\' DELIM : After much debate, I'm making Lambda a
+    //                     reserved word.  In principle, I'd like
+    //                     everything to be a usable symbol at local
+    //                     scope.  This may still change (should I be
+    //                     able to do something like `(def foo \ )
+    //                     ((foo (a b) (+ a b)) 1 2)`)?
+    //
+    //   DELIM '\'' : 'n expands to (quote n) (should probably be a
+    //                 macro).  Can still be used as part of a
+    //                 variable name (ie x and x' are both valid
+    //                 symbols).
+    //
+    //   '\"' : starts and ends a string literal
+	//
+    //   DELIM 0..9 DELIM: a number (a number must be all digits ie
+    //                     124567, possibly with a decimal point.  If
+    //                     there is a non-digit ie 12345a, it is a
+    //                     symbol.  hex/octal/binary representations
+    //                     are not a thing ATM).
+	//  ';' : comments out to the end of line
     class ParseString
     {
     private:
