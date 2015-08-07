@@ -219,8 +219,14 @@ namespace atl
 		//     });
 	}
 
+
+	static bool _setup_interpreter = false;
 	void setup_interpreter(Environment &env, ParseString &parser) {
-		init_types();
+		if(!_setup_interpreter)
+			{
+				_setup_interpreter = true;
+				init_types();
+			}
 		export_recursive_defs(env.gc, env, parser);
 	}
 }
