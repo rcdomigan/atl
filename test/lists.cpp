@@ -150,33 +150,6 @@ TEST_F(ListTest, test_slice)
 }
 
 
-TEST_F(ListTest, test_list)
-{
-    {
-        auto rval = atl.string_("(Ast 1 2 3)");
-        assert_equiv((unwrap<Ast>(rval)),
-                     (unwrap<Ast>(atl.parse.string_("(1 2 3)"))));
-    }
-
-    {
-        auto rval = atl.string_("(Ast 1 (Ast 2 3))");
-        assert_equiv((unwrap<Ast>(rval)),
-                     (unwrap<Ast>(atl.parse.string_("(1 (2 3))"))));
-    }
-
-    {
-        auto rval = atl.string_("(Ast 1 (Ast 2 3) 4)");
-        assert_equiv((unwrap<Ast>(rval)),
-                     (unwrap<Ast>(atl.parse.string_("(1 (2 3) 4)"))));
-    }
-}
-
-TEST_F(ListTest, test_cons)
-{
-    auto result = atl.string_("(cons 0 '(1))");
-    cout << printer::any(result) << endl;
-}
-
 TEST_F(ListTest, test_make_ast)
 {
 	using namespace make_ast;
@@ -199,3 +172,37 @@ TEST_F(ListTest, test_make_ast)
 		             unwrap<Ast>(atl.parse.string_("(1 (2 3) 4)")));
 	}
 }
+
+TEST_F(ListTest, test_list)
+{
+    {
+        auto rval = atl.string_("(Ast 1 2 3)");
+        assert_equiv((unwrap<Ast>(rval)),
+                     (unwrap<Ast>(atl.parse.string_("(1 2 3)"))));
+    }
+
+    {
+        auto rval = atl.string_("(Ast)");
+        assert_equiv((unwrap<Ast>(rval)),
+                     (*make_ast::make()(*atl.env.gc.dynamic_seq())));
+    }
+
+    {
+        auto rval = atl.string_("(Ast 1 (Ast 2 3))");
+        assert_equiv((unwrap<Ast>(rval)),
+                     (unwrap<Ast>(atl.parse.string_("(1 (2 3))"))));
+    }
+
+    {
+        auto rval = atl.string_("(Ast 1 (Ast 2 3) 4)");
+        assert_equiv((unwrap<Ast>(rval)),
+                     (unwrap<Ast>(atl.parse.string_("(1 (2 3) 4)"))));
+    }
+}
+
+TEST_F(ListTest, test_cons)
+{
+    auto result = atl.string_("(cons 0 '(1))");
+    cout << printer::any(result) << endl;
+}
+
