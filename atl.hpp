@@ -31,6 +31,7 @@ namespace atl {
         Any eval(Any value)
         {
             auto tag = compile.any(value);
+            compile.assert_ready();
 #ifdef DEBUGGING
             compile.print();
             vm.run_debug(*compile.wrapped.output, compile.wrapped.main_entry_point);
