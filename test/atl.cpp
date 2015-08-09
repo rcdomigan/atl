@@ -67,3 +67,36 @@ TEST_F(AtlTest, test_file_contents)
 	atl.string_(content);
 	atl.string_("(foo 2)");
 }
+
+
+TEST_F(AtlTest, running_embedded_ast)
+{
+	using namespace make_ast;
+	auto& gc = atl.gc;
+
+	auto sym = [&](std::string const& name) -> Symbol*
+		{
+			return gc.make<Symbol>(name);
+		};
+
+	auto formals = make(lift(sym("a")), lift(sym("b")))
+		(*gc.dynamic_seq());
+
+	auto body = make(lift(sym("add2")),
+	                 make(lift(sym("add2")),
+	                      lift(sym("a")),
+	                      lift(2)),
+	                 lift(sym("b")))
+		(*gc.dynamic_seq());
+
+	auto expr =
+		make(make(lift(wrap<Lambda>()),
+		          lift(*formals),
+		          lift(*body)),
+		     lift(1),
+		     lift(2))
+		 (*gc.dynamic_seq());
+
+	auto rval = atl.eval(wrap(*expr));
+	ASSERT_EQ((unwrap<Fixnum>(rval).value), 5);
+}
