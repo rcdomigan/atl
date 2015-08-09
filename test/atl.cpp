@@ -23,18 +23,28 @@ struct AtlTest : public ::testing::Test {
 
 TEST_F(AtlTest, test_string_stream)
 {
+	std::stringstream output;
+	atl.set_stdout(output);
+
 	std::stringstream content
 		(";; used to test atl.cpp\n"
 		 "(define-value foo (\\ (a) (print-int (add2 a 3))))");
 	atl.stream(content);
 	atl.string_("(foo 2)");
+
+	ASSERT_EQ(output.str(), "5\n");
 }
 
 TEST_F(AtlTest, test_loaded_file)
 {
+	std::stringstream output;
+	atl.set_stdout(output);
+
 	std::ifstream file("./simple.atl");
 	atl.stream(file);
 	atl.string_("(foo 2)");
+
+	ASSERT_EQ(output.str(), "5\n");
 }
 
 TEST_F(AtlTest, test_multiline_stream)
