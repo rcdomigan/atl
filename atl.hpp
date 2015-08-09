@@ -28,6 +28,9 @@ namespace atl {
             setup_interpreter(env, parse);
         }
 
+	    void set_stdout(std::ostream& out)
+	    { env.stdout = &out; }
+
         Any eval(Any value)
         {
             auto tag = compile.any(value);

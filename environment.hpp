@@ -105,10 +105,14 @@ namespace atl
 		lexical::Map toplevel;
 
 		AssembleVM *pcode;
+		std::ostream* stdout;
+
 		tag_t _struct_tag;
 
+
 		Environment(GC &_gc)
-			: gc(_gc), toplevel(_gc), pcode(nullptr), _struct_tag(0)
+			: gc(_gc), toplevel(_gc), pcode(nullptr), stdout(&std::cout),
+			  _struct_tag(0)
 		{ init_types(); }
 
 		Environment() = delete;
