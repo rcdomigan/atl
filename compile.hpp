@@ -238,13 +238,13 @@ namespace atl
 
                 case tag<Lambda>::value:
                     {
-                        auto formals = flat_iterator::range(ast[1]);
-                        auto size = flat_iterator::size(formals);
+                        auto formals = ast_iterator::range(ast[1]);
+                        auto size = ast_iterator::size(formals);
 
                         compile_helpers::IncHopRAII inc_hops(_env);
                         lexical::MapRAII local(&_env);
 
-                        for(auto ff : zip(flat_iterator::range(ast[1]),
+                        for(auto ff : zip(ast_iterator::range(ast[1]),
                                           CountingRange()))
                             local.map.define(unwrap<Symbol>(*get<0>(ff)).name,
                                              // The `offset` should go high to low
