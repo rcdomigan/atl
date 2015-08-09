@@ -117,26 +117,8 @@ TEST_F(ParserTest, TestQuote) {
 }
 
 
-TEST_F(ParserTest, TestLambda)
-{
-    // I'm making '[[:delim:]]\[[:delim:]]' a reserved symbol for lambda, make sure it's parsed correctly.
-    auto parsed = atl.parse.string_("(\\ (a b) (c d e))");
-    tag_t linkable = tag<Lambda>::value;
-    ASSERT_EQ(unwrap<Ast>(parsed)[0]._tag, linkable);
-
-    parsed = atl.parse.string_("(\\a b\\)");
-    linkable = tag<Symbol>::value;
-    ASSERT_EQ(unwrap<Ast>(parsed)[0]._tag, linkable);
-    ASSERT_EQ(unwrap<Ast>(parsed)[1]._tag, linkable);
 }
 
-TEST_F(ParserTest, TestLet)
-{
-    auto parsed = atl.parse.string_("(let (a b) (a 1 2))");
-    tag_t let_tag = tag<Let>::value;
-
-    ASSERT_EQ(unwrap<Ast>(parsed)[0]._tag, let_tag);
-}
 
 TEST_F(ParserTest, test_stream_parsing)
 {

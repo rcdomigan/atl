@@ -181,12 +181,6 @@ namespace atl
         Lambda() : _tag(tag<Lambda>::value) {}
     };
 
-    struct Let
-    {
-        tag_t _tag;
-        long value;
-        Let() : _tag(tag<Let>::value) {}
-    };
 
     /*************************/
     /*  ____              _  */

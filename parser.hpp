@@ -31,13 +31,6 @@ namespace atl
     //
     //   '(' ')'         : Open and close an Ast branch
     //
-    //   DELIM '\\' DELIM : After much debate, I'm making Lambda a
-    //                     reserved word.  In principle, I'd like
-    //                     everything to be a usable symbol at local
-    //                     scope.  This may still change (should I be
-    //                     able to do something like `(def foo \ )
-    //                     ((foo (a b) (+ a b)) 1 2)`)?
-    //
     //   DELIM '\'' : 'n expands to (quote n) (should probably be a
     //                 macro).  Can still be used as part of a
     //                 variable name (ie x and x' are both valid
@@ -168,14 +161,6 @@ namespace atl
                             if(string_is_number(scratch))
                                 {
                                     vec[0] = wrap( atoi(scratch.c_str()) );
-                                }
-                            else if(scratch == "\\") // Lambda
-                                {
-                                    vec[0] = wrap<Lambda>();
-                                }
-                            else if(scratch == "let")
-                                {
-                                    vec[0] = wrap<Let>();
                                 }
                             else
                                 {
