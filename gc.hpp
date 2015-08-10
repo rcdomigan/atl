@@ -78,7 +78,7 @@ namespace atl
 			// allocates a T from the array, checking _free list first
 			T* alloc()
 			{
-				T *tmp ;
+				T *tmp;
 				if(_free != nullptr)
 					{
 						tmp = _free;

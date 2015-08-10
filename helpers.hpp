@@ -157,12 +157,13 @@ namespace atl
 		};
 
 		template<class ... Args>
-		std::function<Ast* (DynamicVector&)> make(Args ... args)
+		std::function<Ast* (DynamicVector&)>
+		make(Args ... args)
 		{
 			auto tup = make_tuple(args...);
 			return [tup](DynamicVector& space) -> Ast*
 				{
-					auto ast = space.template push_seq<Ast>();
+					auto ast = space.push_seq<Ast>();
 					_Run do_apply(space);
 
 					foreach_tuple(do_apply, tup);
