@@ -41,14 +41,14 @@ struct CheckIndicies
 {
 
 	template<std::size_t I, std::size_t ... Is>
-	static void a(vector<size_t>& out, tmp::Indexer<I, Is...>)
+	static void a(vector<size_t>& out, tmpl::Indexer<I, Is...>)
 	{
 		out.push_back(I);
-		a(out, tmp::Indexer<Is...> {});
+		a(out, tmpl::Indexer<Is...> {});
 	}
 
 	template<std::size_t I>
-	static void a(vector<size_t>& out, tmp::Indexer<I>)
+	static void a(vector<size_t>& out, tmpl::Indexer<I>)
 	{ out.push_back(I); }
 };
 
@@ -56,7 +56,7 @@ struct CheckIndicies
 TEST(Utilities, test_indexer)
 {
 	vector<size_t> vec;
-	CheckIndicies::a(vec, tmp::BuildIndicies<4> {});
+	CheckIndicies::a(vec, tmpl::BuildIndicies<4> {});
 
 	ASSERT_EQ(4, (vec.size()));
 	ASSERT_EQ(0, (vec.front()));

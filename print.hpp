@@ -51,40 +51,6 @@ namespace atl {
 		<< endl;
 	}
 
-	struct DebugRange : public Printer {
-	    Range<const Any*> _rr;
-	    bool _line_numbers;
-
-	    DebugRange(Range<const Any*> rr) : _rr(rr) , _line_numbers(false) {}
-	    DebugRange(Range<const Any*> rr, bool line_numbers) :
-		_rr(rr) , _line_numbers(line_numbers) {}
-
-	    virtual std::ostream& print(std::ostream& out) const {
-		size_t line = 0;
-		for(auto& vv: _rr) {
-		    if(_line_numbers) { out << line << ": ";
-			                ++line; }
-		    print_atom_debug(vv, out);
-		}
-		return out;
-	    }
-	};
-
-	template<class Range>
-	DebugRange debug_range(const Range& rr) {
-	    return DebugRange(rr);
-	}
-
-	DebugRange debug_range(const Any& rr) {
-	    using namespace flat_iterator;
-	    return DebugRange(make_range(const_begin(rr) - 2, const_end(rr)));
-	}
-
-	DebugRange debug_range(const Any& rr, bool line_numbers) {
-	    using namespace flat_iterator;
-	    return DebugRange(make_range(const_begin(rr) - 2, const_end(rr)), line_numbers);
-	}
-
 	std::ostream& operator<<(std::ostream& out, const printer::Printer& p) { return p.print(out); }
 
 	template<class Container>

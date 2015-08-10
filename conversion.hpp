@@ -76,23 +76,28 @@ namespace atl {
 		template<class T>
 		struct Any
 			: std::conditional< is_reinterperable<T>::value,
-			                    tmp::Identity< Reinterpret<T> >,
+			                    tmpl::Identity< Reinterpret<T> >,
 			                    Pimpl<T>
 			                    >::type::type
 		{};
 	}
 
 	template<class T> static inline constexpr Any wrap(T* vv)
-	{ return Any(tag<T>::value, vv); }
+	{
+		static_assert(is_pimpl<T>::value,
+		              "Cannot wrap pointer to non-pimpl: wrapped the dereferenced value "
+		              "or use some other mechanism.");
+		return Any(tag<T>::value, vv);
+	}
 
 	template<class T>
 	static inline constexpr Any wrap(T const& vv)
 	{
-		using namespace tmp;
-		return tmp::Apply<wrapping::Any,
-		                  Apply<type_mapping::cxx_to_atl,
-		                        Identity<T> >
-		                  >::a(vv);
+		using namespace tmpl;
+		return Apply<wrapping::Any,
+		             Apply<type_mapping::cxx_to_atl,
+		                   Identity<T> >
+		             >::a(vv);
 	}
 
 
@@ -111,7 +116,7 @@ namespace atl {
 
 	namespace get_value
 	{
-		using namespace tmp;
+		using namespace tmpl;
 
 		// 'mpl::at' with a default (in other words, the interface the
 		// boost docs advertise).

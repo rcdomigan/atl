@@ -31,14 +31,14 @@ struct rational_c {
     constexpr static Num value_squared = value * value;
 };
 
-//////////////////////////
-//  _____ __  __ ____   //
-// |_   _|  \/  |  _ \  //
-//   | | | |\/| | |_) | //
-//   | | | |  | |  __/  //
-//   |_| |_|  |_|_|     //
-//////////////////////////
-namespace tmp
+////////////////////////////////
+//  _____ __  __ ____  _      //
+// |_   _|  \/  |  _ \| |     //
+//   | | | |\/| | |_) | |     //
+//   | | | |  | |  __/| |___  //
+//   |_| |_|  |_|_|   |_____| //
+////////////////////////////////
+namespace tmpl
 {
 	template<size_t N>
 	struct intC : public std::integral_constant<size_t, N>::type {};
@@ -251,13 +251,13 @@ namespace tmp
 
 
 template<class Fn, class ... Args, std::size_t... Index>
-static typename std::result_of<Fn (Args...)>::type _apply_tuple(Fn& fn, std::tuple<Args...>& args, tmp::Indexer<Index...>)
+static typename std::result_of<Fn (Args...)>::type _apply_tuple(Fn& fn, std::tuple<Args...>& args, tmpl::Indexer<Index...>)
 { return fn(std::get<Index>(args)...); }
 
 template<class Fn, class ... Args>
 static typename std::result_of<Fn (Args...)>::type apply_tuple(Fn& fn, std::tuple<Args...>& args)
 {
-	return _apply_tuple(fn, args, tmp::BuildIndicies<sizeof...(Args)> {});
+	return _apply_tuple(fn, args, tmpl::BuildIndicies<sizeof...(Args)> {});
 }
 
 
@@ -355,10 +355,10 @@ void foreach_tuple(Fn& fn, Tup& tup)
 /*  \____\___/|_| |_|___/\__| */
 /******************************/
 template<class T>
-struct GetConstIterator : public tmp::Identity<typename T::const_iterator> {};
+struct GetConstIterator : public tmpl::Identity<typename T::const_iterator> {};
 
 template<class T>
-struct GetMutableIterator : public tmp::Identity<typename T::iterator> {};
+struct GetMutableIterator : public tmpl::Identity<typename T::iterator> {};
 
 /* Tools for dealing with const */
 template<class Container, class NoRef = typename std::remove_reference<Container>::type>

@@ -16,7 +16,7 @@
 using namespace atl;
 using namespace std;
 
-TEST(TestGC, test__make_ast_gc_and_arena)
+TEST(TestGC, test_make_ast_gc_and_arena)
 {
 	// Check that an Ast allocated by an Arena an a GC are the same.
 	GC gc;
@@ -28,6 +28,9 @@ TEST(TestGC, test__make_ast_gc_and_arena)
 
 	auto ast1 = make_ast::make(lift(1), lift(2), lift(3))
 		(*arena.dynamic_seq());
+
+	ASSERT_EQ(ast0->size(), 3);
+	ASSERT_EQ(ast1->size(), 3);
 
 	for(auto zz : zip(*ast0, *ast1))
 		ASSERT_EQ((*get<0>(zz)), (*get<1>(zz)));

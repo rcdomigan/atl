@@ -28,11 +28,15 @@ namespace atl {
             setup_interpreter(env, parse);
         }
 
+	    void set_stdout(std::ostream& out)
+	    { env.stdout = &out; }
+
         Any eval(Any value)
         {
             auto tag = compile.any(value);
+            compile.assert_ready();
 #ifdef DEBUGGING
-            compile.print();
+            compile.dbg();
             vm.run_debug(*compile.wrapped.output, compile.wrapped.main_entry_point);
 #else
             vm.run(*compile.wrapped.output, compile.wrapped.main_entry_point);

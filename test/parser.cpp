@@ -35,7 +35,7 @@ TEST_F(ParserTest, Atoms) {
 
 TEST_F(ParserTest, SimpleIntList) {
     auto parsed = atl.parse.string_("(1 2 3)");
-    auto ast = flat_iterator::range(parsed);
+    auto ast = ast_iterator::range(parsed);
 
     auto expected = vector<Any>{
         wrap(1),
@@ -53,32 +53,51 @@ TEST_F(ParserTest, SimpleIntList) {
 }
 
 
-TEST_F(ParserTest, NestedIntList) {
-    auto parsed = atl.parse.string_("(1 2 (4 5) 3)");
-    auto ast = flat_iterator::range(parsed);
+void _check_nested(Ast const& parsed, Ast const& expected)
+{
+	for(auto& vv : zip(parsed, expected))
+		{
+			ASSERT_EQ((*get<0>(vv))._tag,
+			          (*get<1>(vv))._tag);
 
-    auto begin = unwrap<Ast>(parsed).value;
-
-    auto expected = vector<Any>{
-        wrap(1), wrap(2),
-        begin[3],
-        Any(tag<Any>::value, begin + 7), // the pointer to the end of '(4 5)
-        wrap(4), wrap(5),
-        wrap(3)
-    };
-
-    for(auto& vv : zip(ast, expected)) {
+			if(is<Ast>(*get<0>(vv)))
+				_check_nested(unwrap<Ast>(*get<0>(vv)),
+				              unwrap<Ast>(*get<1>(vv)));
+			else
+				{
 #ifdef DEBUGGING
-        cout << "parsed: " << printer::any(*get<0>(vv)) << "\nexpected: " << printer::any(*get<1>(vv)) << endl;
+					cout << "parsed: " << printer::any(*get<0>(vv))
+					     << "\nexpected: " << printer::any(*get<1>(vv))
+					     << endl;
 #endif
-        ASSERT_EQ(*get<0>(vv), *get<1>(vv));
-    }
+					ASSERT_EQ(*get<0>(vv), *get<1>(vv));
+				}
+		}
+}
+
+
+TEST_F(ParserTest, nested_int_list)
+{
+	Arena arena;
+	using namespace make_ast;
+    auto parsed = atl.parse.string_("(1 2 (4 5) 3)");
+
+    auto expected =
+	    make(lift(1),
+	         lift(2),
+	         make(lift(4),
+	              lift(5)),
+	         lift(3))
+	    (*arena.dynamic_seq());
+
+    _check_nested(unwrap<Ast>(parsed),
+                  *expected);
 }
 
 
 TEST_F(ParserTest, TestQuote) {
     auto parsed = atl.parse.string_("'(2 3)");
-    auto ast = flat_iterator::range(parsed);
+    auto ast = ast_iterator::range(parsed);
     auto begin = unwrap<Ast>(parsed).value;
 
     vector<Any> expected = vector<Any>{

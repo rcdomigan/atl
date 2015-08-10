@@ -17,11 +17,10 @@
 #include "./compile.cpp"
 #include "./macros.cpp"
 #include "./gc.cpp"
-
 #include "./type_deduction.cpp"
-
-
 #include "./lists.cpp"
+
+#include "./atl.cpp"
 
 int main(int argc, char *argv[]) {
   ::testing::InitGoogleTest(&argc, argv);

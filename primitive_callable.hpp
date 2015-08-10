@@ -32,6 +32,18 @@ namespace atl
 		env.define("#t", atl_true());
 		env.define("define-value", wrap<Define>());
 
+		// for debugging (I still need a more general printing
+		// mechanism)
+		wrap_function<long (long)>
+			(env,
+			 "print-int",
+			 [&env](long a)
+			 {
+				 (*env.stdout) << a << std::endl;
+				 return a;
+			 });
+
+
 		auto alloc_ast_type = new abstract_type::Type(abstract_type::make_concrete({tag<Ast>::value}));
 		env.define("__alloc_ast__",
 		           wrap

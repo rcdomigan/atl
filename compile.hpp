@@ -12,6 +12,9 @@
 #include "./tiny_vm.hpp"
 #include "./type.hpp"
 #include "./environment.hpp"
+#include "./utility.hpp"
+
+#include <set>
 
 namespace atl
 {
@@ -70,6 +73,7 @@ namespace atl
         typedef AssembleVM::const_iterator iterator;
 	    typedef pcode::Offset Offset;
 
+	    std::set<std::string> _undefined;
         lexical::Map *_env;     // pushing a scope mutates where this points
         GC& gc;
 
@@ -91,7 +95,7 @@ namespace atl
 	    {}
 
 	    Compile(lexical::Map& env, GC& gc_, GC::PCodeAccumulator& output_)
-		    : _env(&env), gc(gc), wrapped(&output_),
+		    : _env(&env), gc(gc_), wrapped(&output_),
 		      _do_type_check(true)
         {}
 
@@ -153,6 +157,7 @@ namespace atl
             if(def == _env->end()) {
                 auto udef = gc.amake<Undefined>(nullptr);
                 _env->define(sym.name, udef);
+                _undefined.emplace(sym.name);
                 return udef;
             }
             return def->second.value;
@@ -233,13 +238,13 @@ namespace atl
 
                 case tag<Lambda>::value:
                     {
-                        auto formals = flat_iterator::range(ast[1]);
-                        auto size = flat_iterator::size(formals);
+                        auto formals = ast_iterator::range(ast[1]);
+                        auto size = ast_iterator::size(formals);
 
                         compile_helpers::IncHopRAII inc_hops(_env);
                         lexical::MapRAII local(&_env);
 
-                        for(auto ff : zip(flat_iterator::range(ast[1]),
+                        for(auto ff : zip(ast_iterator::range(ast[1]),
                                           CountingRange()))
                             local.map.define(unwrap<Symbol>(*get<0>(ff)).name,
                                              // The `offset` should go high to low
@@ -367,6 +372,7 @@ namespace atl
                         else
                             throw WrongTypeError("A symbol cannot be defined twice in the same scope");
 
+                        _undefined.erase(sym.name);
                         _env->define(sym.name, def);
 
                         _Compile body_result;
@@ -622,6 +628,23 @@ namespace atl
         { wrapped.clear(); }
 
         void dbg();
+
+	    // Check that all symbols have definitions, raise
+	    // UnboundSymbolError if they do not
+	    void assert_ready()
+	    {
+		    if(!_undefined.empty())
+			    {
+				    std::string msg ("Undefined symbols after compilation: ");
+				    msg.append(*_undefined.begin());
+
+				    for(auto& nn : make_range(++_undefined.begin(), _undefined.end()))
+					    msg.append(nn);
+
+				    throw UnboundSymbolError(msg);
+			    }
+	    }
+
     };
 
     void Compile::dbg()
