@@ -95,7 +95,7 @@ namespace atl
 	    {}
 
 	    Compile(lexical::Map& env, GC& gc_, GC::PCodeAccumulator& output_)
-		    : _env(&env), gc(gc), wrapped(&output_),
+		    : _env(&env), gc(gc_), wrapped(&output_),
 		      _do_type_check(true)
         {}
 
