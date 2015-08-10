@@ -53,15 +53,16 @@ TEST_F(ParserTest, SimpleIntList) {
 }
 
 
-void _check_nested(Any parsed, Any expected)
+void _check_nested(Ast const& parsed, Ast const& expected)
 {
-	for(auto& vv : zip(unwrap<Ast>(parsed), unwrap<Ast>(expected)))
+	for(auto& vv : zip(parsed, expected))
 		{
 			ASSERT_EQ((*get<0>(vv))._tag,
 			          (*get<1>(vv))._tag);
 
 			if(is<Ast>(*get<0>(vv)))
-				_check_nested(*get<0>(vv), *get<1>(vv));
+				_check_nested(unwrap<Ast>(*get<0>(vv)),
+				              unwrap<Ast>(*get<1>(vv)));
 			else
 				{
 #ifdef DEBUGGING
@@ -81,20 +82,16 @@ TEST_F(ParserTest, nested_int_list)
 	using namespace make_ast;
     auto parsed = atl.parse.string_("(1 2 (4 5) 3)");
 
-    auto expected = wrap
-	    (make
-	     (lift(1),
-	      lift(2),
-	      make(lift(4),
-	           lift(5)),
-	      lift(3))
-	     (*arena.dynamic_seq()));
+    auto expected =
+	    make(lift(1),
+	         lift(2),
+	         make(lift(4),
+	              lift(5)),
+	         lift(3))
+	    (*arena.dynamic_seq());
 
-    cout << "parsed: " << printer::any(parsed) << endl;
-    cout << "expected: " << printer::any(expected) << endl;
-
-    _check_nested(parsed,
-                  wrap(expected));
+    _check_nested(unwrap<Ast>(parsed),
+                  *expected);
 }
 
 
