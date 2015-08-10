@@ -83,7 +83,12 @@ namespace atl {
 	}
 
 	template<class T> static inline constexpr Any wrap(T* vv)
-	{ return Any(tag<T>::value, vv); }
+	{
+		static_assert(is_pimpl<T>::value,
+		              "Cannot wrap pointer to non-pimpl: wrapped the dereferenced value "
+		              "or use some other mechanism.");
+		return Any(tag<T>::value, vv);
+	}
 
 	template<class T>
 	static inline constexpr Any wrap(T const& vv)
