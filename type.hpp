@@ -76,9 +76,13 @@ namespace atl
     template<class T>
     struct is_reinterperable : public std::false_type {};
 
+    template<class T>
+    struct is_pimpl : public std::false_type {};
+
+
 #define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(Let)(Type)(Ast)(AstData)
-#define ATL_PIMPL_SEQ (Slice)(String)(Symbol)(Procedure)(Macro)(Undefined)(Parameter)(Method)(Struct)
-#define ATL_TYPES_SEQ ATL_REINTERPERABLE_SEQ ATL_PIMPL_SEQ(CxxFunctor)(PrimitiveMacro)(Mark)
+#define ATL_PIMPL_SEQ (Slice)(String)(Symbol)(Procedure)(Macro)(Undefined)(Parameter)(Method)(Struct)(CxxFunctor)(PrimitiveMacro)
+#define ATL_TYPES_SEQ ATL_REINTERPERABLE_SEQ ATL_PIMPL_SEQ(Mark)
 
 #define M(r, _, i, elem)						\
 	struct elem;							\
@@ -97,6 +101,11 @@ namespace atl
 #define M(r, _, i, elem) template<> struct is_reinterperable<elem> : public std::true_type {};
     BOOST_PP_SEQ_FOR_EACH_I(M, _, ATL_REINTERPERABLE_SEQ)
 #undef M
+
+#define M(r, _, i, elem) template<> struct is_pimpl<elem> : public std::true_type {};
+    BOOST_PP_SEQ_FOR_EACH_I(M, _, ATL_PIMPL_SEQ)
+#undef M
+
 
     typedef mpl::vector26< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
 
