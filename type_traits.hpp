@@ -13,7 +13,7 @@ namespace atl
 	namespace type_mapping
 	{
 		template<class T>
-		using Identity = tmp::Identity<T>;
+		using Identity = tmpl::Identity<T>;
 
 		template<class T>
 		struct atl_builtin

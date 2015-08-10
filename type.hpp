@@ -234,7 +234,7 @@ namespace atl
 					value = &*reinterpret_cast<typename
 					                           conditional<is_const<Value>::value,
 					                                       add_const<Ast>,
-					                                       tmp::Identity<Ast>
+					                                       tmpl::Identity<Ast>
 					                                       >::type::type*
 					                           >(value)->end();
 				else

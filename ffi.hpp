@@ -24,7 +24,7 @@ namespace atl {
 
 	namespace cxx_functions
 	{
-		using namespace tmp;
+		using namespace tmpl;
 
 		namespace unpack_fn {
 			template<class Dest, class R, class ... Sig> struct Signature;
@@ -74,7 +74,7 @@ namespace atl {
 			template <std::size_t... Index>
 			static void call_packed(std::function<R (Sig...)> fn
 			                        , vm_stack::iterator begin
-			                        , tmp::Indexer<Index...>)
+			                        , tmpl::Indexer<Index...>)
 			{
 				using namespace byte_code;
 				*begin = to_bytes(atl::value<R>(fn(from_bytes<Sig>(begin[Index])...)));
@@ -92,7 +92,7 @@ namespace atl {
 				return gc.template make<CxxFunctor>
 					([fn](vm_stack::iterator vv, vm_stack::iterator _)
 					 {
-						 return call_packed(fn, vv, tmp::BuildIndicies<WrapStdFunction::arity()> {});
+						 return call_packed(fn, vv, tmpl::BuildIndicies<WrapStdFunction::arity()> {});
 					 }
 					 , name
 					 , WrapStdFunction::parameter_types(gc) );
