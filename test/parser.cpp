@@ -96,27 +96,16 @@ TEST_F(ParserTest, nested_int_list)
 
 
 TEST_F(ParserTest, TestQuote) {
+	using namespace make_ast;
     auto parsed = atl.parse.string_("'(2 3)");
-    auto ast = ast_iterator::range(parsed);
-    auto begin = unwrap<Ast>(parsed).value;
 
-    vector<Any> expected = vector<Any>{
-        Any(tag<Quote>::value),
-        begin[2],               // the (pointer to point to end of) quoted list
-        Any(tag<Any>::value, begin + 6), // end of quoted list
-        wrap(2),
-        wrap(3)
-    };
+    auto expected =
+	    make(lift<Quote>(),
+	         make(lift(2),
+	              lift(3)))
+	    (*atl.gc.dynamic_seq());
 
-    for(auto& vv : zip(ast, expected)) {
-#ifdef DEBUGGING
-        cout << "parsed: " << printer::any(*get<0>(vv)) << "\nexpected: " << printer::any(*get<1>(vv)) << endl;
-#endif
-        ASSERT_EQ(*get<0>(vv), *get<1>(vv));
-    }
-}
-
-
+    _check_nested(unwrap<Ast>(parsed), *expected);
 }
 
 

@@ -279,20 +279,21 @@ namespace atl
 
 	struct Ast
 	{
-		typedef Any* value_type;
+		typedef AstData* value_type;
 		tag_t _tag;
 		value_type value;
 
 		Ast() = delete;
 
-		Ast(Any *begin_end)
+		Ast(AstData *begin_end)
 			: _tag(tag<Ast>::value), value(begin_end)
 		{}
 
 		Ast(Any *begin, Any *end)
-			: _tag(tag<Ast>::value), value(begin)
+			: _tag(tag<Ast>::value)
 		{
-			value->value = end;
+			value = reinterpret_cast<AstData*>(begin);
+			value->_tag = tag<AstData>::value;
 		}
 
 		Ast(const Ast&) = default;
@@ -315,9 +316,9 @@ namespace atl
 			return *itr;
 		}
 
-		Any* flat_begin() { return value + 1; }
+		Any* flat_begin() { return reinterpret_cast<Any*>(value) + 1; }
 		Any* flat_end() { return reinterpret_cast<Any*>(value->value); }
-		const Any* flat_begin() const { return value + 1; }
+		const Any* flat_begin() const { return reinterpret_cast<Any const*>(value) + 1; }
 		const Any* flat_end() const { return reinterpret_cast<Any*>(value->value); }
 
 		iterator begin() { return iterator(flat_begin()); }
@@ -335,7 +336,7 @@ namespace atl
 
 		size_t size() const { return end() - begin(); }
 
-		bool empty() const { return value == value->value; }
+		bool empty() const { return reinterpret_cast<Any*>(value) == value->value; }
 	};
 
 	struct Parameter

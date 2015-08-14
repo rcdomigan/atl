@@ -160,8 +160,8 @@ namespace atl
 			 });
 
 
-		auto cons_ast = WrapStdFunction<AstData* (vm_stack::value_type, vm_stack::value_type, Any*)>::a
-			([&gc](vm_stack::value_type value, vm_stack::value_type type, Any *raw) -> AstData*
+		auto cons_ast = WrapStdFunction<AstData* (vm_stack::value_type, vm_stack::value_type, AstData*)>::a
+			([&gc](vm_stack::value_type value, vm_stack::value_type type, AstData *raw) -> AstData*
 			 {
 				 using namespace ast_iterator;
 				 Ast seq(raw);
@@ -201,8 +201,8 @@ namespace atl
 					 }
 			 });
 
-		wrap_function<Slice* (Any*, long)>(env, "slice",
-		                                   [&gc](Any* raw, long nn) -> Slice*
+		wrap_function<Slice* (AstData*, long)>(env, "slice",
+		                                   [&gc](AstData* raw, long nn) -> Slice*
 			{
 				Ast ast(raw);
 				auto out = gc.make<Slice>(ast.begin() + nn, ast.end());
