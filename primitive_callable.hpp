@@ -21,7 +21,7 @@ namespace atl
 	{
 		using namespace primitives;
 
-		env.lexical.define("\\", wrap<Lambda>());
+		env.lexical.define("__\\__", wrap<Lambda>());
 		env.lexical.define(":", wrap<DeclareType>());
 		env.lexical.define("quote", wrap<Quote>());
 		env.lexical.define("if", wrap<If>());

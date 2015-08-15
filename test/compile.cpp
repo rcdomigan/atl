@@ -98,9 +98,17 @@ TEST_F(CompilerTest, IfFalse) {
 }
 
 TEST_F(CompilerTest, BasicLambda) {
-    auto ast = atl.parse.string_("((\\ (a b) (add2 a b)) 4 7)");
+	using namespace make_ast;
 
-    atl.compile.any(ast);
+    auto expr = make
+	    (make(lift<Lambda>(),
+	          make(sym("a"), sym("b")),
+	          make(sym("add2"), sym("a"), sym("b"))),
+	     lift(4),
+	     lift(7))
+	    (ast_alloc(atl.gc));
+
+    atl.compile.any(wrap(*expr));
 
     run_code(atl.vm, atl.compile.code);
 
@@ -108,8 +116,18 @@ TEST_F(CompilerTest, BasicLambda) {
 }
 
 TEST_F(CompilerTest, LambdaWithIf) {
-    auto ast = atl.parse.string_("((\\ (a b) (if (equal2 a b) (add2 a b) (sub2 a b))) 7 3)");
-    atl.compile.any(ast);
+	using namespace make_ast;
+    auto expr = make
+	    (make(lift<Lambda>(),
+	          make(sym("a"), sym("b")),
+	          make(sym("if"),
+	               make(sym("equal2"), sym("a"), sym("b")),
+	               make(sym("add2"), sym("a"), sym("b")),
+	               make(sym("sub2"), sym("a"), sym("b")))),
+	     lift(7), lift(3))
+	    (ast_alloc(atl.gc));
+
+    atl.compile.any(wrap(*expr));
 
     run_code(atl.vm, atl.compile.code);
 
@@ -143,12 +161,26 @@ TEST_F(CompilerTest, Backpatch) {
 }
 
 
-TEST_F(CompilerTest, DefineLambda) {
+TEST_F(CompilerTest, DefineLambda)
+{
     // Check that the appropriate number of filler values have been
     // pushed to the stack.  This is a brittle test, but so it goes
     // for the moment.
-    atl.compile.any(atl.parse.string_("(define-value my-add3 (\\ (a b c) (add2 a b)))"));
-    atl.compile.any(atl.parse.string_("(define-value my-add1 (\\ (a) (my-add3 a a a)))"));
+	using namespace make_ast;
+	auto my_add3 = make(sym("define-value"),
+	                  sym("my-add3"),
+	                  make(lift<Lambda>(), make(sym("a"), sym("b"), sym("c")),
+	                       make(sym("add2"), sym("a"), sym("b"))))
+		(ast_alloc(atl.gc)),
+
+		my_add1 = make(sym("define-value"),
+	                  sym("my-add1"),
+	                  make(lift<Lambda>(), make(sym("a")),
+	                       make(sym("my-add3"), sym("a"), sym("a"), sym("a"))))
+		(ast_alloc(atl.gc));
+
+    atl.compile.any(wrap(*my_add3));
+    atl.compile.any(wrap(*my_add1));
 
     ASSERT_EQ(3,
               unwrap<Procedure>(atl.lexical.toplevel._local["my-add1"].value).tail_params);
@@ -157,13 +189,25 @@ TEST_F(CompilerTest, DefineLambda) {
 
 TEST_F(CompilerTest, SimpleRecursion)
 {
+	using namespace make_ast;
 	auto no_check = atl.compile.supress_type_check();
-	atl.compile.any
-		(atl.parse.string_
-		 ("(define-value simple-recur (\\ (a b) (if (equal2 0 a) b (simple-recur (sub2 a 1) (add2 b 1)))))"));
-	atl.compile.any(atl.parse.string_("(simple-recur 3 2)"));
 
-	run_code(atl.vm, atl.compile.code);
+	auto simple_recur = make
+		(sym("define-value"), sym("simple-recur"),
+		 make(lift<Lambda>(),
+		      make(sym("a"), sym("b")),
+		      make(sym("if"),
+		           make(sym("equal2"), lift(0), sym("a")),
+		           sym("b"),
+		           make(sym("simple-recur"),
+		                make(sym("sub2"), sym("a"), lift(1)),
+		                make(sym("add2"), sym("b"), lift(1))))))
+		(ast_alloc(atl.gc));
+
+	atl.compile.any(wrap(*simple_recur));
+    atl.compile.any(atl.parse.string_("(simple-recur 3 2)"));
+
+    run_code(atl.vm, atl.compile.code);
 
 	ASSERT_EQ(5, atl.vm.stack[0]);
 }
@@ -174,11 +218,11 @@ TEST_F(CompilerTest, multiple_functions)
 	auto no_check = atl.compile.supress_type_check();
 
 	atl.compile.any(atl.parse.string_
-	                ("(define-value simple-recur (\\ (a b) (if (equal2 0 a) b (simple-recur (sub2 a 1) (add2 b 1)))))"));
+	            ("(define-value simple-recur (__\\__ (a b) (if (equal2 0 a) b (simple-recur (sub2 a 1) (add2 b 1)))))"));
 	atl.compile.any(atl.parse.string_
-	                ("(define-value simple-recur2 (\\ (a b) (if (equal2 0 a) b (simple-recur2 (sub2 a 1) (add2 b 4 )))))"));
+	            ("(define-value simple-recur2 (__\\__ (a b) (if (equal2 0 a) b (simple-recur2 (sub2 a 1) (add2 b 4 )))))"));
 	atl.compile.any(atl.parse.string_
-	                ("(add2 (simple-recur 2 3) (simple-recur2 2 0))"));
+	            ("(add2 (simple-recur 2 3) (simple-recur2 2 0))"));
 
 	run_code(atl.vm, atl.compile.code);
 	ASSERT_EQ(13, atl.vm.stack[0]);
@@ -199,7 +243,7 @@ TEST_F(CompilerTest, relocate_pcode)
 	atl.compile.code.output = &code2;
 
 	atl.compile.any(atl.parse.string_
-	                ("(define-value simple-recur2 (\\ (a b) (if (equal2 0 a) b (simple-recur2 (sub2 a 1) (add2 b 4 )))))"));
+	            ("(define-value simple-recur2 (__\\__ (a b) (if (equal2 0 a) b (simple-recur2 (sub2 a 1) (add2 b 4 )))))"));
 	atl.compile.any(atl.parse.string_
 	                ("(add2 (simple-recur 2 3) (simple-recur2 2 0))"));
 

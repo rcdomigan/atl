@@ -85,9 +85,10 @@ TEST_F(TypeBasics, IfStatement)
     ASSERT_TRUE(is<Fixnum>(atl.string_("(if #t (add2 1 2) (add2 3 4))")));
 }
 
-TEST_F(TypeBasics, ProcedureCall)
+TEST_F(TypeBasics, procedure_call)
 {
-    ASSERT_TRUE(is<Fixnum>(atl.string_("((\\ (a b) (add2 a b)) 1 2)")));
+	auto rval = atl.string_("((__\\__ (a b) (add2 a b)) 1 2)");
+    ASSERT_TRUE(is<Fixnum>(rval));
 }
 
 struct TestBasicTypeDeduction : public TypeBasics {};
@@ -112,14 +113,14 @@ TEST_F(TestBasicTypeDeduction, test_simple)
 // Test that throwing in a type declaration doesn't break simple statements.
 TEST_F(TestBasicTypeDeduction, usable_in_lambda)
 {
-    auto tag = atl.compile.any(atl.parse.string_("(\\ (a) (add2 (: Fixnum a) 2))"));
+    auto tag = atl.compile.any(atl.parse.string_("(__\\__ (a) (add2 (: Fixnum a) 2))"));
     ASSERT_TRUE(is<Fixnum>(tag));
     atl.compile.reset();
 
-    tag = atl.compile.any(atl.parse.string_("((\\ (a) (add2 (: Fixnum a) 2)) 3)"));
+    tag = atl.compile.any(atl.parse.string_("((__\\__ (a) (add2 (: Fixnum a) 2)) 3)"));
     ASSERT_TRUE(is<Fixnum>(tag));
 
-    ASSERT_EQ(unwrap<Fixnum>(atl.string_("((\\ (a) (add2 (: Fixnum a) 2)) 3)")).value,
+    ASSERT_EQ(unwrap<Fixnum>(atl.string_("((__\\__ (a) (add2 (: Fixnum a) 2)) 3)")).value,
               5);
 }
 
