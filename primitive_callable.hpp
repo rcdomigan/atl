@@ -10,32 +10,31 @@
 #include <fstream>
 
 #include "./type.hpp"
-#include "./parser.hpp"
-#include "./helpers.hpp"
-#include "./compile.hpp"
+#include "./environment.hpp"
 #include "./interface_helpers.hpp"
 
 #include "ffi.hpp"
 
 namespace atl
 {
+
 	Any nullP(Any a) { return is<Null>(a) ? atl_true() : atl_false();  }
 
-	void export_recursive_defs(GC &gc, Environment &env, ParseString &parser)
+	void export_recursive_defs(Environment& env)
 	{
 		using namespace primitives;
 
-		env.define("\\", wrap<Lambda>());
-		env.define("quote", wrap<Quote>());
-		env.define("if", wrap<If>());
-		env.define("#f", atl_false());
-		env.define("#t", atl_true());
-		env.define("define-value", wrap<Define>());
+		env.lexical.define("\\", wrap<Lambda>());
+		env.lexical.define("quote", wrap<Quote>());
+		env.lexical.define("if", wrap<If>());
+		env.lexical.define("#f", atl_false());
+		env.lexical.define("#t", atl_true());
+		env.lexical.define("define-value", wrap<Define>());
 
 		// for debugging (I still need a more general printing
 		// mechanism)
 		wrap_function<long (long)>
-			(env,
+			(env.lexical,
 			 "print-int",
 			 [&env](long a)
 			 {
@@ -45,32 +44,33 @@ namespace atl
 
 
 		auto alloc_ast_type = new abstract_type::Type(abstract_type::make_concrete({tag<Ast>::value}));
-		env.define("__alloc_ast__",
-		           wrap
-		           (env.gc.make<CxxFunctor>
-		            ([&](vm_stack::iterator begin, vm_stack::iterator end) -> void
-		            {
-			            auto range = make_range(begin, end);
-			            auto stack = env.gc.dynamic_seq(range.size() + 2);
-			            auto seq = stack->end();
-			            stack->push_back(Any(tag<AstData>::value,
-			                                 0));
+		env.lexical.define
+			("__alloc_ast__",
+			 wrap
+			 (env.gc.make<CxxFunctor>
+			  ([&](vm_stack::iterator begin, vm_stack::iterator end) -> void
+			  {
+				  auto range = make_range(begin, end);
+				  auto stack = env.gc.dynamic_seq(range.size() + 2);
+				  auto seq = stack->end();
+				  stack->push_back(Any(tag<AstData>::value,
+				                       0));
 
-			            for(auto pair = begin; pair < end; pair += 2)
-				            stack->push_back(Any(pair[1],
-				                                 reinterpret_cast<void*>(pair[0])));
+				  for(auto pair = begin; pair < end; pair += 2)
+					  stack->push_back(Any(pair[1],
+					                       reinterpret_cast<void*>(pair[0])));
 
-			            seq->value = stack->end();
-			            *begin = reinterpret_cast<vm_stack::value_type>(seq);
-		            },
-			            "__alloc_ast__",
-			            alloc_ast_type)));
+				  seq->value = stack->end();
+				  *begin = reinterpret_cast<vm_stack::value_type>(seq);
+			  },
+				  "__alloc_ast__",
+				  alloc_ast_type)));
 
-		auto cc = primitives::Constructor(env);
+		auto cc = primitives::Constructor(env.lexical);
 		mpl::for_each<TypesVec, wrap_t_arg< mpl::placeholders::_1> >(cc);
 
 		// (: A a) declares a to be of type A
-		wrap_macro(env, ":",
+		wrap_macro(env.lexical, ":",
 		           [](Eval &eval, PrimitiveMacro::Input const& ast)
 		           {
 			           // requires a type-expr followed by an expr.
@@ -92,7 +92,7 @@ namespace atl
 		static auto fn_construct_params = abstract_type::make_concrete({tag<Type>::value, tag<Type>::value});
 		fn_construct_params.front().count = abstract_type::Node::CountType::at_least_one;
 		auto fn_construct
-			= gc.make<CxxFunctor>([&env](vm_stack::iterator begin, vm_stack::iterator end)
+			= env.gc.make<CxxFunctor>([&env](vm_stack::iterator begin, vm_stack::iterator end)
 			                      {
 				                      auto type = env.gc.make<abstract_type::Type>();
 				                      for(auto& vv : make_range(begin, end))
@@ -100,7 +100,7 @@ namespace atl
 				                      *begin = reinterpret_cast<vm_stack::value_type>(type);
 			                      }, "->", &fn_construct_params);
 
-		env.define("->", wrap(fn_construct));
+		env.lexical.define("->", wrap(fn_construct));
 
 
 		/***********************************************************/
@@ -110,14 +110,13 @@ namespace atl
 		/**  / ___ \| |  | | |_| | | | | | | | | (_| | |_| | (__  **/
 		/** /_/   \_\_|  |_|\__|_| |_|_| |_| |_|\__,_|\__|_|\___| **/
 		/***********************************************************/
-		wrap_function<long (long, long)>(env, "add2", [](long a, long b) { return a + b;});
-		wrap_function<long (long, long)>(env, "sub2", [](long a, long b) { return a - b;});
-
-		wrap_function<bool (long, long)>(env, "=", [](long a, long b) { return a = b;});
-		wrap_function<bool (long, long)>(env, "<", [](long a, long b) { return a < b;});
-		wrap_function<bool (long, long)>(env, ">", [](long a, long b) { return a > b;});
-		wrap_function<bool (long, long)>(env, "<=", [](long a, long b) { return a <= b;});
-		wrap_function<bool (long, long)>(env, ">=", [](long a, long b) { return a >= b;});
+		wrap_function<long (long, long)>(env.lexical, "add2", [](long a, long b) { return a + b;});
+		wrap_function<long (long, long)>(env.lexical, "sub2", [](long a, long b) { return a - b;});
+		wrap_function<bool (long, long)>(env.lexical, "=", [](long a, long b) { return a = b;});
+		wrap_function<bool (long, long)>(env.lexical, "<", [](long a, long b) { return a < b;});
+		wrap_function<bool (long, long)>(env.lexical, ">", [](long a, long b) { return a > b;});
+		wrap_function<bool (long, long)>(env.lexical, "<=", [](long a, long b) { return a <= b;});
+		wrap_function<bool (long, long)>(env.lexical, ">=", [](long a, long b) { return a >= b;});
 
 		/////////////////////////////////////////////////////////////////////
 		//  ___       _                                 _   _              //
@@ -129,7 +128,7 @@ namespace atl
 		/////////////////////////////////////////////////////////////////////
 		// introspection
 
-		wrap_function<long ()>(env, "print-bytecode",
+		wrap_function<long ()>(env.lexical, "print-bytecode",
 		                       [&env]() {
 			                       if(env.pcode)
 				                       dbg_code(*env.pcode->output);
@@ -146,14 +145,14 @@ namespace atl
 		/** |_____|_|___/\__|___/ **/
 		/***************************/
 		wrap_macro
-			(env,
+			(env.lexical,
 			 "Ast",
 			 [&](Eval& eval, PrimitiveMacro::Input const& ast) -> tag_t
 			 {
 				 for(auto& vv : ast)
 					 eval.compile->push_value(eval.compile->in_place_any(vv));
 
-				 eval.compile->wrapped.std_function(&unwrap<CxxFunctor>(env.toplevel.value("__alloc_ast__")).fn,
+				 eval.compile->wrapped.std_function(&unwrap<CxxFunctor>(env.lexical.toplevel.value("__alloc_ast__")).fn,
 				                                    ast.size() * 2);
 
 				 return tag<Ast>::value;
@@ -161,12 +160,12 @@ namespace atl
 
 
 		auto cons_ast = WrapStdFunction<AstData* (vm_stack::value_type, vm_stack::value_type, AstData*)>::a
-			([&gc](vm_stack::value_type value, vm_stack::value_type type, AstData *raw) -> AstData*
+			([&env](vm_stack::value_type value, vm_stack::value_type type, AstData *raw) -> AstData*
 			 {
 				 using namespace ast_iterator;
 				 Ast seq(raw);
 
-				 auto output = gc.dynamic_seq();
+				 auto output = env.gc.dynamic_seq();
 				 auto vec = output->end();
 				 output->push_back(Any(tag<AstData>::value, nullptr));
 
@@ -182,7 +181,7 @@ namespace atl
 			 , "cons-ast");
 
 		wrap_macro
-			(env,
+			(env.lexical,
 			 "cons",
 			 [&, cons_ast](Eval& eval, PrimitiveMacro::Input const& ast) -> tag_t
 			 {
@@ -201,11 +200,11 @@ namespace atl
 					 }
 			 });
 
-		wrap_function<Slice* (AstData*, long)>(env, "slice",
-		                                   [&gc](AstData* raw, long nn) -> Slice*
+		wrap_function<Slice* (AstData*, long)>(env.lexical, "slice",
+		                                   [&env](AstData* raw, long nn) -> Slice*
 			{
 				Ast ast(raw);
-				auto out = gc.make<Slice>(ast.begin() + nn, ast.end());
+				auto out = env.gc.make<Slice>(ast.begin() + nn, ast.end());
 				return out;
 			});
 
@@ -233,13 +232,14 @@ namespace atl
 
 
 	static bool _setup_interpreter = false;
-	void setup_interpreter(Environment &env, ParseString &parser) {
+	void setup_interpreter(Environment &env)
+	{
 		if(!_setup_interpreter)
 			{
 				_setup_interpreter = true;
 				init_types();
 			}
-		export_recursive_defs(env.gc, env, parser);
+		export_recursive_defs(env);
 	}
 }
 

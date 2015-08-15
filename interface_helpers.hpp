@@ -7,19 +7,20 @@
  */
 
 #include "./helpers.hpp"
+#include "./lexical_environment.hpp"
 #include "./ffi.hpp"
 
 namespace atl
 {
     namespace primitives
     {
-	    void wrap_macro(Environment& env, const std::string& name, PrimitiveMacro::Fn fn)
+	    void wrap_macro(LexicalEnvironment& env, const std::string& name, PrimitiveMacro::Fn fn)
         {
             env.define(name, wrap(new PrimitiveMacro(fn, name)));
         }
 
         template<class T>
-        void wrap_function(Environment& env, std::string const& name, std::function<T> fn) {
+        void wrap_function(LexicalEnvironment& env, std::string const& name, std::function<T> fn) {
             env.define(name,
                        wrap(WrapStdFunction<T>::a(fn, env.gc, name)));
         }
@@ -31,8 +32,8 @@ namespace atl
 
         struct Constructor
         {
-            Environment& env;
-            Constructor(Environment& ee) : env(ee) {}
+            LexicalEnvironment& env;
+            Constructor(LexicalEnvironment& ee) : env(ee) {}
 
             // My primitives aren't GCed so I think I'm OK allocating
             // theirabstract_type::Type object in the regular heap.

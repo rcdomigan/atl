@@ -7,13 +7,8 @@
  */
 
 #include <tiny_vm.hpp>
-#include <primitive_callable.hpp>
-#include <compile.hpp>
-#include <gc.hpp>
-#include <parser.hpp>
-#include <environment.hpp>
-#include <compile.hpp>
 #include <print.hpp>
+#include <atl.hpp>
 
 #include <gtest/gtest.h>
 #include "./testing_utils.hpp"
@@ -21,39 +16,37 @@
 using namespace atl;
 
 struct CompilerTest : public ::testing::Test {
-    GC gc;
-    ParseString parse;
-    Environment env;
-    Compile compile;
-    TinyVM vm;
+	Atl atl;
 
-    CompilerTest() : parse(gc), env(gc), compile(env) {}
+    CompilerTest() {}
+
+	decltype(make_ast::lift(1))
+	sym(std::string const& name)
+	{ return make_ast::lift(atl.gc.amake<Symbol>(name)); }
 
     virtual void SetUp() {
-        setup_interpreter(env, parse);
-
-        env.define("equal2", WrapStdFunction<bool (long, long)>::any(equal2, gc));
-        env.define("add2", WrapStdFunction<long (long, long)>::any(add2, gc));
-        env.define("sub2", WrapStdFunction<long (long, long)>::any(sub2, gc));
+        atl.lexical.define("equal2", WrapStdFunction<bool (long, long)>::any(equal2, atl.gc));
+        atl.lexical.define("add2", WrapStdFunction<long (long, long)>::any(add2, atl.gc));
+        atl.lexical.define("sub2", WrapStdFunction<long (long, long)>::any(sub2, atl.gc));
     }
 };
 
 
 TEST_F(CompilerTest, BasicApplication) {
-    compile.any(parse.string_("(add2 5 7)"));
+    atl.compile.any(atl.parse.string_("(add2 5 7)"));
 
-    run_code(vm, compile.wrapped);
+    run_code(atl.vm, atl.compile.wrapped);
 
-    ASSERT_EQ(vm.stack[0], 12);
+    ASSERT_EQ(atl.vm.stack[0], 12);
 }
 
 TEST_F(CompilerTest, NestedApplication) {
-    auto ast = parse.string_("(add2 (sub2 7 5) (add2 8 3))");
-    compile.any(ast);
+    auto ast = atl.parse.string_("(add2 (sub2 7 5) (add2 8 3))");
+    atl.compile.any(ast);
 
-    run_code(vm, compile.wrapped);
+    run_code(atl.vm, atl.compile.wrapped);
 
-    ASSERT_EQ(vm.stack[0], 13);
+    ASSERT_EQ(atl.vm.stack[0], 13);
 }
 
 TEST_F(CompilerTest, TestCxxStdFunction) {
@@ -62,39 +55,39 @@ TEST_F(CompilerTest, TestCxxStdFunction) {
     auto shimmed_function = WrapStdFunction<long (long)>::a([&](long vv) -> long {
             return vv * multiple;
         },
-        gc,
+        atl.gc,
         "foo");
 
-    env.define("foo", wrap(shimmed_function));
+    atl.lexical.define("foo", wrap(shimmed_function));
 
-    compile.any(parse.string_("(foo 3)"));
+    atl.compile.any(atl.parse.string_("(foo 3)"));
 
-    run_code(vm, compile.wrapped);
-    ASSERT_EQ(vm.stack[0], 9);
+    run_code(atl.vm, atl.compile.wrapped);
+    ASSERT_EQ(atl.vm.stack[0], 9);
 
-    compile.wrapped = AssembleVM(&gc.alloc_pcode());
+    atl.compile.wrapped = AssembleVM(&atl.gc.alloc_pcode());
 
     multiple = 4;
-    compile.any(parse.string_("(foo 3)"));
+    atl.compile.any(atl.parse.string_("(foo 3)"));
 
-    run_code(vm, compile.wrapped);
-    ASSERT_EQ(vm.stack[0], 12);
+    run_code(atl.vm, atl.compile.wrapped);
+    ASSERT_EQ(atl.vm.stack[0], 12);
 }
 
 TEST_F(CompilerTest, IfTrue) {
-    auto ast = parse.string_("(if #t 3 4)");
-    compile.any(ast);
+    auto ast = atl.parse.string_("(if #t 3 4)");
+    atl.compile.any(ast);
 
-    run_code(vm, compile.wrapped);
-    ASSERT_EQ(vm.stack[0], 3);
+    run_code(atl.vm, atl.compile.wrapped);
+    ASSERT_EQ(atl.vm.stack[0], 3);
 }
 
 TEST_F(CompilerTest, IfFalse) {
-    auto ast = parse.string_("(if #f 3 4)");
-    compile.any(ast);
+    auto ast = atl.parse.string_("(if #f 3 4)");
+    atl.compile.any(ast);
 
-    run_code(vm, compile.wrapped);
-    ASSERT_EQ(vm.stack[0], 4);
+    run_code(atl.vm, atl.compile.wrapped);
+    ASSERT_EQ(atl.vm.stack[0], 4);
 }
 
 TEST_F(CompilerTest, BasicLambda) {
@@ -118,28 +111,28 @@ TEST_F(CompilerTest, LambdaWithIf) {
 
 TEST_F(CompilerTest, BasicDefine) {
     // Test that defining a constant works
-    auto ast = parse.string_("(define-value foo 3)");
-    compile.any(ast);
+    auto ast = atl.parse.string_("(define-value foo 3)");
+    atl.compile.any(ast);
 
-    ast = parse.string_("(add2 foo foo)");
-    compile.any(ast);
+    ast = atl.parse.string_("(add2 foo foo)");
+    atl.compile.any(ast);
 
-    run_code(vm, compile.wrapped);
+    run_code(atl.vm, atl.compile.wrapped);
 
-    ASSERT_EQ(vm.stack[0], 6);
+    ASSERT_EQ(atl.vm.stack[0], 6);
 }
 
 TEST_F(CompilerTest, Backpatch) {
     // Test that defining a constant works
-    auto ast = parse.string_("(add2 foo foo)");
-    compile.any(ast);
+    auto ast = atl.parse.string_("(add2 foo foo)");
+    atl.compile.any(ast);
 
-    ast = parse.string_("(define-value foo 3)");
-    compile.any(ast);
+    ast = atl.parse.string_("(define-value foo 3)");
+    atl.compile.any(ast);
 
-    run_code(vm, compile.wrapped);
+    run_code(atl.vm, atl.compile.wrapped);
 
-    ASSERT_EQ(vm.stack[0], 6);
+    ASSERT_EQ(atl.vm.stack[0], 6);
 }
 
 
@@ -200,7 +193,7 @@ TEST_F(CompilerTest, relocate_pcode)
 	compile.any(parse.string_
 	            ("(add2 (simple-recur 2 3) (simple-recur2 2 0))"));
 
-	run_code(vm, compile.wrapped);
+	run_code(atl.vm, atl.compile.wrapped);
 	ASSERT_GT(code2.capacity(), 10);
-	ASSERT_EQ(vm.stack[0], 13);
+	ASSERT_EQ(atl.vm.stack[0], 13);
 }

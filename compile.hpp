@@ -11,7 +11,7 @@
 #include "./exception.hpp"
 #include "./tiny_vm.hpp"
 #include "./type.hpp"
-#include "./environment.hpp"
+#include "./lexical_environment.hpp"
 #include "./utility.hpp"
 
 #include <set>
@@ -89,7 +89,7 @@ namespace atl
 		    { compile._do_type_check = true; }
 	    };
 
-        Compile(Environment& env)
+        Compile(LexicalEnvironment& env)
 	        : _env(&env.toplevel), gc(env.gc), wrapped(&gc.alloc_pcode()),
 	          _do_type_check(true)
 	    {}

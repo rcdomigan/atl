@@ -8,7 +8,7 @@
 #include <primitive_callable.hpp>
 // #include <compile.hpp>
 // #include <parser.hpp>
-#include <environment.hpp>
+#include <lexical_environment.hpp>
 #include "./testing_utils.hpp"
 
 #include <gtest/gtest.h>
@@ -165,11 +165,8 @@ TEST_F(VmTest, TestArguments)
 TEST_F(VmTest, SymToFunction)
 {
     GC gc;
-    ParseString parse(gc);
-    Environment env(gc);
+    LexicalEnvironment env(gc);
     TrivialFunctions fns;
-
-    setup_interpreter(env, parse);
 
     env.define("add2", wrap(fns.wadd));
 

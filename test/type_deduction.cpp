@@ -67,7 +67,7 @@ TEST_F(TypeBasics, ApplyCxx)
     long c = 3;
 
     primitives::wrap_function<bool (long, long)>
-        (atl.env,
+        (atl.lexical,
          "my-equal",
          [&](long a, long b) -> bool
         {

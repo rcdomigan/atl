@@ -27,7 +27,7 @@ TEST_F(TestMacros, test_primitives)
 	using namespace primitives;
 	Any first_item, second_item;
 
-	wrap_macro(atl.env, "foo",
+	wrap_macro(atl.lexical, "foo",
 	           [&](Eval& eval, PrimitiveMacro::Input const& ast)
 	           {
 		           first_item = ast[0];
