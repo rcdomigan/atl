@@ -85,7 +85,7 @@ namespace atl
 				           // and should return an abstract_type::Type
 				           rval = eval.compile->any(ast[0]);
 			           }
-			           eval.compile->in_place_any(ast[1]);
+			           eval.compile->any(ast[1]);
 			           return rval;
 		           });
 
@@ -150,7 +150,7 @@ namespace atl
 			 [&](Eval& eval, PrimitiveMacro::Input const& ast) -> tag_t
 			 {
 				 for(auto& vv : ast)
-					 eval.compile->push_value(eval.compile->in_place_any(vv));
+					 eval.compile->push_value(eval.compile->any(vv));
 
 				 eval.compile->wrapped.std_function(&unwrap<CxxFunctor>(env.lexical.toplevel.value("__alloc_ast__")).fn,
 				                                    ast.size() * 2);
@@ -186,8 +186,8 @@ namespace atl
 			 [&, cons_ast](Eval& eval, PrimitiveMacro::Input const& ast) -> tag_t
 			 {
 				 // push car's (value type)
-				 eval.compile->push_value(eval.compile->in_place_any(ast[0]));
-				 auto seq_type = eval.compile->in_place_any(ast[1]);
+				 eval.compile->push_value(eval.compile->any(ast[0]));
+				 auto seq_type = eval.compile->any(ast[1]);
 
 				 switch(seq_type)
 					 {

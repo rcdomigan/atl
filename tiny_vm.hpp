@@ -206,6 +206,41 @@ namespace atl {
 	};
 
 
+	// The PCode needs to end in a 'finish' instruction to run.  The
+	// compiler doesn't put in the 'finish' statement by default since
+	// it may be awaiting more input.
+	struct RunnableCode
+	{
+		AssembleVM &code;
+		bool _do_pop;
+
+		RunnableCode(AssembleVM &code_)
+			: code(code_)
+		{
+			if(code.empty()
+			   || (code.back() != vm_codes::values::finish))
+				{
+					_do_pop = true;
+					code.finish();
+				}
+			else
+				_do_pop = false;
+		}
+
+		RunnableCode(RunnableCode&& other)
+			: code(other.code), _do_pop(other._do_pop)
+		{
+			other._do_pop = false;
+		}
+
+		~RunnableCode()
+		{
+			if(_do_pop)
+				code.pop_back();
+		}
+	};
+
+
 	struct TinyVM
 	{
 		typedef uintptr_t value_type;
@@ -308,29 +343,37 @@ namespace atl {
 				}
 		}
 
-		void run_debug(Code const& code, vm_stack::Offset enter, unsigned int max_steps = 1000) {
+		// Take code and run it.  Prints the stack and pc after each
+		// instruction.
+		//
+		// @param max_steps: vm will exit after max_steps instructions
+		// have been evaluated, even if we never reach a 'finish' instruction.
+		void run_debug(RunnableCode const& input,
+		               unsigned int max_steps = 1000)
+		{
             top = stack;
-            pc = enter;
-            this->code = &code;
+            pc = input.code.main_entry_point;
+            this->code = input.code.output;
 
 			for(unsigned int i = 0; i < max_steps; ++i) {
 				std::cout << "====================\n"
-				          << "= " << vm_codes::name(code[pc]) << "\n"
+				          << "= " << vm_codes::name((*code)[pc]) << "\n"
 				          << "= call stack: " << call_stack << " pc: " << pc << "\n"
 				          << "====================" << std::endl;
-				if(step(code)) break;
+				if(step(*code)) break;
 				print_stack();
 			}
 			print_stack();
 		}
 
-		void run(Code const& code, vm_stack::Offset in) {
-			pc = in;
+		void run(RunnableCode const& input)
+		{
+			pc = input.code.main_entry_point;
 			top = stack;
-			this->code = &code;
+			this->code = input.code.output;
 
 			while(true) {
-				switch(code[pc]) {
+				switch((*code)[pc]) {
 #define M(r, data, instruction) case vm_codes::values::instruction: instruction(); break;
 					BOOST_PP_SEQ_FOR_EACH(M, _, ATL_VM_NORMAL_BYTE_CODES)
 #undef M

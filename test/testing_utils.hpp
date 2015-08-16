@@ -36,11 +36,12 @@ struct TrivialFunctions
 
 void run_code(atl::TinyVM& vm, atl::AssembleVM& input)
 {
+	atl::RunnableCode code(input);
 #ifdef DEBUGGING
 	atl::dbg_code(*input.output);
-    vm.run_debug(*input.output, input.main_entry_point, 100);
+	vm.run_debug(code, 100);
 #else
-    vm.run(*input.output, input.main_entry_point);
+    vm.run(code);
 #endif
 }
 

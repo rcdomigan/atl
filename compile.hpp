@@ -204,8 +204,11 @@ namespace atl
 
             ~SavedExcursion()
             {
-                compile->repl_reset();
-                compile->wrapped.main_entry_point = main_entry;
+	            if(compile)
+		            {
+			            compile->repl_reset();
+			            compile->wrapped.main_entry_point = main_entry;
+		            }
             }
         };
 
@@ -593,16 +596,6 @@ namespace atl
             return _Compile(wrap<Null>(), 0, tag<Any>::value);
         }
 
-        // For recursive entry (as with primitive macros).  The code
-        // generated isn't cleanly terminated.
-        tag_t in_place_any(Any ast)
-        {
-	        if(!wrapped.empty() && wrapped.back() == vm_codes::Tag<vm_codes::finish>::value)
-	            wrapped.pop_back();
-
-            return _compile(ast, wrapped, Context(false, false, unwrap<Ast>(ast))).result_tag;
-        }
-
         // Lets macros reach in and explicitly add values to the
         // PCode.  todo: This is not an ideal abstraction.
         void push_value(vm_stack::value_type value)
@@ -612,9 +605,9 @@ namespace atl
         // the VM for evaluation.
         tag_t any(Any ast)
         {
-            auto tag = in_place_any(ast);
-            wrapped.finish();
-            return tag;
+            return _compile
+	            (ast, wrapped, Context(false, false, unwrap<Ast>(ast)))
+	            .result_tag;
         }
 
         // Reset the pcode entry point to compile another expression (as for the REPL).
@@ -657,7 +650,9 @@ namespace atl
     {
         auto saved_excursion = compile->save_excursion();
         auto tag = compile->any(input);
-        vm.run(*compile->wrapped.output, compile->wrapped.main_entry_point);
+        RunnableCode code(compile->wrapped);
+
+        vm.run(code);
         return Any(tag, reinterpret_cast<void*>(vm.stack[0]));
     }
 }
