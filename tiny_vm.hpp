@@ -113,6 +113,7 @@ namespace atl {
 				cout << endl;
 				++pos;
 			}
+		cout << "<--- done printing code --->" << endl;
 	}
 
 
@@ -162,7 +163,6 @@ namespace atl {
 		const_iterator end() const { return output->end(); }
 		bool empty() const { return output->empty(); }
 
-		// iterator last() { return _end - 1; }
 		pcode::Offset pos_last() { return output->size() - 1;}
 		pcode::Offset pos_end() { return output->size(); }
 		value_type back() { return output->back(); }
@@ -384,13 +384,16 @@ namespace atl {
 		iterator begin() { return stack; }
 		iterator end() { return top; }
 
-		void print_stack() {
-			using namespace std;
-
-			for(auto vv : pointer_range(*this))
-				cout << " " << vv << ": @" << *vv << endl;
-		}
+		void print_stack();
 	};
+
+	void TinyVM::print_stack()
+	{
+		using namespace std;
+
+		for(auto vv : pointer_range(*this))
+			cout << " " << vv << ": @" << *vv << endl;
+	}
 }
 
 // Set the flag to compile this as an app that just prints the byte
