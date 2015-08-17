@@ -21,6 +21,7 @@
 #include "./type.hpp"
 #include "./gc.hpp"
 #include "./utility.hpp"
+#include "./exception.hpp"
 
 // Stack layout the opcodes expect, bottom --> top:
 //   if_                : [pc-of-alternate-branch][predicate-value]
@@ -339,7 +340,11 @@ namespace atl {
 #undef M
 				case vm_codes::values::finish:
 						return true;
-				default: return false;
+				default:
+					throw BadPCodeInstruction(std::string("Unknown instruction ")
+					                          .append(std::to_string(code[pc]))
+					                          .append(" at @")
+					                          .append(std::to_string(pc)));
 				}
 		}
 

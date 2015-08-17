@@ -27,6 +27,10 @@ namespace atl {
 	struct UnboundSymbolError : public std::runtime_error {
 		UnboundSymbolError(const std::string& what_arg) : std::runtime_error(what_arg) {}
 	};
+
+	struct BadPCodeInstruction : public std::runtime_error {
+		BadPCodeInstruction(const std::string& what_arg) : std::runtime_error(what_arg) {}
+	};
 }
 
 #endif
