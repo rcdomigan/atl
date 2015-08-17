@@ -140,7 +140,8 @@ namespace atl {
 
 		void _push_back(uintptr_t cc) { output->push_back(cc); }
 
-		AssembleVM& constant(uintptr_t cc) {
+		AssembleVM& constant(uintptr_t cc)
+		{
 			push();
 			_push_back(cc);
 			return *this;
@@ -148,7 +149,8 @@ namespace atl {
 
 		AssembleVM& pointer(void* cc) { return constant(reinterpret_cast<value_type>(cc)); }
 
-		AssembleVM& push_tagged(const Any& aa) {
+		AssembleVM& push_tagged(const Any& aa)
+		{
 			constant(aa._tag);
 			return pointer(aa.value);
 		}
@@ -170,34 +172,40 @@ namespace atl {
 
 
 		// Takes the offset to the body
-		AssembleVM& call_procedure(pcode::Offset body) {
+		AssembleVM& call_procedure(pcode::Offset body)
+		{
 			constant(reinterpret_cast<value_type>(body));
 			return call_procedure();
 		}
 
-		AssembleVM& argument(uintptr_t offset) {
+		AssembleVM& argument(uintptr_t offset)
+		{
 			constant(offset);
 			return argument();
 		}
 
-		AssembleVM& nested_argument(uintptr_t offset, uintptr_t hops) {
+		AssembleVM& nested_argument(uintptr_t offset, uintptr_t hops)
+		{
 			constant(offset);
 			constant(hops);
 			return nested_argument();
 		}
 
-		AssembleVM& return_(size_t num_args) {
+		AssembleVM& return_(size_t num_args)
+		{
 			constant(num_args);
 			return return_();
 		}
 
-		AssembleVM& tail_call(size_t num_args, size_t proc) {
+		AssembleVM& tail_call(size_t num_args, size_t proc)
+		{
 			constant(num_args);
 			constant(proc);
 			return tail_call();
 		}
 
-		AssembleVM& std_function(CxxFunctor::value_type* fn, size_t arity) {
+		AssembleVM& std_function(CxxFunctor::value_type* fn, size_t arity)
+		{
 			constant(arity);
 			pointer(reinterpret_cast<void*>(fn));
 			return std_function();

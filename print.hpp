@@ -79,14 +79,14 @@ namespace atl {
 
 	    case tag<Symbol>::value:
                 return out << "'" << unwrap<string>(a);
-            case tag<Type>::value:
-                {
-                    out << "#{";
-                    if(unwrap<Type>(a).value == nullptr)
-                        return out << "???}";
-                    else
-                        return unwrap<Type>(a).value->print(out) << "}";
-                }
+	    case tag<Type>::value:
+		    {
+			    out << "#{";
+			    if(unwrap<Type>(a).value == nullptr)
+				    return out << "???}";
+			    else
+				    return unwrap<Type>(a).value->print(out) << "}";
+		    }
 	    case tag<Fixnum>::value:
 		return out << value<Fixnum>(a);
 	    case tag<Bool>::value:

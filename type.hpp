@@ -120,15 +120,16 @@ namespace atl
     /* | |_| |  __/  _| | | | | | |_| | (_) | | | \__ \ */
     /* |____/ \___|_| |_|_| |_|_|\__|_|\___/|_| |_|___/ */
     /****************************************************/
-    struct Any {
-	tag_t _tag;
-	void *value;
+	struct Any
+	{
+		tag_t _tag;
+		void *value;
 
-	Any(const Any&) = default;
-	constexpr Any() : _tag(tag<Any>::value) , value(nullptr) {}
-	constexpr Any(tag_t t, void *v) : _tag(t) , value(v) {}
-	constexpr Any(tag_t t) : _tag(t) , value(nullptr) {}
-    };
+		Any(const Any&) = default;
+		constexpr Any() : _tag(tag<Any>::value) , value(nullptr) {}
+		constexpr Any(tag_t t, void *v) : _tag(t) , value(v) {}
+		constexpr Any(tag_t t) : _tag(t) , value(nullptr) {}
+	};
 
     bool operator==(const Any& aa, const Any& bb) {
 	return (aa._tag == bb._tag) && (aa.value == bb.value);
@@ -200,13 +201,14 @@ namespace atl
     Any atl_true() { return Any(tag<Bool>::value, (void*)true); }
     Any atl_false() { return Any(tag<Bool>::value, (void*)false); }
 
-    struct Pointer {
-	tag_t _tag;
-	void *value;
+	struct Pointer
+	{
+		tag_t _tag;
+		Any *value;
 
-	Pointer() : _tag(tag<Pointer>::value), value(NULL) {}
-	Pointer(void *value) : _tag(tag<Pointer>::value), value(value) {}
-    };
+		Pointer() : _tag(tag<Pointer>::value), value(NULL) {}
+		Pointer(Any *value) : _tag(tag<Pointer>::value), value(value) {}
+	};
 
 	/*********************/
 	/**  _ __     _     **/
