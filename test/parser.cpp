@@ -109,6 +109,23 @@ TEST_F(ParserTest, TestQuote) {
 }
 
 
+TEST_F(ParserTest, test_nested_quote)
+{
+	using namespace make_ast;
+	auto parsed = atl.parse.string_("(1 '(2 3) 4)");
+
+	auto expected = make
+		(lift(1),
+		 make(lift<Quote>(),
+		      make(lift(2),
+		           lift(3))),
+		 lift(4))
+		 (*atl.gc.dynamic_seq());
+
+    _check_nested(unwrap<Ast>(parsed), *expected);
+}
+
+
 TEST_F(ParserTest, test_stream_parsing)
 {
 	string contents = "(a b c)";
