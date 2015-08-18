@@ -141,6 +141,23 @@ TEST_F(ListTest, test_quote)
     }
 }
 
+
+TEST_F(ListTest, test_indexing)
+{
+    {
+        auto rval = atl.string_("(nth '(1 2 3) 0)");
+        ASSERT_EQ((unwrap<Fixnum>(*unwrap<Pointer>(rval).value).value),
+                  1);
+    }
+
+    {
+        auto rval = atl.string_("(nth '(1 2 3) 1)");
+        ASSERT_EQ((unwrap<Fixnum>(*unwrap<Pointer>(rval).value).value),
+                  2);
+    }
+}
+
+
 TEST_F(ListTest, test_slice)
 {
     auto result = atl.string_("(slice '(1 2 3 4) 2)");

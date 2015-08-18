@@ -69,6 +69,14 @@ namespace atl
 		auto cc = primitives::Constructor(env.lexical);
 		mpl::for_each<TypesVec, wrap_t_arg< mpl::placeholders::_1> >(cc);
 
+		wrap_function<Any* (AstData*, long)>
+			(env.lexical,
+			 "nth",
+			 [](AstData *ast, long n) -> Any*
+			{
+				return &Ast(ast)[n];
+			});
+
 		// (: A a) declares a to be of type A
 		wrap_macro(env.lexical, ":",
 		           [](Eval &eval, PrimitiveMacro::Input const& ast)
