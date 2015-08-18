@@ -80,6 +80,10 @@ namespace atl
         AssembleVM wrapped;
 
 	    bool _do_type_check;
+
+	    // Types are currently checked, but it's a primitive system.
+	    // A SupressTypeCheck, returned by Compile.supress_type_check,
+	    // can disable the checks where they are broken.
 	    struct SupressTypeCheck
 	    {
 		    Compile& compile;
