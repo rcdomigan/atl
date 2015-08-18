@@ -142,10 +142,19 @@ namespace atl
 
 		typedef std::function<void (DynamicVector&)> ast_composer;
 		template<class T>
-		ast_composer lift(T tt) {
+		ast_composer lift(T tt)
+		{
 			return [tt](DynamicVector& space)
 				{ space.push_back(wrap(tt)); };
 		}
+
+		template<class T>
+		ast_composer lift()
+		{
+			return [](DynamicVector& space)
+				{ space.push_back(wrap<T>()); };
+		}
+
 
 		struct _Run
 		{
