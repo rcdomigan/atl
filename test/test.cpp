@@ -16,6 +16,7 @@
 #include "./parser.cpp"
 #include "./compile.cpp"
 #include "./lists.cpp"
+#include "./primitive.cpp"
 #include "./macros.cpp"
 #include "./gc.cpp"
 #include "./type_deduction.cpp"

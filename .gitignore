@@ -9,6 +9,7 @@ test/gc
 test/lists
 test/macros
 test/parser
+test/primitive
 test/structs
 test/test
 test/type_deduction
