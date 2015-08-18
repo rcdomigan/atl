@@ -87,7 +87,6 @@ namespace atl
 			           tag_t rval;
 			           {
 				           auto frame = eval.compile->save_excursion();
-				           frame.enter_end();
 
 				           // TODO: I this should actually evauate,
 				           // and should return an abstract_type::Type

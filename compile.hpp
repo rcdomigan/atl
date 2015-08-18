@@ -194,13 +194,10 @@ namespace atl
             Compile *compile;
 	        pcode::Offset main_entry, end;
 
-            void enter_end()
-            { compile->wrapped.main_entry_point = end; }
-
             SavedExcursion(Compile* comp)
                 : compile(comp), main_entry(comp->wrapped.main_entry_point),
                   end(comp->wrapped.pos_end())
-            {}
+            { comp->wrapped.main_entry_point = end; }
 
             ~SavedExcursion()
             {
@@ -213,9 +210,7 @@ namespace atl
         };
 
         SavedExcursion save_excursion()
-        {
-            return SavedExcursion(this);
-        }
+	    { return SavedExcursion(this); }
 
         // What needs to be handled specially in the car of an Ast?
         _Form form(Ast ast, AssembleVM& code, Context context)
