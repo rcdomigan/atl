@@ -355,6 +355,14 @@ namespace atl
 		{
 			return new memory_pool::DynamicVector(100);
 		}
+
+		template<class Type, class ... Types>
+		Type* make(Types ... args)
+		{ return new Type (args...); }
+
+		template<class Type, class ... Types>
+		Any amake(Types ... args)
+		{ return Any( tag<Type>::value , make<Type>(args...)); }
 	};
 }
 
