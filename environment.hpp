@@ -43,7 +43,7 @@ namespace atl
 			auto tag = compile.any(value);
 			compile.assert_ready();
 			{
-				RunnableCode code(compile.wrapped);
+				RunnableCode code(compile.code);
 #ifdef DEBUGGING
 				compile.dbg();
 				vm.run_debug(code);

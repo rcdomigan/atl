@@ -35,7 +35,7 @@ struct CompilerTest : public ::testing::Test {
 TEST_F(CompilerTest, BasicApplication) {
     atl.compile.any(atl.parse.string_("(add2 5 7)"));
 
-    run_code(atl.vm, atl.compile.wrapped);
+    run_code(atl.vm, atl.compile.code);
 
     ASSERT_EQ(atl.vm.stack[0], 12);
 }
@@ -44,7 +44,7 @@ TEST_F(CompilerTest, NestedApplication) {
     auto ast = atl.parse.string_("(add2 (sub2 7 5) (add2 8 3))");
     atl.compile.any(ast);
 
-    run_code(atl.vm, atl.compile.wrapped);
+    run_code(atl.vm, atl.compile.code);
 
     ASSERT_EQ(atl.vm.stack[0], 13);
 }
@@ -62,15 +62,15 @@ TEST_F(CompilerTest, TestCxxStdFunction) {
 
     atl.compile.any(atl.parse.string_("(foo 3)"));
 
-    run_code(atl.vm, atl.compile.wrapped);
+    run_code(atl.vm, atl.compile.code);
     ASSERT_EQ(atl.vm.stack[0], 9);
 
-    atl.compile.wrapped = AssembleVM(&atl.gc.alloc_pcode());
+    atl.compile.code = AssembleVM(&atl.gc.alloc_pcode());
 
     multiple = 4;
     atl.compile.any(atl.parse.string_("(foo 3)"));
 
-    run_code(atl.vm, atl.compile.wrapped);
+    run_code(atl.vm, atl.compile.code);
     ASSERT_EQ(atl.vm.stack[0], 12);
 }
 
@@ -78,7 +78,7 @@ TEST_F(CompilerTest, IfTrue) {
     auto ast = atl.parse.string_("(if #t 3 4)");
     atl.compile.any(ast);
 
-    run_code(atl.vm, atl.compile.wrapped);
+    run_code(atl.vm, atl.compile.code);
     ASSERT_EQ(atl.vm.stack[0], 3);
 }
 
@@ -86,7 +86,7 @@ TEST_F(CompilerTest, IfFalse) {
     auto ast = atl.parse.string_("(if #f 3 4)");
     atl.compile.any(ast);
 
-    run_code(atl.vm, atl.compile.wrapped);
+    run_code(atl.vm, atl.compile.code);
     ASSERT_EQ(atl.vm.stack[0], 4);
 }
 
@@ -95,16 +95,16 @@ TEST_F(CompilerTest, BasicLambda) {
 
     compile.any(ast);
 
-    run_code(vm, compile.wrapped);
+    run_code(atl.vm, atl.compile.code);
 
-    ASSERT_EQ(vm.stack[0], 11);
+    ASSERT_EQ(11, atl.vm.stack[0]);
 }
 
 TEST_F(CompilerTest, LambdaWithIf) {
     auto ast = parse.string_("((\\ (a b) (if (equal2 a b) (add2 a b) (sub2 a b))) 7 3)");
     compile.any(ast);
 
-    run_code(vm, compile.wrapped);
+    run_code(atl.vm, atl.compile.code);
 
     ASSERT_EQ(vm.stack[0], 4);
 }
@@ -117,7 +117,7 @@ TEST_F(CompilerTest, BasicDefine) {
     ast = atl.parse.string_("(add2 foo foo)");
     atl.compile.any(ast);
 
-    run_code(atl.vm, atl.compile.wrapped);
+    run_code(atl.vm, atl.compile.code);
 
     ASSERT_EQ(atl.vm.stack[0], 6);
 }
@@ -130,7 +130,7 @@ TEST_F(CompilerTest, Backpatch) {
     ast = atl.parse.string_("(define-value foo 3)");
     atl.compile.any(ast);
 
-    run_code(atl.vm, atl.compile.wrapped);
+    run_code(atl.vm, atl.compile.code);
 
     ASSERT_EQ(atl.vm.stack[0], 6);
 }
@@ -153,7 +153,7 @@ TEST_F(CompilerTest, SimpleRecursion) {
     compile.any(parse.string_("(define-value simple-recur (\\ (a b) (if (equal2 0 a) b (simple-recur (sub2 a 1) (add2 b 1)))))"));
     compile.any(parse.string_("(simple-recur 3 2)"));
 
-    run_code(vm, compile.wrapped);
+    run_code(atl.vm, atl.compile.code);
 
     ASSERT_EQ(vm.stack[0], 5);
 }
@@ -170,8 +170,8 @@ TEST_F(CompilerTest, multiple_functions)
 	compile.any(parse.string_
 	            ("(add2 (simple-recur 2 3) (simple-recur2 2 0))"));
 
-	run_code(vm, compile.wrapped);
-	ASSERT_EQ(vm.stack[0], 13);
+	run_code(atl.vm, atl.compile.code);
+	ASSERT_EQ(13, atl.vm.stack[0]);
 }
 
 TEST_F(CompilerTest, relocate_pcode)
@@ -179,21 +179,21 @@ TEST_F(CompilerTest, relocate_pcode)
 	GC::PCodeAccumulator code1(10), code2(10);
 	code1.clear();
 
-	compile.wrapped.output = &code1;
-	auto no_check = compile.supress_type_check();
+	atl.compile.code.output = &code1;
+	auto no_check = atl.compile.supress_type_check();
 
 	compile.any(parse.string_
 	            ("(define-value simple-recur (\\ (a b) (if (equal2 0 a) b (simple-recur (sub2 a 1) (add2 b 1)))))"));
 
 	code2 = code1;
-	compile.wrapped.output = &code2;
+	atl.compile.code.output = &code2;
 
 	compile.any(parse.string_
 	            ("(define-value simple-recur2 (\\ (a b) (if (equal2 0 a) b (simple-recur2 (sub2 a 1) (add2 b 4 )))))"));
 	compile.any(parse.string_
 	            ("(add2 (simple-recur 2 3) (simple-recur2 2 0))"));
 
-	run_code(atl.vm, atl.compile.wrapped);
+	run_code(atl.vm, atl.compile.code);
 	ASSERT_GT(code2.capacity(), 10);
 	ASSERT_EQ(atl.vm.stack[0], 13);
 }

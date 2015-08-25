@@ -159,12 +159,11 @@ namespace atl
 				 for(auto& vv : ast)
 					 eval.compile->push_value(eval.compile->any(vv));
 
-				 eval.compile->wrapped.std_function(&unwrap<CxxFunctor>(env.lexical.toplevel.value("__alloc_ast__")).fn,
-				                                    ast.size() * 2);
+				 eval.compile->code.std_function(&unwrap<CxxFunctor>(env.lexical.toplevel.value("__alloc_ast__")).fn,
+				                                 ast.size() * 2);
 
 				 return tag<Ast>::value;
 			 });
-
 
 		auto cons_ast = WrapStdFunction<AstData* (vm_stack::value_type, vm_stack::value_type, AstData*)>::a
 			([&env](vm_stack::value_type value, vm_stack::value_type type, AstData *raw) -> AstData*
@@ -199,7 +198,7 @@ namespace atl
 				 switch(seq_type)
 					 {
 					 case tag<Ast>::value:
-						 eval.compile->wrapped.std_function(&cons_ast->fn, 3);
+						 eval.compile->code.std_function(&cons_ast->fn, 3);
 						 return tag<Ast>::value;
 					 default:
 						 throw WrongTypeError

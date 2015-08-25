@@ -77,7 +77,7 @@ namespace atl
         lexical::Map *_env;     // pushing a scope mutates where this points
         GC& gc;
 
-        AssembleVM wrapped;
+        AssembleVM code;
 
 	    bool _do_type_check;
 
@@ -94,12 +94,12 @@ namespace atl
 	    };
 
         Compile(LexicalEnvironment& env)
-	        : _env(&env.toplevel), gc(env.gc), wrapped(&gc.alloc_pcode()),
+	        : _env(&env.toplevel), gc(env.gc), code(&gc.alloc_pcode()),
 	          _do_type_check(true)
 	    {}
 
 	    Compile(lexical::Map& env, GC& gc_, GC::PCodeAccumulator& output_)
-		    : _env(&env), gc(gc_), wrapped(&output_),
+		    : _env(&env), gc(gc_), code(&output_),
 		      _do_type_check(true)
         {}
 
@@ -199,16 +199,16 @@ namespace atl
 	        pcode::Offset main_entry, end;
 
             SavedExcursion(Compile* comp)
-                : compile(comp), main_entry(comp->wrapped.main_entry_point),
-                  end(comp->wrapped.pos_end())
-            { comp->wrapped.main_entry_point = end; }
+                : compile(comp), main_entry(comp->code.main_entry_point),
+                  end(comp->code.pos_end())
+            { comp->code.main_entry_point = end; }
 
             ~SavedExcursion()
             {
 	            if(compile)
 		            {
 			            compile->repl_reset();
-			            compile->wrapped.main_entry_point = main_entry;
+			            compile->code.main_entry_point = main_entry;
 		            }
             }
         };
@@ -417,7 +417,7 @@ namespace atl
                         _env->define(sym.name, value);
 
                         if(_env->_prev == nullptr)
-                            wrapped.main_entry_point = code.pos_end();
+                            code.main_entry_point = code.pos_end();
 
                         return _Form(wrap<Null>(), 0, FormTag::done, body_result.result_tag);
                     }
@@ -598,26 +598,26 @@ namespace atl
         // Lets macros reach in and explicitly add values to the
         // PCode.  todo: This is not an ideal abstraction.
         void push_value(vm_stack::value_type value)
-        { wrapped.constant(value); }
+        { code.constant(value); }
 
         // For most external use.  The generated code can be passed to
         // the VM for evaluation.
         tag_t any(Any ast)
         {
             return _compile
-	            (ast, wrapped, Context(false, false, unwrap<Ast>(ast)))
+	            (ast, code, Context(false, false, unwrap<Ast>(ast)))
 	            .result_tag;
         }
 
         // Reset the pcode entry point to compile another expression (as for the REPL).
         void repl_reset()
         {
-	        wrapped.output->erase(wrapped.output->begin() + wrapped.main_entry_point,
-	                              wrapped.output->end());
+	        code.output->erase(code.output->begin() + code.main_entry_point,
+	                           code.output->end());
         }
 
         void reset()
-        { wrapped.clear(); }
+        { code.clear(); }
 
         void dbg();
 
@@ -641,15 +641,15 @@ namespace atl
 
     void Compile::dbg()
     {
-        cout << "Main entry point: " << wrapped.main_entry_point << endl;
-        dbg_code(*wrapped.output);
+        cout << "Main entry point: " << code.main_entry_point << endl;
+        dbg_code(*code.output);
     }
 
     Any Eval::any(Any input)
     {
         auto saved_excursion = compile->save_excursion();
         auto tag = compile->any(input);
-        RunnableCode code(compile->wrapped);
+        RunnableCode code(compile->code);
 
         vm.run(code);
         return Any(tag, reinterpret_cast<void*>(vm.stack[0]));
