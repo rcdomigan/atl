@@ -141,6 +141,25 @@ TEST_F(ListTest, test_quote)
     }
 }
 
+// Check that I can quote an embedded Ast
+TEST_F(ListTest, test_quote_embedded)
+{
+	using namespace make_ast;
+	Arena arena;
+
+	auto inner = make
+		(lift(1), lift(2), lift(3))
+		(*arena.dynamic_seq());
+
+	auto expr = make
+		(lift<Quote>(),
+		 lift(*inner))
+		(*arena.dynamic_seq());
+
+	assert_equiv(*expr,
+	             unwrap<Ast>(atl.parse.string_("'(1 2 3)")));
+}
+
 
 TEST_F(ListTest, test_indexing)
 {
@@ -157,10 +176,31 @@ TEST_F(ListTest, test_indexing)
     }
 }
 
+// Check that I can get the index of an embedded Ast
+TEST_F(ListTest, test_index_embedded)
+{
+	using namespace make_ast;
+	Arena arena;
+
+	auto inner = make
+		(lift<Quote>(),
+		 make(lift(1), lift(2), lift(3)))
+		(*arena.dynamic_seq());
+
+	auto expr = make
+		(lift(arena.amake<Symbol>("nth")),
+		 lift(*inner),
+		 lift(1))
+		(*arena.dynamic_seq());
+
+	auto rval = atl.eval(wrap(*expr));
+	ASSERT_EQ(unwrap<Fixnum>(*unwrap<Pointer>(rval).value).value,
+	          2);
+}
 
 TEST_F(ListTest, test_slice)
 {
-    auto result = atl.string_("(slice '(1 2 3 4) 2)");
+	auto result = atl.string_("(slice '(1 2 3 4) 2)");
 
     assert_equiv((unwrap<Slice>(result)),
                  (unwrap<Ast>(atl.parse.string_("(3 4)"))));
