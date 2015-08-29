@@ -32,6 +32,13 @@ struct CompilerTest : public ::testing::Test {
 };
 
 
+TEST_F(CompilerTest, test_compile_atom)
+{
+	atl.compile.any(atl.parse.string_("5"));
+	run_code(atl.vm, atl.compile.code);
+	ASSERT_EQ(atl.vm.stack[0], 5);
+}
+
 TEST_F(CompilerTest, BasicApplication) {
     atl.compile.any(atl.parse.string_("(add2 5 7)"));
 

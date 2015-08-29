@@ -21,6 +21,13 @@ struct AtlTest : public ::testing::Test {
     AtlTest() : atl() {}
 };
 
+TEST_F(AtlTest, test_atom)
+{
+	auto rval = atl.string_("5");
+	ASSERT_EQ(unwrap<Fixnum>(rval).value,
+	          5);
+}
+
 TEST_F(AtlTest, test_string_stream)
 {
 	std::stringstream output;
