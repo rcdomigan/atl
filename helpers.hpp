@@ -90,21 +90,17 @@ namespace atl
 		typedef typename vm_stack::value_type value_type;
 		template<class T>
 		vm_stack::value_type to_bytes(T input)
-		{
-			return reinterpret_cast<vm_stack::value_type>(input);
-		}
+		{ return reinterpret_cast<vm_stack::value_type>(input); }
 
 		// TODO: use the `std::is_integral` and static cast for all integral (and floating?) types.
 		value_type to_bytes(long input)
-		{
-			return static_cast<value_type>(input);
-		}
+		{ return static_cast<value_type>(input); }
 
 		value_type to_bytes(bool input)
-		{
-			return static_cast<value_type>(input);
-		}
+		{ return static_cast<value_type>(input); }
 
+		value_type to_bytes(void* input)
+		{ return reinterpret_cast<value_type>(input); }
 
 		template<class R>
 		struct PntrCaster

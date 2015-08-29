@@ -121,7 +121,13 @@ TEST_F(DeclareType, usable_in_lambda)
 
     ASSERT_EQ(unwrap<Fixnum>(atl.string_("((\\ (a) (add2 (: Fixnum a) 2)) 3)")).value,
               5);
+}
 
+
+// Deal with Asts
+TEST_F(DeclareType, test_declare_for_any)
+{
+	auto tag = atl.compile.any(atl.parse.string_("(: (nth '(1 2) 0) Fixnum)"));
 }
 
 // TEST_F(DeclareType, type_function)
