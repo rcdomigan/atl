@@ -1,0 +1,2 @@
+;; used to test atl.cpp
+(define-value foo (\ (a) (print-int (add2 a 3))))

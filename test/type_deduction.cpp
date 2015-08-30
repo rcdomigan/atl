@@ -127,7 +127,9 @@ TEST_F(DeclareType, usable_in_lambda)
 // Deal with Asts
 TEST_F(DeclareType, test_declare_for_any)
 {
-	auto tag = atl.compile.any(atl.parse.string_("(: (nth '(1 2) 0) Fixnum)"));
+	auto rval = atl.compile.any(atl.parse.string_("(: Fixnum (nth '(1 2) 0))"));
+	auto fixnum_tag = tag<Fixnum>::value;
+	ASSERT_EQ(fixnum_tag, rval);
 }
 
 // TEST_F(DeclareType, type_function)

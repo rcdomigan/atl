@@ -98,9 +98,9 @@ TEST_F(CompilerTest, IfFalse) {
 }
 
 TEST_F(CompilerTest, BasicLambda) {
-    auto ast = parse.string_("((\\ (a b) (add2 a b)) 4 7)");
+    auto ast = atl.parse.string_("((\\ (a b) (add2 a b)) 4 7)");
 
-    compile.any(ast);
+    atl.compile.any(ast);
 
     run_code(atl.vm, atl.compile.code);
 
@@ -108,12 +108,12 @@ TEST_F(CompilerTest, BasicLambda) {
 }
 
 TEST_F(CompilerTest, LambdaWithIf) {
-    auto ast = parse.string_("((\\ (a b) (if (equal2 a b) (add2 a b) (sub2 a b))) 7 3)");
-    compile.any(ast);
+    auto ast = atl.parse.string_("((\\ (a b) (if (equal2 a b) (add2 a b) (sub2 a b))) 7 3)");
+    atl.compile.any(ast);
 
     run_code(atl.vm, atl.compile.code);
 
-    ASSERT_EQ(vm.stack[0], 4);
+    ASSERT_EQ(4, atl.vm.stack[0]);
 }
 
 TEST_F(CompilerTest, BasicDefine) {
@@ -147,35 +147,38 @@ TEST_F(CompilerTest, DefineLambda) {
     // Check that the appropriate number of filler values have been
     // pushed to the stack.  This is a brittle test, but so it goes
     // for the moment.
-    compile.any(parse.string_("(define-value my-add3 (\\ (a b c) (add2 a b)))"));
-    compile.any(parse.string_("(define-value my-add1 (\\ (a) (my-add3 a a a)))"));
+    atl.compile.any(atl.parse.string_("(define-value my-add3 (\\ (a b c) (add2 a b)))"));
+    atl.compile.any(atl.parse.string_("(define-value my-add1 (\\ (a) (my-add3 a a a)))"));
 
-    ASSERT_EQ(unwrap<Procedure>(env.toplevel._local["my-add1"].value).tail_params,
-              3);
+    ASSERT_EQ(3,
+              unwrap<Procedure>(atl.lexical.toplevel._local["my-add1"].value).tail_params);
 }
 
 
-TEST_F(CompilerTest, SimpleRecursion) {
-	auto no_check = compile.supress_type_check();
-    compile.any(parse.string_("(define-value simple-recur (\\ (a b) (if (equal2 0 a) b (simple-recur (sub2 a 1) (add2 b 1)))))"));
-    compile.any(parse.string_("(simple-recur 3 2)"));
+TEST_F(CompilerTest, SimpleRecursion)
+{
+	auto no_check = atl.compile.supress_type_check();
+	atl.compile.any
+		(atl.parse.string_
+		 ("(define-value simple-recur (\\ (a b) (if (equal2 0 a) b (simple-recur (sub2 a 1) (add2 b 1)))))"));
+	atl.compile.any(atl.parse.string_("(simple-recur 3 2)"));
 
-    run_code(atl.vm, atl.compile.code);
+	run_code(atl.vm, atl.compile.code);
 
-    ASSERT_EQ(vm.stack[0], 5);
+	ASSERT_EQ(5, atl.vm.stack[0]);
 }
 
 
 TEST_F(CompilerTest, multiple_functions)
 {
-	auto no_check = compile.supress_type_check();
+	auto no_check = atl.compile.supress_type_check();
 
-	compile.any(parse.string_
-	            ("(define-value simple-recur (\\ (a b) (if (equal2 0 a) b (simple-recur (sub2 a 1) (add2 b 1)))))"));
-	compile.any(parse.string_
-	            ("(define-value simple-recur2 (\\ (a b) (if (equal2 0 a) b (simple-recur2 (sub2 a 1) (add2 b 4 )))))"));
-	compile.any(parse.string_
-	            ("(add2 (simple-recur 2 3) (simple-recur2 2 0))"));
+	atl.compile.any(atl.parse.string_
+	                ("(define-value simple-recur (\\ (a b) (if (equal2 0 a) b (simple-recur (sub2 a 1) (add2 b 1)))))"));
+	atl.compile.any(atl.parse.string_
+	                ("(define-value simple-recur2 (\\ (a b) (if (equal2 0 a) b (simple-recur2 (sub2 a 1) (add2 b 4 )))))"));
+	atl.compile.any(atl.parse.string_
+	                ("(add2 (simple-recur 2 3) (simple-recur2 2 0))"));
 
 	run_code(atl.vm, atl.compile.code);
 	ASSERT_EQ(13, atl.vm.stack[0]);
@@ -189,16 +192,16 @@ TEST_F(CompilerTest, relocate_pcode)
 	atl.compile.code.output = &code1;
 	auto no_check = atl.compile.supress_type_check();
 
-	compile.any(parse.string_
-	            ("(define-value simple-recur (\\ (a b) (if (equal2 0 a) b (simple-recur (sub2 a 1) (add2 b 1)))))"));
+	atl.compile.any(atl.parse.string_
+	                ("(define-value simple-recur (\\ (a b) (if (equal2 0 a) b (simple-recur (sub2 a 1) (add2 b 1)))))"));
 
 	code2 = code1;
 	atl.compile.code.output = &code2;
 
-	compile.any(parse.string_
-	            ("(define-value simple-recur2 (\\ (a b) (if (equal2 0 a) b (simple-recur2 (sub2 a 1) (add2 b 4 )))))"));
-	compile.any(parse.string_
-	            ("(add2 (simple-recur 2 3) (simple-recur2 2 0))"));
+	atl.compile.any(atl.parse.string_
+	                ("(define-value simple-recur2 (\\ (a b) (if (equal2 0 a) b (simple-recur2 (sub2 a 1) (add2 b 4 )))))"));
+	atl.compile.any(atl.parse.string_
+	                ("(add2 (simple-recur 2 3) (simple-recur2 2 0))"));
 
 	run_code(atl.vm, atl.compile.code);
 	ASSERT_GT(code2.capacity(), 10);

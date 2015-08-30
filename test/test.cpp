@@ -15,10 +15,10 @@
 #include "./vm.cpp"
 #include "./parser.cpp"
 #include "./compile.cpp"
+#include "./lists.cpp"
 #include "./macros.cpp"
 #include "./gc.cpp"
 #include "./type_deduction.cpp"
-#include "./lists.cpp"
 
 #include "./atl.cpp"
 
