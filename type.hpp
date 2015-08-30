@@ -88,12 +88,7 @@ namespace atl
 	struct elem;							\
 	template<> struct is_atl_type<elem> : public std::true_type {};	\
 	template<> struct Name<elem> { constexpr static const char* value = BOOST_PP_STRINGIZE( elem ) ; }; \
-	template<> struct _Tag<elem> { \
-		typedef _Tag<elem> type; \
-		typedef unsigned int value_type; \
-		const static value_type value = i; \
-		operator tag_t () { return value; } \
-	};
+	template<> struct _Tag<elem> : public std::integral_constant<tag_t, i> {};
 
     BOOST_PP_SEQ_FOR_EACH_I(M, _, ATL_TYPES_SEQ)
 #undef M
