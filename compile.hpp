@@ -288,11 +288,11 @@ namespace atl
                 case tag<Quote>::value:
                     {
                         // TODO: copy?  Not sure how to handle this with GC.
-                        code.pointer(ast[1].value);
+                        code.pointer(&ast[1]);
                         return _Form(wrap<Null>(),
                                      0,
                                      FormTag::done,
-                                     ast[1]._tag);
+                                     tag<Pointer>::value);
                     }
                 case tag<PrimitiveMacro>::value:
                     {

@@ -130,14 +130,16 @@ TEST_F(ListTest, test_quote)
     // need to tag the list memebers.  Make sure quoting works first.
     {
         auto rval = atl.string_("'(1 2 (a b))");
-        assert_equiv((unwrap<Ast>(rval)),
-                     (unwrap<Ast>(atl.parse.string_("(1 2 (a b))"))));
+
+        ASSERT_EQ(tag<Pointer>::value, rval._tag);
+        assert_equiv((unwrap<Ast>(atl.parse.string_("(1 2 (a b))"))),
+                     (unwrap<Ast>(*unwrap<Pointer>(rval).value)));
     }
 
     {
         auto rval = atl.string_("'(1)");
-        assert_equiv((unwrap<Ast>(rval)),
-                     (unwrap<Ast>(atl.parse.string_("(1)"))));
+        assert_equiv((unwrap<Ast>(atl.parse.string_("(1)"))),
+                     (unwrap<Ast>(*unwrap<Pointer>(rval).value)));
     }
 }
 
@@ -260,6 +262,7 @@ TEST_F(ListTest, test_list)
 TEST_F(ListTest, test_cons)
 {
     auto result = atl.string_("(cons 0 '(1))");
-    cout << printer::any(result) << endl;
+    assert_equiv(unwrap<Ast>(atl.parse.string_("(0 1)")),
+                 unwrap<Ast>(result));
 }
 
