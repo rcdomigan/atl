@@ -100,7 +100,8 @@ namespace atl
 		};
 	}
 
-	struct LexicalEnvironment {
+	struct LexicalEnvironment
+	{
 		std::map<tag_t, void*> type_class_map;
 
 		GC& gc;
@@ -115,6 +116,9 @@ namespace atl
 		void define(const std::string& name, Any value) {
 			toplevel.define(name, value);
 		}
+
+		Any& operator[](std::string const& key)
+		{ return toplevel.value(key); }
 	};
 }
 
