@@ -69,13 +69,11 @@ namespace atl
 		auto cc = primitives::Constructor(env.lexical);
 		mpl::for_each<TypesVec, wrap_t_arg< mpl::placeholders::_1> >(cc);
 
-		wrap_function<Any* (AstData*, long)>
+		wrap_function<Any* (Any*, long)>
 			(env.lexical,
 			 "nth",
-			 [](AstData *ast, long n) -> Any*
-			{
-				return &Ast(ast)[n];
-			});
+			 [](Any *ast, long n) -> Any*
+			{ return &unwrap<Ast>(*ast)[n]; });
 
 		// (: A a) declares a to be of type A
 		wrap_macro(env.lexical, ":",
@@ -165,11 +163,10 @@ namespace atl
 				 return tag<Ast>::value;
 			 });
 
-		auto cons_ast = WrapStdFunction<AstData* (vm_stack::value_type, vm_stack::value_type, AstData*)>::a
-			([&env](vm_stack::value_type value, vm_stack::value_type type, AstData *raw) -> AstData*
+		auto cons_ast = WrapStdFunction<AstData* (vm_stack::value_type, vm_stack::value_type, Ast*)>::a
+			([&env](vm_stack::value_type value, vm_stack::value_type type, Ast* ast) -> AstData*
 			 {
 				 using namespace ast_iterator;
-				 Ast seq(raw);
 
 				 auto output = env.gc.dynamic_seq();
 				 auto vec = output->end();
@@ -177,7 +174,7 @@ namespace atl
 
 				 output->push_back(Any(type,
 				                       reinterpret_cast<void*>(value)));
-				 std::copy(seq.begin(), seq.end(),
+				 std::copy(ast->begin(), ast->end(),
 				           std::back_insert_iterator<memory_pool::DynamicVector>(*output));
 
 				 vec->value = output->end();
@@ -197,7 +194,7 @@ namespace atl
 
 				 switch(seq_type)
 					 {
-					 case tag<Ast>::value:
+					 case tag<Pointer>::value:
 						 eval.compile->code.std_function(&cons_ast->fn, 3);
 						 return tag<Ast>::value;
 					 default:
@@ -206,12 +203,10 @@ namespace atl
 					 }
 			 });
 
-		wrap_function<Slice* (AstData*, long)>(env.lexical, "slice",
-		                                   [&env](AstData* raw, long nn) -> Slice*
+		wrap_function<Slice* (Ast*, long)>(env.lexical, "slice",
+		                                   [&env](Ast* ast, long nn) -> Slice*
 			{
-				Ast ast(raw);
-				auto out = env.gc.make<Slice>(ast.begin() + nn, ast.end());
-				return out;
+				return env.gc.make<Slice>(ast->begin() + nn, ast->end());
 			});
 
 	}
