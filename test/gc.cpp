@@ -24,10 +24,10 @@ TEST(TestGC, test_make_ast_gc_and_arena)
 
 	using namespace make_ast;
 	auto ast0 = make_ast::make(lift(1), lift(2), lift(3))
-		(*gc.dynamic_seq());
+		(ast_alloc(gc));
 
 	auto ast1 = make_ast::make(lift(1), lift(2), lift(3))
-		(*arena.dynamic_seq());
+		(ast_alloc(arena));
 
 	ASSERT_EQ(ast0->size(), 3);
 	ASSERT_EQ(ast1->size(), 3);

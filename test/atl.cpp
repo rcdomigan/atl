@@ -87,14 +87,14 @@ TEST_F(AtlTest, running_embedded_ast)
 		};
 
 	auto formals = make(lift(sym("a")), lift(sym("b")))
-		(*gc.dynamic_seq());
+		(ast_alloc(gc));
 
 	auto body = make(lift(sym("add2")),
 	                 make(lift(sym("add2")),
 	                      lift(sym("a")),
 	                      lift(2)),
 	                 lift(sym("b")))
-		(*gc.dynamic_seq());
+		(ast_alloc(gc));
 
 	auto expr =
 		make(make(lift(wrap<Lambda>()),
@@ -102,7 +102,7 @@ TEST_F(AtlTest, running_embedded_ast)
 		          lift(*body)),
 		     lift(1),
 		     lift(2))
-		 (*gc.dynamic_seq());
+		(ast_alloc(gc));
 
 	auto rval = atl.eval(wrap(*expr));
 	ASSERT_EQ((unwrap<Fixnum>(rval).value), 5);

@@ -151,12 +151,12 @@ TEST_F(ListTest, test_quote_embedded)
 
 	auto inner = make
 		(lift(1), lift(2), lift(3))
-		(*arena.dynamic_seq());
+		(ast_alloc(arena));
 
 	auto expr = make
 		(lift<Quote>(),
 		 lift(*inner))
-		(*arena.dynamic_seq());
+		(ast_alloc(arena));
 
 	assert_equiv(*expr,
 	             unwrap<Ast>(atl.parse.string_("'(1 2 3)")));
@@ -187,13 +187,13 @@ TEST_F(ListTest, test_index_embedded)
 	auto inner = make
 		(lift<Quote>(),
 		 make(lift(1), lift(2), lift(3)))
-		(*arena.dynamic_seq());
+		(ast_alloc(arena));
 
 	auto expr = make
-		(lift(arena.amake<Symbol>("nth")),
+		(sym("nth"),
 		 lift(*inner),
 		 lift(1))
-		(*arena.dynamic_seq());
+		(ast_alloc(arena));
 
 	auto rval = atl.eval(wrap(*expr));
 	ASSERT_EQ(unwrap<Fixnum>(*unwrap<Pointer>(rval).value).value,
@@ -215,7 +215,7 @@ TEST_F(ListTest, test_make_ast)
 
 	{
 		auto ast = make(lift(1), lift(2), lift(3))
-			(*atl.env.gc.dynamic_seq());
+			(ast_alloc(atl.env.gc));
 
 		assert_equiv((*ast),
 		             unwrap<Ast>(atl.parse.string_("(1 2 3)")));
@@ -225,7 +225,7 @@ TEST_F(ListTest, test_make_ast)
 		auto ast = make(lift(1),
 		                make(lift(2), lift(3)),
 		                lift(4))
-			(*atl.env.gc.dynamic_seq());
+			(ast_alloc(atl.env.gc));
 
 		assert_equiv((*ast),
 		             unwrap<Ast>(atl.parse.string_("(1 (2 3) 4)")));
@@ -243,7 +243,7 @@ TEST_F(ListTest, test_list)
     {
         auto rval = atl.string_("(Ast)");
         assert_equiv((unwrap<Ast>(rval)),
-                     (*make_ast::make()(*atl.env.gc.dynamic_seq())));
+                     (*make_ast::make()(make_ast::ast_alloc(atl.env.gc))));
     }
 
     {

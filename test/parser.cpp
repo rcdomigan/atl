@@ -88,7 +88,7 @@ TEST_F(ParserTest, nested_int_list)
 	         make(lift(4),
 	              lift(5)),
 	         lift(3))
-	    (*arena.dynamic_seq());
+	    (ast_alloc(arena));
 
     _check_nested(unwrap<Ast>(parsed),
                   *expected);
@@ -103,7 +103,7 @@ TEST_F(ParserTest, TestQuote) {
 	    make(lift<Quote>(),
 	         make(lift(2),
 	              lift(3)))
-	    (*atl.gc.dynamic_seq());
+	    (ast_alloc(atl.gc));
 
     _check_nested(unwrap<Ast>(parsed), *expected);
 }
@@ -120,7 +120,7 @@ TEST_F(ParserTest, test_nested_quote)
 		      make(lift(2),
 		           lift(3))),
 		 lift(4))
-		 (*atl.gc.dynamic_seq());
+		(ast_alloc(atl.gc));
 
     _check_nested(unwrap<Ast>(parsed), *expected);
 }
