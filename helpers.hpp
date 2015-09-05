@@ -134,41 +134,74 @@ namespace atl
 
 	namespace make_ast
 	{
-		using DynamicVector = memory_pool::DynamicVector;
+		// Maintains one 'dynamic_seq` for use with the make_ast functions
+		struct AstAllocator
+		{
+			AllocatorBase &allocator;
+			memory_pool::DynamicVector *seq_space;
 
-		typedef std::function<void (DynamicVector&)> ast_composer;
+			AstAllocator(AllocatorBase &aa)
+				: allocator(aa), seq_space(aa.sequence())
+			{}
+
+			Symbol* symbol(std::string const& name)
+			{ return allocator.symbol(name); }
+
+			AstAllocator& push_back(Any value)
+			{
+				seq_space->push_back(value);
+				return *this;
+			}
+
+			Ast* nest_ast()
+			{ return seq_space->push_seq<Ast>(); }
+
+			Any* end()
+			{ return seq_space->end(); }
+		};
+
+		AstAllocator ast_alloc(AllocatorBase& aa)
+		{ return AstAllocator(aa); }
+
+		typedef std::function<void (AstAllocator)> ast_composer;
 		template<class T>
 		ast_composer lift(T tt)
 		{
-			return [tt](DynamicVector& space)
+			return [tt](AstAllocator space)
 				{ space.push_back(wrap(tt)); };
 		}
 
 		template<class T>
 		ast_composer lift()
 		{
-			return [](DynamicVector& space)
+			return [](AstAllocator space)
 				{ space.push_back(wrap<T>()); };
+		}
+
+		ast_composer sym(std::string const& name)
+		{
+			return [name](AstAllocator heap)
+				{ heap.push_back(wrap(heap.symbol(name))); };
 		}
 
 
 		struct _Run
 		{
-			DynamicVector& space;
-			_Run(DynamicVector& ss) : space(ss) {}
+			AstAllocator space;
+			_Run(AstAllocator ss) : space(ss) {}
 
 			template<class Fn>
 			void operator()(Fn &fn) { fn(space); }
 		};
 
 		template<class ... Args>
-		std::function<Ast* (DynamicVector&)>
+		std::function<Ast* (AstAllocator)>
 		make(Args ... args)
 		{
 			auto tup = make_tuple(args...);
-			return [tup](DynamicVector& space) -> Ast*
+			return [tup](AstAllocator space) -> Ast*
 				{
-					auto ast = space.push_seq<Ast>();
+					auto ast = space.nest_ast();
 					_Run do_apply(space);
 
 					foreach_tuple(do_apply, tup);
