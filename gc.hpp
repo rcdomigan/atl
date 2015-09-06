@@ -221,7 +221,20 @@ namespace atl
 		};
 	}
 
-	class GC
+
+	// I would like some Asts generating functions to be able to use
+	// either the GC or an Arena at runtime,
+	struct AllocatorBase
+	{
+		virtual ~AllocatorBase() {}
+
+		virtual memory_pool::DynamicVector* sequence() = 0;
+		virtual Symbol* symbol(std::string const&) = 0;
+	};
+
+
+	// A mark-and-sweep GC. STUB
+	class GC : public AllocatorBase
 	{
 	private:
 		typedef std::list< Any > MarkType;
@@ -331,6 +344,12 @@ namespace atl
 			using DynamicVector = memory_pool::DynamicVector;
 			return new DynamicVector(initial_size);
 		}
+
+		virtual memory_pool::DynamicVector* sequence() override
+		{ return dynamic_seq(); }
+
+		virtual Symbol* symbol(std::string const& name) override
+		{ return make<Symbol>(name); }
 	};
 
 	template< class T,	memory_pool::Pool<T> GC::*member >
@@ -349,12 +368,12 @@ namespace atl
 		mark_args(gc, as...);
 	}
 
-	struct Arena
+	// A GC which collects all allocated objects when it goes out of
+	// scope. <STUB>
+	struct Arena : public AllocatorBase
 	{
 		memory_pool::DynamicVector* dynamic_seq(size_t size = 100)
-		{
-			return new memory_pool::DynamicVector(100);
-		}
+		{ return new memory_pool::DynamicVector(100); }
 
 		template<class Type, class ... Types>
 		Type* make(Types ... args)
@@ -363,6 +382,12 @@ namespace atl
 		template<class Type, class ... Types>
 		Any amake(Types ... args)
 		{ return Any( tag<Type>::value , make<Type>(args...)); }
+
+		virtual memory_pool::DynamicVector* sequence() override
+		{ return dynamic_seq(); }
+
+		virtual Symbol* symbol(std::string const& name) override
+		{ return make<Symbol>(name); }
 	};
 }
 
