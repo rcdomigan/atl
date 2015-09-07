@@ -25,6 +25,7 @@ namespace atl
 		using namespace primitives;
 
 		env.lexical.define("\\", wrap<Lambda>());
+		env.lexical.define(":", wrap<DeclareType>());
 		env.lexical.define("quote", wrap<Quote>());
 		env.lexical.define("if", wrap<If>());
 		env.lexical.define("#f", atl_false());
@@ -74,25 +75,6 @@ namespace atl
 			 "nth",
 			 [](Any *ast, long n) -> Any*
 			{ return &unwrap<Ast>(*ast)[n]; });
-
-		// (: A a) declares a to be of type A
-		wrap_macro(env.lexical, ":",
-		           [](Eval &eval, PrimitiveMacro::Input const& ast)
-		           {
-			           // requires a type-expr followed by an expr.
-			           // The whole shooting match is given the
-			           // Type.value as its type.
-			           tag_t rval;
-			           {
-				           auto frame = eval.compile->save_excursion();
-
-				           // TODO: I this should actually evauate,
-				           // and should return an abstract_type::Type
-				           rval = eval.compile->any(ast[0]);
-			           }
-			           eval.compile->any(ast[1]);
-			           return rval;
-		           });
 
 		static auto fn_construct_params = abstract_type::make_concrete({tag<Type>::value, tag<Type>::value});
 		fn_construct_params.front().count = abstract_type::Node::CountType::at_least_one;

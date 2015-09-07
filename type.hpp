@@ -80,8 +80,8 @@ namespace atl
     struct is_pimpl : public std::false_type {};
 
 
-#define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(Let)(Type)(Ast)(AstData)
 #define ATL_PIMPL_SEQ (Slice)(String)(Symbol)(Procedure)(Macro)(Undefined)(Parameter)(Method)(Struct)(CxxFunctor)(PrimitiveMacro)
+#define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(DeclareType)(Type)(Ast)(AstData)
 #define ATL_TYPES_SEQ ATL_REINTERPERABLE_SEQ ATL_PIMPL_SEQ(Mark)
 
 #define M(r, _, i, elem)						\
@@ -175,6 +175,13 @@ namespace atl
         tag_t _tag;
         long value;
         Lambda() : _tag(tag<Lambda>::value) {}
+    };
+
+    struct DeclareType
+    {
+        tag_t _tag;
+        long value;
+        DeclareType() : _tag(tag<DeclareType>::value) {}
     };
 
 

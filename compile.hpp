@@ -169,9 +169,11 @@ namespace atl
 
         // done     : The form has been evaluated, _compile can return
         // function : The form was a function, _compile should call
+	    // declare_type    : The form declares the type of a nested form
         enum class FormTag
-        { done, function };
+        { done, function, declare_type, macro_expansion };
 
+	    // Describe the thing-to-apply in an expression
         struct _Form
         {
             // result from 'form'
@@ -294,17 +296,21 @@ namespace atl
                                      FormTag::done,
                                      tag<Pointer>::value);
                     }
-                case tag<PrimitiveMacro>::value:
-                    {
-                        auto& fn = unwrap<PrimitiveMacro>(head).fn;
-                        Eval eval(this);
-                        auto type = fn(eval, slice(ast, 1));
-
-                        return _Form(wrap<Null>(),
-                                     0,
-                                     FormTag::done,
-                                     type);
-                    }
+                case tag<DeclareType>::value:
+	                {
+		                // requires a type-expr followed by an expr.
+		                // The whole shooting match is given the
+		                // Type.value as its type.
+		                tag_t rval;
+		                {
+			                auto frame = save_excursion();
+			                rval = Compile::any(ast[1]);
+		                }
+		                return _Form(wrap<Null>(),
+		                             0,
+		                             FormTag::declare_type,
+		                             rval);
+		           }
                 case tag<If>::value:
                     {
 	                    auto will_jump = [&]() -> pcode::Offset {
@@ -460,6 +466,12 @@ namespace atl
                     case FormTag::done:
                         return _Compile(form.applicable, form.pad_to, form.result_tag);
 
+                    case FormTag::declare_type:
+	                    {
+		                    auto rval = _compile(ast[2], code, context);
+		                    rval.result_tag = form.result_tag;
+		                    return rval;
+	                    }
                     case FormTag::function:
                         {
                             auto fn = form.applicable;
