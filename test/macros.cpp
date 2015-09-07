@@ -25,24 +25,42 @@ struct TestMacros : public ::testing::Test
 TEST_F(TestMacros, test_primitives)
 {
 	using namespace primitives;
-	Any first_item, second_item;
-
 	wrap_macro(atl.lexical, "foo",
-	           [&](Eval& eval, PrimitiveMacro::Input const& ast)
+	           [&](CxxMacro::Input const& ast) -> Any
 	           {
-		           first_item = ast[0];
-		           second_item = ast[1];
-		           return tag<If>::value;
+		           using namespace make_ast;
+		           return wrap
+			           (*make
+			            (lift<If>(),
+			             sym("#t"),
+			             make(lift<Quote>(), lift(ast[0])),
+			             make(lift<Quote>(), lift(ast[1])))
+			            (ast_alloc(atl.gc)));
 	           });
-	auto rtag = atl.compile.any(atl.parse.string_("(foo bar baz)"));
-	auto tmp_tag = tag<If>::value;
-	ASSERT_EQ(rtag,
-	          tmp_tag);
-	tmp_tag = tag<Symbol>::value;
-	ASSERT_EQ(first_item._tag,
-	          tmp_tag);
-	ASSERT_EQ((unwrap<Symbol>(first_item).name),
-	          "bar");
-	ASSERT_EQ((unwrap<Symbol>(second_item).name),
-	          "baz");
+	auto rval = atl.string_("(foo bar baz)");
+
+	ASSERT_EQ("bar", (unwrap<Symbol>(*unwrap<Pointer>(rval).value).name));
+}
+
+// Macro yielding a function
+TEST_F(TestMacros, test_applicable)
+{
+	using namespace primitives;
+	wrap_macro(atl.lexical, "foo",
+	           [&](CxxMacro::Input const& ast) -> Any
+	           {
+		           using namespace make_ast;
+		           return wrap
+			           (*make
+			            (make
+			             (lift<Lambda>(),
+			              make(sym("a"), sym("b")),
+			              make(sym("add2"), sym("a"), sym("b"))),
+			             lift(ast[0]),
+			             lift(ast[1]))
+			            (ast_alloc(atl.gc)));
+	           });
+	auto rval = atl.string_("(foo 2 3)");
+
+	ASSERT_EQ(5, (unwrap<Fixnum>(rval).value));
 }

@@ -14,9 +14,9 @@ namespace atl
 {
     namespace primitives
     {
-	    void wrap_macro(LexicalEnvironment& env, const std::string& name, PrimitiveMacro::Fn fn)
+	    void wrap_macro(LexicalEnvironment& env, const std::string& name, CxxMacro::Fn fn)
         {
-            env.define(name, wrap(new PrimitiveMacro(fn, name)));
+            env.define(name, wrap(new CxxMacro(fn, name)));
         }
 
         template<class T>

@@ -90,15 +90,15 @@ TEST_F(TypeBasics, ProcedureCall)
     ASSERT_TRUE(is<Fixnum>(atl.string_("((\\ (a b) (add2 a b)) 1 2)")));
 }
 
-struct DeclareType : public TypeBasics {};
+struct TestBasicTypeDeduction : public TypeBasics {};
 
-TEST_F(DeclareType, deduced_tag_test)
+TEST_F(TestBasicTypeDeduction, test_declared_type_tag)
 {
     // can't actually evauate; 'a' has no value.
     ASSERT_TRUE(is<Fixnum>(atl.compile.any(atl.parse.string_("(: Fixnum a)"))));
 }
 
-TEST_F(DeclareType, test_simple)
+TEST_F(TestBasicTypeDeduction, test_simple)
 {
     // can't actually evauate; 'a' has no value.
     ASSERT_TRUE(is<Fixnum>(atl.compile.any(atl.parse.string_("(add2 (: Fixnum 2) 3)"))));
@@ -110,7 +110,7 @@ TEST_F(DeclareType, test_simple)
 
 
 // Test that throwing in a type declaration doesn't break simple statements.
-TEST_F(DeclareType, usable_in_lambda)
+TEST_F(TestBasicTypeDeduction, usable_in_lambda)
 {
     auto tag = atl.compile.any(atl.parse.string_("(\\ (a) (add2 (: Fixnum a) 2))"));
     ASSERT_TRUE(is<Fixnum>(tag));
@@ -125,14 +125,15 @@ TEST_F(DeclareType, usable_in_lambda)
 
 
 // Deal with Asts
-TEST_F(DeclareType, test_declare_for_any)
+TEST_F(TestBasicTypeDeduction, test_declare_for_any)
 {
 	auto rval = atl.compile.any(atl.parse.string_("(: Fixnum (nth '(1 2) 0))"));
 	auto fixnum_tag = tag<Fixnum>::value;
 	ASSERT_EQ(fixnum_tag, rval);
 }
 
-// TEST_F(DeclareType, type_function)
-// {
-//     "(: (\\ (a b) (add2 a b)) (-> Fixnum Fixnum Fixnum))";
-// }
+TEST_F(TestBasicTypeDeduction, test_type_function)
+{
+	auto rval = atl.string_("(: (-> Fixnum Fixnum Fixnum) (\\ (a b) (add2 a b)))");
+	cout << type_name(rval) << endl;
+}
