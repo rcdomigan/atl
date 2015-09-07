@@ -232,32 +232,6 @@ TEST_F(ListTest, test_make_ast)
 	}
 }
 
-TEST_F(ListTest, test_list)
-{
-    {
-        auto rval = atl.string_("(Ast 1 2 3)");
-        assert_equiv((unwrap<Ast>(rval)),
-                     (unwrap<Ast>(atl.parse.string_("(1 2 3)"))));
-    }
-
-    {
-        auto rval = atl.string_("(Ast)");
-        assert_equiv((unwrap<Ast>(rval)),
-                     (*make_ast::make()(make_ast::ast_alloc(atl.env.gc))));
-    }
-
-    {
-        auto rval = atl.string_("(Ast 1 (Ast 2 3))");
-        assert_equiv((unwrap<Ast>(rval)),
-                     (unwrap<Ast>(atl.parse.string_("(1 (2 3))"))));
-    }
-
-    {
-        auto rval = atl.string_("(Ast 1 (Ast 2 3) 4)");
-        assert_equiv((unwrap<Ast>(rval)),
-                     (unwrap<Ast>(atl.parse.string_("(1 (2 3) 4)"))));
-    }
-}
 
 TEST_F(ListTest, test_cons)
 {
