@@ -52,22 +52,6 @@ namespace atl
         };
     }
 
-    struct Compile;
-
-    // Compiler information + a VM.
-    struct Eval
-    {
-        Compile* compile;
-        TinyVM vm;
-
-        Eval(Compile* outer)
-            : compile(outer)
-        {}
-
-        Any any(Any input);
-    };
-
-
     struct Compile
     {
         typedef AssembleVM::const_iterator iterator;
@@ -167,9 +151,10 @@ namespace atl
             return def->second.value;
         }
 
-        // done     : The form has been evaluated, _compile can return
-        // function : The form was a function, _compile should call
+	    // done            : The form has been evaluated, _compile can return
+	    // function        : The form was a function, _compile should call
 	    // declare_type    : The form declares the type of a nested form
+	    // macro_expansion : A new expression yielded by a macro
         enum class FormTag
         { done, function, declare_type, macro_expansion };
 
@@ -239,6 +224,12 @@ namespace atl
                 case tag<Symbol>::value:
                     head = value_or_undef(unwrap<Symbol>(head));
                     goto setup_form;
+
+                case tag<CxxMacro>::value:
+	                return _Form(unwrap<CxxMacro>(head).fn(slice(ast, 1)),
+	                             0,
+	                             FormTag::macro_expansion,
+	                             0);
 
                 case tag<Lambda>::value:
                     {
@@ -458,7 +449,6 @@ namespace atl
             switch(input._tag) {
             case tag<Ast>::value:
                 {
-                    // todo... does the IF form needs to move in here.
                     auto ast = unwrap<Ast>(input);
                     auto form = this->form(ast, code, context);
 
@@ -466,6 +456,11 @@ namespace atl
                     case FormTag::done:
                         return _Compile(form.applicable, form.pad_to, form.result_tag);
 
+                    case FormTag::macro_expansion:
+	                    {
+		                    input = form.applicable;
+		                    goto compile_value;
+	                    }
                     case FormTag::declare_type:
 	                    {
 		                    auto rval = _compile(ast[2], code, context);
@@ -482,7 +477,7 @@ namespace atl
                             size_t tail_size = 0;
 
                             if(is_procedure) {
-                                // The function called in tail position my
+                                // The function called in tail position may
                                 // tail call a function taking more parameters.
                                 tail_size = max(unwrap<Procedure>(fn).tail_params,
                                                 rest.size());
@@ -655,16 +650,6 @@ namespace atl
     {
         cout << "Main entry point: " << code.main_entry_point << endl;
         dbg_code(*code.output);
-    }
-
-    Any Eval::any(Any input)
-    {
-        auto saved_excursion = compile->save_excursion();
-        auto tag = compile->any(input);
-        RunnableCode code(compile->code);
-
-        vm.run(code);
-        return Any(tag, reinterpret_cast<void*>(vm.stack[0]));
     }
 }
 

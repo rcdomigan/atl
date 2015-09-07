@@ -17,9 +17,6 @@
 
 namespace atl
 {
-
-	Any nullP(Any a) { return is<Null>(a) ? atl_true() : atl_false();  }
-
 	void export_recursive_defs(Environment& env)
 	{
 		using namespace primitives;
@@ -131,46 +128,38 @@ namespace atl
 		/** | |___| \__ \ |_\__ \ **/
 		/** |_____|_|___/\__|___/ **/
 		/***************************/
+		wrap_function<AstData* (Any*, Ast*)>
 			(env.lexical,
+			 "cons-ast",
+			 [&env](Any* car, Ast* ast) -> AstData*
+			{
+				using namespace ast_iterator;
 
-		auto cons_ast = WrapStdFunction<AstData* (vm_stack::value_type, vm_stack::value_type, Ast*)>::a
-			([&env](vm_stack::value_type value, vm_stack::value_type type, Ast* ast) -> AstData*
-			 {
-				 using namespace ast_iterator;
+				auto output = env.gc.dynamic_seq();
+				auto vec = output->end();
+				output->push_back(Any(tag<AstData>::value, nullptr));
 
-				 auto output = env.gc.dynamic_seq();
-				 auto vec = output->end();
-				 output->push_back(Any(tag<AstData>::value, nullptr));
+				output->push_back(*car);
+				std::copy(ast->begin(), ast->end(),
+				          std::back_insert_iterator<memory_pool::DynamicVector>(*output));
 
-				 output->push_back(Any(type,
-				                       reinterpret_cast<void*>(value)));
-				 std::copy(ast->begin(), ast->end(),
-				           std::back_insert_iterator<memory_pool::DynamicVector>(*output));
-
-				 vec->value = output->end();
-				 return reinterpret_cast<AstData*>(vec);
-			 }
-			 , env.gc
-			 , "cons-ast");
+				vec->value = output->end();
+				return reinterpret_cast<AstData*>(vec);
+			});
 
 		wrap_macro
 			(env.lexical,
 			 "cons",
-			 [&, cons_ast](Eval& eval, PrimitiveMacro::Input const& ast) -> tag_t
+			 [&](CxxMacro::Input const& ast) -> Any
 			 {
-				 // push car's (value type)
-				 eval.compile->push_value(eval.compile->any(ast[0]));
-				 auto seq_type = eval.compile->any(ast[1]);
-
-				 switch(seq_type)
-					 {
-					 case tag<Pointer>::value:
-						 eval.compile->code.std_function(&cons_ast->fn, 3);
-						 return tag<Ast>::value;
-					 default:
-						 throw WrongTypeError
-							 (std::string("cons not defined for ").append(type_name(seq_type)));
-					 }
+				 using namespace make_ast;
+				 return wrap
+					 (*make
+					  (sym("cons-ast"),
+					   make(lift<Quote>(),
+					        lift(ast[0])),
+					   lift(ast[1]))
+					  (ast_alloc(env.gc)));
 			 });
 
 		wrap_function<Slice* (Ast*, long)>(env.lexical, "slice",

@@ -80,8 +80,8 @@ namespace atl
     struct is_pimpl : public std::false_type {};
 
 
-#define ATL_PIMPL_SEQ (Slice)(String)(Symbol)(Procedure)(Macro)(Undefined)(Parameter)(Method)(Struct)(CxxFunctor)(PrimitiveMacro)
 #define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(DeclareType)(Type)(Ast)(AstData)
+#define ATL_PIMPL_SEQ (Slice)(String)(Symbol)(Procedure)(Macro)(Undefined)(Parameter)(Method)(Struct)(CxxFunctor)(CxxMacro)
 #define ATL_TYPES_SEQ ATL_REINTERPERABLE_SEQ ATL_PIMPL_SEQ(Mark)
 
 #define M(r, _, i, elem)						\
@@ -417,15 +417,15 @@ namespace atl
 
 	struct Eval;
 
-    struct PrimitiveMacro
+    struct CxxMacro
     {
 	    using Input = Range<Ast::iterator>;
-	    using Fn = std::function<tag_t (Eval&, Input const&)>;
+	    using Fn = std::function<Any (Input const&)>;
 
 	    std::string const name;
 	    Fn fn;
 
-        PrimitiveMacro(Fn const& fn_,
+        CxxMacro(Fn const& fn_,
                        const std::string& name_)
 	        : name(name_), fn(fn_)
         {}
