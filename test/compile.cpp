@@ -78,7 +78,7 @@ TEST_F(CompilerTest, TestCxxStdFunction) {
     atl.compile.any(atl.parse.string_("(foo 3)"));
 
     run_code(atl.vm, atl.compile.code);
-    ASSERT_EQ(atl.vm.stack[0], 12);
+    ASSERT_EQ(12, atl.vm.result());
 }
 
 TEST_F(CompilerTest, IfTrue) {

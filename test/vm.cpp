@@ -87,7 +87,7 @@ TEST_F(VmTest, TestCxxStdFunction)
         .finish();
 
     run_code(vm, assemble);
-    ASSERT_EQ(vm.stack[0], 12);
+    ASSERT_EQ(12, vm.result());
 }
 
 TEST_F(VmTest, TestIfTrue)

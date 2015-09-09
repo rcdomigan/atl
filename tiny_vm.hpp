@@ -407,7 +407,6 @@ namespace atl {
 		void run(RunnableCode const& input)
 		{
 			pc = input.code.main_entry_point;
-			top = stack;
 			this->code = input.code.output;
 
 			while(true) {
@@ -421,6 +420,9 @@ namespace atl {
 
 		iterator begin() { return stack; }
 		iterator end() { return top; }
+
+		value_type result()
+		{ return *(top - 1); }
 
 		void print_stack();
 	};

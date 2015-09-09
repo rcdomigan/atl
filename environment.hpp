@@ -53,7 +53,7 @@ namespace atl
 			}
 			compile.repl_reset();
 
-			return Any(tag, reinterpret_cast<void*>(vm.stack[0]));
+			return Any(tag, reinterpret_cast<void*>(vm.result()));
 		}
 
 		tag_t struct_tag() { return _struct_tag++; }
