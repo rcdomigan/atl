@@ -129,12 +129,17 @@ TEST_F(TestBasicTypeDeduction, usable_in_lambda)
 TEST_F(TestBasicTypeDeduction, test_declare_for_any)
 {
 	auto rval = atl.compile.any(atl.parse.string_("(: Fixnum (nth '(1 2) 0))"));
-	auto fixnum_tag = tag<Fixnum>::value;
-	ASSERT_EQ(fixnum_tag, rval);
+	ASSERT_EQ(tag<Fixnum>::value, rval);
 }
 
 TEST_F(TestBasicTypeDeduction, test_type_function)
 {
 	auto rval = atl.string_("(: (-> Fixnum Fixnum Fixnum) (\\ (a b) (add2 a b)))");
 	cout << type_name(rval) << endl;
+}
+
+TEST_F(TestBasicTypeDeduction, test_applying_declared_type)
+{
+	auto rval = atl.string_("((: (-> Fixnum Fixnum Fixnum) (\\ (a b) (add2 a b))) 2 3)");
+	ASSERT_EQ(5, unwrap<Fixnum>(rval).value);
 }
