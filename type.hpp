@@ -35,6 +35,7 @@
 #include <boost/preprocessor/seq/enum.hpp>
 #include <boost/preprocessor/stringize.hpp>
 
+#include "./exception.hpp"
 #include "./utility.hpp"
 #include "./abstract_type.hpp"
 
@@ -226,6 +227,7 @@ namespace atl
 		template<class Value>
 		struct IteratorBase
 		{
+			// Should by Any or Any const
 			Value *value;
 			IteratorBase(Value* vv) : value(vv) {}
 			IteratorBase() = default;
@@ -236,14 +238,14 @@ namespace atl
 			IteratorBase& operator++()
 			{
 				using namespace std;
-				if( ((value->_tag == tag<Ast>::value))
+				if( ((value->_tag == tag<AstData>::value))
 				    && (value->value == value + 1))
-					value = &*reinterpret_cast<typename
-					                           conditional<is_const<Value>::value,
-					                                       add_const<Ast>,
-					                                       tmpl::Identity<Ast>
-					                                       >::type::type*
-					                           >(value)->end();
+					value = reinterpret_cast<typename
+					                         conditional<is_const<Value>::value,
+					                                     add_const<AstData>,
+					                                     tmpl::Identity<AstData>
+					                                     >::type::type*
+					                         >(value)->flat_end();
 				else
 					++value;
 				return *this;
@@ -274,32 +276,38 @@ namespace atl
 
 	struct AstData
 	{
+		typedef ast_helper::IteratorBase<Any> iterator;
+		typedef ast_helper::IteratorBase<const Any> const_iterator;
+
 		tag_t _tag;
-		Any* value;
-		AstData(Any* end)
-			: _tag(tag<AstData>::value), value(end)
+		// this + value is the last element of the collection.
+		size_t value;
+		AstData(size_t offset)
+			: _tag(tag<AstData>::value), value(offset)
 		{}
+
+		Any* flat_begin() { return reinterpret_cast<Any*>(this) + 1; }
+		Any* flat_end() { return reinterpret_cast<Any*>(this) + value; }
+		const Any* flat_begin() const { return reinterpret_cast<Any const*>(this) + 1; }
+		const Any* flat_end() const { return reinterpret_cast<Any const*>(this) + value; }
+
+		iterator begin() { return iterator(flat_begin()); }
+		const_iterator begin() const { return const_iterator(flat_begin()); }
+
+		iterator end() { return iterator(flat_end()); }
+		const_iterator end() const { return const_iterator(flat_end()); }
 	};
 
 	struct Ast
 	{
-		typedef AstData* value_type;
 		tag_t _tag;
-		value_type value;
-
-		Ast() = delete;
+		AstData* value;
 
 		Ast(AstData *begin_end)
 			: _tag(tag<Ast>::value), value(begin_end)
 		{}
 
-		Ast(Any *begin, Any *end)
-			: _tag(tag<Ast>::value)
-		{
-			value = reinterpret_cast<AstData*>(begin);
-			value->_tag = tag<AstData>::value;
-		}
-
+		Ast() : _tag(tag<Ast>::value), value(nullptr) {}
 		Ast(const Ast&) = default;
 
 		typedef ast_helper::IteratorBase<Any> iterator;
@@ -320,28 +328,39 @@ namespace atl
 			return *itr;
 		}
 
-		Any* flat_begin() { return reinterpret_cast<Any*>(value) + 1; }
-		Any* flat_end() { return reinterpret_cast<Any*>(value->value); }
-		const Any* flat_begin() const { return reinterpret_cast<Any const*>(value) + 1; }
-		const Any* flat_end() const { return reinterpret_cast<Any*>(value->value); }
+		iterator begin() { return value->begin(); }
+		const_iterator begin() const { return const_cast<AstData const*>(value)->begin(); }
 
-		iterator begin() { return iterator(flat_begin()); }
-		const_iterator begin() const { return const_iterator(flat_begin()); }
+		iterator end() { return value->end(); }
+		const_iterator end() const { return const_cast<AstData const*>(value)->end(); }
 
-		iterator end() { return iterator(flat_end()); }
-		const_iterator end() const { return const_iterator(flat_end()); }
-
-
-		Any* end_at(Any *pos)
-		{ return reinterpret_cast<Any*>(value->value = pos); }
-
-		Any* end_at(const iterator& pos)
-		{ return reinterpret_cast<Any*>(value->value = pos.value); }
 
 		size_t size() const { return end() - begin(); }
-
-		bool empty() const { return reinterpret_cast<Any*>(value) == value->value; }
+		bool empty() const { return value->value == 0; }
 	};
+
+	// Return an Ast pointing to an AstData `input` which was cast to
+	// Any.
+	Ast AstData_to_Ast(Any &input)
+	{ return Ast(&reinterpret_cast<AstData&>(input)); }
+
+	Ast Any_to_Ast(Any input)
+	{ return Ast(reinterpret_cast<AstData*>(input.value)); }
+
+
+	// Construct an Ast based on input's tagged type.
+	Ast to_Ast(Any& input)
+	{
+		switch(input._tag)
+			{
+			case tag<AstData>::value:
+				return to_Ast(input);
+			case tag<Ast>::value:
+				return reinterpret_cast<Ast&>(input);
+			default:
+				throw WrongTypeError("Can only wrap_ast Ast or AstData");
+			}
+	}
 
 	struct Parameter
 	{
@@ -471,7 +490,7 @@ namespace atl
 		    : _begin(&*begin), _end(&*end) {}
 
 	    Slice(Ast& ast)
-		    : _begin(ast.flat_begin()), _end(ast.flat_end())
+		    : _begin(&*ast.begin()), _end(&*ast.end())
 	    {}
 
 	    Slice(const Slice&) = default;
