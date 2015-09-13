@@ -65,54 +65,58 @@ namespace atl {
 	}
 
 	std::ostream& PrintAny::print(std::ostream& out) const {
-	    auto trim_addr = [](void *pntr) {
-		return reinterpret_cast<long>(pntr) & (256 - 1);
-	    };
+		auto trim_addr = [](void *pntr)
+			{ return reinterpret_cast<long>(pntr) & (256 - 1); };
 
 	    using namespace std;
-	    switch(a._tag) {
-	    case tag<Undefined>::value:
-                {
-                    out << "#<Undefined ";
-                    return out << ":" << hex << trim_addr(a.value) << ">";
-                }
-
-	    case tag<Symbol>::value:
-                return out << "'" << unwrap<string>(a);
-	    case tag<Type>::value:
+	    switch(a._tag)
 		    {
-			    out << "#{";
-			    if(unwrap<Type>(a).value == nullptr)
-				    return out << "???}";
-			    else
-				    return unwrap<Type>(a).value->print(out) << "}";
-		    }
-	    case tag<Fixnum>::value:
-		return out << value<Fixnum>(a);
-	    case tag<Bool>::value:
-		if(value<bool>(a))
-		    return out << "True";
-		else
-		    return out << "False";
-	    case tag<String>::value:
-		return out << '"' << *reinterpret_cast<string*>(a.value) << '"';
-	    case tag<CxxFunctor>::value:
-		return out << unwrap<CxxFunctor>(a)._name;
-	    case tag<Pointer>::value:
-		if(a.value)
-		    return out << "#<Pointer-" << hex << (reinterpret_cast<long>(a.value) & (256 - 1)) << ">";
-		else
-		    return out << "#<Pointer-NULL>";
-	    case tag<Ast>::value:
-		return out << range(unwrap<Ast>(a));
-	    case tag<Slice>::value:
-		return out << range(unwrap<Slice>(a), '[', ']');
-	    case tag<Procedure>::value:
-		return out << "#<\\ "
-			   << ">" << flush;
-	    default:
-		return out << "#<" << type_name(a._tag) << ">";
-	    }}
+		    case tag<Undefined>::value:
+			    {
+				    out << "#<Undefined ";
+				    return out << ":" << hex << trim_addr(a.value) << ">";
+			    }
+
+		    case tag<Symbol>::value:
+			    return out << "'" << unwrap<string>(a);
+		    case tag<Type>::value:
+			    {
+				    out << "#{";
+				    if(unwrap<Type>(a).value == nullptr)
+					    return out << "???}";
+				    else
+					    return unwrap<Type>(a).value->print(out) << "}";
+			    }
+		    case tag<Fixnum>::value:
+			    return out << value<Fixnum>(a);
+		    case tag<Bool>::value:
+			    {
+				    if(value<bool>(a))
+					    return out << "True";
+				    else
+					    return out << "False";
+			    }
+		    case tag<String>::value:
+			    return out << '"' << *reinterpret_cast<string*>(a.value) << '"';
+		    case tag<CxxFunctor>::value:
+			    return out << unwrap<CxxFunctor>(a)._name;
+		    case tag<Pointer>::value:
+			    {
+				    if(a.value)
+					    return out << "#<Pointer-" << hex << (reinterpret_cast<long>(a.value) & (256 - 1)) << ">";
+				    else
+					    return out << "#<Pointer-NULL>";
+			    }
+		    case tag<Ast>::value:
+			    return out << range(unwrap<Ast>(a));
+		    case tag<Slice>::value:
+			    return out << range(unwrap<Slice>(a), '[', ']');
+		    case tag<Procedure>::value:
+			    return out << "#<\\ "
+			               << ">" << flush;
+		    default:
+			    return out << "#<" << type_name(a._tag) << ">";
+		    }}
     }
 
     void dbg_any(Any vv)

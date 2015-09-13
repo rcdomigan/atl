@@ -94,34 +94,33 @@ TEST_F(ListTest, test_equiv_ast)
 {
     // Test manually constructed asts and my test harness's equiv
     // function.
-    auto seq = atl.gc.dynamic_seq();
-    auto car = seq->push_seq<Ast>();
+    auto& seq = atl.gc.sequence();
+    auto car = push_nested_ast(seq);
 
-    seq->push_back(wrap<Fixnum>(1));
-    seq->push_back(wrap<Fixnum>(2));
-    car->end_at(seq->end());
+    seq.push_back(wrap<Fixnum>(1));
+    seq.push_back(wrap<Fixnum>(2));
+    car->end_at(seq.size());
 
-    auto seq3 = atl.gc.dynamic_seq();
-    car = seq3->push_seq<Ast>();
+    auto& seq3 = atl.gc.sequence();
+    car = push_nested_ast(seq3);
 
-    seq3->push_back(wrap<Fixnum>(1));
-    seq3->push_back(wrap<Fixnum>(2));
-    car->end_at(seq3->end());
+    seq3.push_back(wrap<Fixnum>(1));
+    seq3.push_back(wrap<Fixnum>(2));
+    car->end_at(seq3.size());
 
-    auto seq2 = atl.gc.dynamic_seq();
-    car = seq2->push_seq<Ast>();
+    auto& seq2 = atl.gc.sequence();
+    car = push_nested_ast(seq2);
 
-    seq2->push_back(wrap<Fixnum>(1));
-    seq2->push_back(wrap<Fixnum>(2));
-    seq2->push_back(wrap<Fixnum>(3));
-    car->end_at(seq2->end());
+    seq2.push_back(wrap<Fixnum>(1));
+    seq2.push_back(wrap<Fixnum>(2));
+    seq2.push_back(wrap<Fixnum>(3));
+    car->end_at(seq2.size());
 
+    assert_equiv(unwrap<Ast>(seq[0]),
+                 unwrap<Ast>(seq3[0]));
 
-    assert_not_equiv((unwrap<Ast>(*seq->begin())),
-                     (unwrap<Ast>(*seq2->begin())));
-
-    assert_equiv((unwrap<Ast>(*seq->begin())),
-                 (unwrap<Ast>(*seq3->begin())));
+    assert_not_equiv((unwrap<Ast>(seq[0])),
+                     (unwrap<Ast>(seq2[0])));
 }
 
 TEST_F(ListTest, test_quote)
@@ -155,7 +154,7 @@ TEST_F(ListTest, test_quote_embedded)
 
 	auto expr = make
 		(lift<Quote>(),
-		 lift(*inner))
+		 lift(make_pointer(inner)))
 		(ast_alloc(arena));
 
 	assert_equiv(*expr,
@@ -191,11 +190,11 @@ TEST_F(ListTest, test_index_embedded)
 
 	auto expr = make
 		(sym("nth"),
-		 lift(*inner),
+		 lift(make_pointer(inner)),
 		 lift(1))
 		(ast_alloc(arena));
 
-	auto rval = atl.eval(wrap(*expr));
+	auto rval = atl.eval(wrap(make_pointer(expr)));
 	ASSERT_EQ(unwrap<Fixnum>(*unwrap<Pointer>(rval).value).value,
 	          2);
 }

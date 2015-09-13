@@ -80,7 +80,7 @@ namespace atl
     struct is_pimpl : public std::false_type {};
 
 
-#define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(DeclareType)(Type)(Ast)(AstData)
+#define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(DeclareType)(Type)(Ast)
 #define ATL_PIMPL_SEQ (Slice)(String)(Symbol)(Procedure)(Macro)(Undefined)(Parameter)(Method)(Struct)(CxxFunctor)(CxxMacro)
 #define ATL_TYPES_SEQ ATL_REINTERPERABLE_SEQ ATL_PIMPL_SEQ(Mark)
 
@@ -102,7 +102,7 @@ namespace atl
 #undef M
 
 
-    typedef mpl::vector26< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
+    typedef mpl::vector25< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
 
     template<class T>
     struct tag : public _Tag<typename std::remove_const<T>::type> {};
@@ -235,15 +235,8 @@ namespace atl
 
 			IteratorBase& operator++()
 			{
-				using namespace std;
-				if( ((value->_tag == tag<Ast>::value))
-				    && (value->value == value + 1))
-					value = &*reinterpret_cast<typename
-					                           conditional<is_const<Value>::value,
-					                                       add_const<Ast>,
-					                                       tmpl::Identity<Ast>
-					                                       >::type::type*
-					                           >(value)->end();
+				if(value->_tag == tag<Ast>::value)
+					value += reinterpret_cast<size_t>(value->value);
 				else
 					++value;
 				return *this;
@@ -272,35 +265,19 @@ namespace atl
 		};
 	}
 
-	struct AstData
-	{
-		tag_t _tag;
-		Any* value;
-		AstData(Any* end)
-			: _tag(tag<AstData>::value), value(end)
-		{}
-	};
-
 	struct Ast
 	{
-		typedef AstData* value_type;
+		typedef size_t value_type;
 		tag_t _tag;
 		value_type value;
 
 		Ast() = delete;
 
-		Ast(AstData *begin_end)
-			: _tag(tag<Ast>::value), value(begin_end)
+		Ast(value_type value_)
+			: _tag(tag<Ast>::value), value(value_)
 		{}
 
-		Ast(Any *begin, Any *end)
-			: _tag(tag<Ast>::value)
-		{
-			value = reinterpret_cast<AstData*>(begin);
-			value->_tag = tag<AstData>::value;
-		}
-
-		Ast(const Ast&) = default;
+		Ast(const Ast&) = delete;
 
 		typedef ast_helper::IteratorBase<Any> iterator;
 		typedef ast_helper::IteratorBase<const Any> const_iterator;
@@ -320,27 +297,19 @@ namespace atl
 			return *itr;
 		}
 
-		Any* flat_begin() { return reinterpret_cast<Any*>(value) + 1; }
-		Any* flat_end() { return reinterpret_cast<Any*>(value->value); }
-		const Any* flat_begin() const { return reinterpret_cast<Any const*>(value) + 1; }
-		const Any* flat_end() const { return reinterpret_cast<Any*>(value->value); }
+		Any* _begin() { return reinterpret_cast<Any*>(this) + 1; }
+		Any const* _begin() const { return reinterpret_cast<Any const*>(this) + 1; }
 
-		iterator begin() { return iterator(flat_begin()); }
-		const_iterator begin() const { return const_iterator(flat_begin()); }
+		iterator begin() { return iterator(_begin()); }
+		iterator end() { return iterator(_begin() + value); }
+		const_iterator begin() const { return const_iterator(_begin()); }
+		const_iterator end() const { return const_iterator(_begin() + value); }
 
-		iterator end() { return iterator(flat_end()); }
-		const_iterator end() const { return const_iterator(flat_end()); }
-
-
-		Any* end_at(Any *pos)
-		{ return reinterpret_cast<Any*>(value->value = pos); }
-
-		Any* end_at(const iterator& pos)
-		{ return reinterpret_cast<Any*>(value->value = pos.value); }
+		void end_at(size_t pos)
+		{ value = pos; }
 
 		size_t size() const { return end() - begin(); }
-
-		bool empty() const { return reinterpret_cast<Any*>(value) == value->value; }
+		bool empty() const { return value == 0; }
 	};
 
 	struct Parameter
@@ -479,7 +448,7 @@ namespace atl
 		    : _begin(&*begin), _end(&*end) {}
 
 	    Slice(Ast& ast)
-		    : _begin(ast.flat_begin()), _end(ast.flat_end())
+		    : _begin(ast.begin().value), _end(ast.end().value)
 	    {}
 
 	    Slice(const Slice&) = default;

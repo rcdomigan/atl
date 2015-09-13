@@ -113,7 +113,7 @@ namespace atl
         {
             bool tail;
             bool definition;
-            Ast expression;
+            Ast& expression;
             std::vector<tag_t> *observed_types;
 
             Context& set_tail(bool in)
@@ -127,11 +127,11 @@ namespace atl
                 return *this;
             }
 
-            Context(bool t, bool d, Ast ast)
+            Context(bool t, bool d, Ast& ast)
                 : tail(t), definition(d), expression(ast), observed_types(nullptr)
             {}
 
-            Context(bool t, bool d, Ast ast, std::vector<tag_t>* ot)
+            Context(bool t, bool d, Ast& ast, std::vector<tag_t>* ot)
                 : tail(t), definition(d), expression(ast), observed_types(ot)
             {}
 
@@ -204,7 +204,7 @@ namespace atl
 	    { return SavedExcursion(this); }
 
         // What needs to be handled specially in the car of an Ast?
-        _Form form(Ast ast, AssembleVM& code, Context context)
+        _Form form(Ast& ast, AssembleVM& code, Context context)
         {
             using namespace std;
 
@@ -449,7 +449,7 @@ namespace atl
             switch(input._tag) {
             case tag<Ast>::value:
                 {
-                    auto ast = unwrap<Ast>(input);
+                    auto& ast = unwrap<Ast>(input);
                     auto form = this->form(ast, code, context);
 
                     switch(form.form_tag) {

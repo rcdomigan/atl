@@ -86,7 +86,8 @@ namespace atl
 	}
 
 
-	namespace byte_code {
+	namespace byte_code
+	{
 		typedef typename vm_stack::value_type value_type;
 		template<class T>
 		vm_stack::value_type to_bytes(T input)
@@ -101,6 +102,9 @@ namespace atl
 
 		value_type to_bytes(void* input)
 		{ return reinterpret_cast<value_type>(input); }
+
+		value_type to_bytes(Pointer input)
+		{ return reinterpret_cast<value_type>(input.value); }
 
 		template<class R>
 		struct PntrCaster
@@ -138,10 +142,10 @@ namespace atl
 		struct AstAllocator
 		{
 			AllocatorBase &allocator;
-			memory_pool::DynamicVector *seq_space;
+			AstSubstrate *seq_space;
 
 			AstAllocator(AllocatorBase &aa)
-				: allocator(aa), seq_space(aa.sequence())
+				: allocator(aa), seq_space(&aa.sequence())
 			{}
 
 			Symbol* symbol(std::string const& name)
@@ -153,11 +157,11 @@ namespace atl
 				return *this;
 			}
 
-			Ast* nest_ast()
-			{ return seq_space->push_seq<Ast>(); }
+			MovableAstPointer nest_ast()
+			{ return push_nested_ast(*seq_space); }
 
-			Any* end()
-			{ return seq_space->end(); }
+			size_t size()
+			{ return seq_space->size(); }
 		};
 
 		AstAllocator ast_alloc(AllocatorBase& aa)
@@ -201,12 +205,13 @@ namespace atl
 			auto tup = make_tuple(args...);
 			return [tup](AstAllocator space) -> Ast*
 				{
+					// ast_pos needs to be positional!! ITERATOR WON'T WORK!
 					auto ast = space.nest_ast();
 					_Run do_apply(space);
 
 					foreach_tuple(do_apply, tup);
-					ast->end_at(space.end());
-					return ast;
+					ast->end_at(space.size());
+					return ast.pointer();
 				};
 		}
 	}

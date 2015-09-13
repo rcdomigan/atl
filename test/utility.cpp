@@ -64,8 +64,6 @@ TEST(Utilities, test_indexer)
 }
 
 
-
-
 TEST(Utilities, test_apply_tuple)
 {
 	struct Runner
