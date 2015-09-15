@@ -25,8 +25,8 @@ struct ParserTest : public ::testing::Test {
 };
 
 TEST_F(ParserTest, Atoms) {
-    ASSERT_EQ(unwrap<Fixnum>(atl.parse.string_("2")).value,
-              2);
+	ASSERT_EQ(2,
+	          unwrap<Fixnum>(atl.parse.string_("2")).value);
 
     ASSERT_EQ(unwrap<String>(atl.parse.string_("\"Hello, world!\"")).value,
               "Hello, world!");
@@ -34,8 +34,7 @@ TEST_F(ParserTest, Atoms) {
 }
 
 TEST_F(ParserTest, SimpleIntList) {
-    auto parsed = atl.parse.string_("(1 2 3)");
-    auto ast = ast_iterator::range(parsed);
+	auto& ast = unwrap<Ast>(atl.parse.string_("(1 2 3)"));
 
     auto expected = vector<Any>{
         wrap(1),
@@ -43,18 +42,24 @@ TEST_F(ParserTest, SimpleIntList) {
         wrap(3)
     };
 
-    for(auto& vv : zip(ast, expected)) {
-#ifdef DEBUGGING
-        cout << "parsed: " << printer::any(*get<0>(vv)) << "\nexpected: " << printer::any(*get<1>(vv)) << endl;
-#endif
-        ASSERT_EQ(*get<0>(vv), *get<1>(vv));
-    }
+    ASSERT_EQ(expected.size(),
+              ast.size());
 
+    for(auto& vv : zip(ast, expected))
+        ASSERT_EQ(*get<0>(vv), *get<1>(vv));
 }
 
 
 void _check_nested(Ast const& parsed, Ast const& expected)
 {
+#ifdef DEBUGGING
+	cout << "parsed: " << printer::range(parsed)
+	     << "\nexpected: " << printer::range(expected)
+	     << endl;
+#endif
+
+	ASSERT_EQ(expected.size(), parsed.size());
+
 	for(auto& vv : zip(parsed, expected))
 		{
 			ASSERT_EQ((*get<0>(vv))._tag,
@@ -64,14 +69,7 @@ void _check_nested(Ast const& parsed, Ast const& expected)
 				_check_nested(unwrap<Ast>(*get<0>(vv)),
 				              unwrap<Ast>(*get<1>(vv)));
 			else
-				{
-#ifdef DEBUGGING
-					cout << "parsed: " << printer::any(*get<0>(vv))
-					     << "\nexpected: " << printer::any(*get<1>(vv))
-					     << endl;
-#endif
-					ASSERT_EQ(*get<0>(vv), *get<1>(vv));
-				}
+				ASSERT_EQ(*get<0>(vv), *get<1>(vv));
 		}
 }
 
@@ -80,7 +78,7 @@ TEST_F(ParserTest, nested_int_list)
 {
 	Arena arena;
 	using namespace make_ast;
-    auto parsed = atl.parse.string_("(1 2 (4 5) 3)");
+    auto& parsed = atl.parse.string_("(1 2 (4 5) 3)");
 
     auto expected =
 	    make(lift(1),
@@ -90,14 +88,14 @@ TEST_F(ParserTest, nested_int_list)
 	         lift(3))
 	    (ast_alloc(arena));
 
-    _check_nested(unwrap<Ast>(parsed),
+    _check_nested(unwrap<Ast>(unwrap<Pointer>(parsed)),
                   *expected);
 }
 
 
 TEST_F(ParserTest, TestQuote) {
 	using namespace make_ast;
-    auto parsed = atl.parse.string_("'(2 3)");
+    auto& parsed = atl.parse.string_("'(2 3)");
 
     auto expected =
 	    make(lift<Quote>(),
@@ -112,7 +110,7 @@ TEST_F(ParserTest, TestQuote) {
 TEST_F(ParserTest, test_nested_quote)
 {
 	using namespace make_ast;
-	auto parsed = atl.parse.string_("(1 '(2 3) 4)");
+	auto& parsed = atl.parse.string_("(1 '(2 3) 4)");
 
 	auto expected = make
 		(lift(1),
@@ -131,8 +129,8 @@ TEST_F(ParserTest, test_stream_parsing)
 	string contents = "(a b c)";
 	stringstream as_stream(contents);
 
-	auto a = unwrap<Ast>(atl.parse.string_(contents));
-	auto b = unwrap<Ast>(atl.parse.stream(as_stream));
+	auto& a = unwrap<Ast>(atl.parse.string_(contents));
+	auto& b = unwrap<Ast>(atl.parse.stream(as_stream));
 
 	for(auto& vv : zip(a, b))
 		ASSERT_EQ(unwrap<Symbol>(*get<0>(vv)).name,
@@ -144,8 +142,8 @@ TEST_F(ParserTest, test_multi_line_stream_parsing)
 	string contents = "(1 2 3)\n\n(4 5 6)";
 	stringstream as_stream(contents);
 
-	auto a = unwrap<Ast>(atl.parse.stream(as_stream));
-	auto b = unwrap<Ast>(atl.parse.stream(as_stream));
+	auto& a = unwrap<Ast>(atl.parse.stream(as_stream));
+	auto& b = unwrap<Ast>(atl.parse.stream(as_stream));
 
 	vector<int> expected = {1, 2, 3};
 	for(auto& vv : zip(a, expected))
@@ -163,7 +161,7 @@ TEST_F(ParserTest, test_comments)
 {
 	string contents = ";; (a b c)\n (2 3 4)";
 
-	auto res = unwrap<Ast>(atl.parse.string_(contents));
+	auto& res = unwrap<Ast>(atl.parse.string_(contents));
 
     auto expected = vector<Any>{
         wrap(2),

@@ -26,200 +26,214 @@
 
 namespace atl
 {
-    // A simple minded parser, this just transforms a string into an
-    // Ast.  There are a couple of reserved symbols:
-    //
-    //   '(' ')'         : Open and close an Ast branch
-    //
-    //   DELIM '\'' : 'n expands to (quote n) (should probably be a
-    //                 macro).  Can still be used as part of a
-    //                 variable name (ie x and x' are both valid
-    //                 symbols).
-    //
-    //   '\"' : starts and ends a string literal
+	// A simple minded parser, this just transforms a string into an
+	// Ast.  There are a couple of reserved symbols:
 	//
-    //   DELIM 0..9 DELIM: a number (a number must be all digits ie
-    //                     124567, possibly with a decimal point.  If
-    //                     there is a non-digit ie 12345a, it is a
-    //                     symbol.  hex/octal/binary representations
-    //                     are not a thing ATM).
+	//   '(' ')'         : Open and close an Ast branch
+	//
+	//   DELIM '\'' : 'n expands to (quote n) (should probably be a
+	//                 macro).  Can still be used as part of a
+	//                 variable name (ie x and x' are both valid
+	//                 symbols).
+	//
+	//   '\"' : starts and ends a string literal
+	//
+	//   DELIM 0..9 DELIM: a number (a number must be all digits ie
+	//                     124567, possibly with a decimal point.  If
+	//                     there is a non-digit ie 12345a, it is a
+	//                     symbol.  hex/octal/binary representations
+	//                     are not a thing ATM).
 	//  ';' : comments out to the end of line
-    class ParseString
-    {
-    private:
-
-	template<class Itr>
-	void skip_ws_and_comments(Itr &itr, Itr const& end)
+	class ParseString
 	{
-		for(; itr != end; ++itr)
-			{
-				if(*itr == ';')
-					for(; (itr != end) && (*itr != '\n'); ++itr);
-				else if(!std::isspace(*itr))
-					return;
+	private:
 
-				if(*itr == '\n')
-					++_line;
-			}
-	}
+		template<class Itr>
+		void skip_ws_and_comments(Itr &itr, Itr const& end)
+		{
+			for(; itr != end; ++itr)
+				{
+					if(*itr == ';')
+						for(; (itr != end) && (*itr != '\n'); ++itr);
+					else if(!std::isspace(*itr))
+						return;
+
+					if(*itr == '\n')
+						++_line;
+				}
+		}
 
 
-	GC &_gc;
-	unsigned long _line;
+		GC &_gc;
+		unsigned long _line;
 
-	static const string delim;	/* symbol deliminator */
-	static const string _ws; 	/* white space */
-	string scratch;
+		static const string delim;	/* symbol deliminator */
+		static const string _ws; 	/* white space */
+		string scratch;
 
-	inline bool digit(char c) { return ((c >= '0') && (c <= '9')); }
-	bool string_is_number(const string& str) {
-	    return (digit(str[0]) || ((str[0] == '-') && (str.length() > 1) && digit(str[1])));
-	}
+		inline bool digit(char c) { return ((c >= '0') && (c <= '9')); }
+		bool string_is_number(const string& str)
+		{
+			return (digit(str[0])
+			        || ((str[0] == '-')
+			            && (str.length() > 1) && digit(str[1])));
+		}
 
-	template<class Itr>
-	void parse(AstSubstrate &vec, Itr &&itr, Itr &&end) {
-	    for(; itr != end; ++itr) {
-		switch(*itr)
-                    {
-                    case '\n':
-                        ++_line;
-                    case ' ':		/* whitespace */
-                    case '\t':
-                        continue;
+		template<class Itr>
+		void parse(AstSubstrate &vec, Itr &&itr, Itr &&end)
+		{
+			for(; itr != end; ++itr)
+				{
+					switch(*itr)
+						{
+						case '\n':
+							++_line;
+						case ' ':		/* whitespace */
+						case '\t':
+							continue;
 
-                    case ';': 		/* comment */
-                        for(; itr != end && *itr != '\n'; ++itr);
-                        if(*itr == '\n') ++_line;
-                        continue;
+						case ';': 		/* comment */
+							for(; itr != end && *itr != '\n'; ++itr);
+							if(*itr == '\n') ++_line;
+							continue;
 
-                    case '\'':
-                        {		/* quote */
-	                        auto quote = push_nested_ast(vec);
-                            vec.push_back(wrap<Quote>());
+						case '\'':
+							{		/* quote */
+								auto quote = push_nested_ast(vec);
+								vec.push_back(wrap<Quote>());
 
-                            ++itr;
-                            parse(vec, itr, end);
-                            quote->end_at(vec.size());
-                            return;
-                        }
+								++itr;
+								parse(vec, itr, end);
+								quote.end_ast();
+								return;
+							}
 
-                    case '(':
-                        {		/* sub expression */
-                            ++itr;
-                            if(*itr == ')') {
-	                            auto null = push_nested_ast(vec);
-	                            null->end_at(vec.size());
-                                return;
-                            }
+						case '(':
+							{		/* sub expression */
+								++itr;
+								if(*itr == ')') {
+									push_nested_ast(vec);
+									return;
+								}
 
-                            auto ast = push_nested_ast(vec);
-                            while(*itr != ')')
-                                {
-                                    if(itr == end)
-                                        throw UnbalancedParens
-                                            (to_string(_line)
-                                             .append(": error: unbalanced parens"));
-                                    parse(vec, itr, end);
-                                }
+								auto ast = push_nested_ast(vec);
+								while(*itr != ')')
+									{
+										if(itr == end)
+											throw UnbalancedParens
+												(std::to_string(_line)
+												 .append(": error: unbalanced parens"));
+										parse(vec, itr, end);
+									}
 
-                            ++itr;
-                            ast->end_at(vec.size());
-                            return;
-                        }
+								++itr;
+								ast.end_ast();
+								return;
+							}
 
-                    case ')': return;
+						case ')': return;
 
-                    case '"':
-                        {		/* string */
-                            std::string *str = reinterpret_cast<std::string*>(_gc.make<String>());
+						case '"':
+							{		/* string */
+								std::string *str = reinterpret_cast<std::string*>(_gc.make<String>());
 
-                            for(++itr; *itr != '"'; ++itr)
-                                {
-                                    if(itr == end) throw to_string(_line)
-                                                       .append("string not terminated.");
-                                    if(*itr == '\n') ++_line;
+								for(++itr; *itr != '"'; ++itr)
+									{
+										if(itr == end) throw to_string(_line)
+											               .append("string not terminated.");
+										if(*itr == '\n') ++_line;
 
-                                    str->push_back(*itr);
-                                }
+										str->push_back(*itr);
+									}
 
-                            ++itr;
-                            vec.emplace_back(tag<String>::value, str);
-                            return;
-                        }
+								++itr;
+								vec.emplace_back(tag<String>::value, str);
+								return;
+							}
 
-                    default:
-                        {
-                            scratch.clear();
+						default:
+							{
+								scratch.clear();
 
-                            for(; (itr != end) && (delim.find(*itr) == string::npos); ++itr)
-                                scratch.push_back(*itr);
+								for(; (itr != end) && (delim.find(*itr) == string::npos); ++itr)
+									scratch.push_back(*itr);
 
-                            if((itr != end) && (*itr == '\n')) ++_line;
+								if((itr != end) && (*itr == '\n')) ++_line;
 
-                            if(string_is_number(scratch))
-                                {
-	                                vec.push_back(wrap(atoi(scratch.c_str())));
-                                }
-                            else
-                                {
-	                                vec.push_back(_gc.amake<Symbol>(scratch));
-                                }
+								if(string_is_number(scratch))
+									{
+										vec.push_back(wrap(atoi(scratch.c_str())));
+									}
+								else
+									{
+										vec.push_back(_gc.amake<Symbol>(scratch));
+									}
 
-                            return;
-                        }
-                    }
-            }
-	    return;
-	}
+								return;
+							}
+						}
+				}
+			return;
+		}
 
-    public:
-	ParseString(GC &gc) : _gc(gc) {
-	    _line = 1;
-	    //_gc.mark_callback( [this](GC &gc) { _gc.mark(_mark); });
-	}
+	public:
+		ParseString(GC &gc) : _gc(gc) {
+			_line = 1;
+			//_gc.mark_callback( [this](GC &gc) { _gc.mark(_mark); });
+		}
 
-	    /* parse one S-expression from a string into an ast */
-	Any& string_(const std::string& input) {
-	    auto& vec = _gc.sequence();
-	    vec.push_back(nil<Null>::value());
+		// An Ast must be wrapped as in a Pointer since its address is
+		// part of its data.
+		Any _wrap_result(Any& input)
+		{
+			if(is<Ast>(input))
+				return Any(tag<Pointer>::value, &input);
+			else
+				return input;
+		}
 
-	    auto itr = input.begin(),
-		    end = input.end();
-	    parse(vec, itr, end);
+		/* parse one S-expression from a string into an ast */
+		Any& string_(const std::string& input)
+		{
+			auto& vec = _gc.sequence();
 
-	    // Check that there was just one expression in our string
-	    while(itr != input.end() && std::isspace(*itr)) ++itr;
-	    if(itr != input.end())
-		    throw MultiExpressionString(std::string("More than one expression in `")
-		                                .append(input)
-		                                .append("`"));
+			auto itr = input.begin(),
+				end = input.end();
+			parse(vec, itr, end);
 
-	    return *vec.begin();
-	}
+			// Check that there was just one expression in our string
+			while(itr != input.end() && std::isspace(*itr)) ++itr;
+			if(itr != input.end())
+				throw MultiExpressionString(std::string("More than one expression in `")
+				                            .append(input)
+				                            .append("`"));
 
-	/* parse one S-expression from a stream into an ast */
-	Any& stream(istream &stream) {
-	    auto initial_flags = stream.flags();
-	    noskipws(stream);
+			return _wrap_result(*vec.begin());
+		}
 
-	    auto& vec = _gc.sequence();
-	    vec.push_back(nil<Null>::value());
+		/* parse one S-expression from a stream into an ast */
+		Any& stream(istream &stream)
+		{
+			auto initial_flags = stream.flags();
+			noskipws(stream);
 
-	    auto itr = istreambuf_iterator<char>(stream),
-		    end = istreambuf_iterator<char>();
-	    parse(vec, itr, end);
+			auto& vec = _gc.sequence();
 
-	    // Swallow any following whitepace or comments so the caller
-	    // of the parser doesn't have to check.
-	    skip_ws_and_comments(itr, end);
+			auto itr = istreambuf_iterator<char>(stream),
+				end = istreambuf_iterator<char>();
+			parse(vec, itr, end);
 
-	    stream.flags(initial_flags);
-	    return *vec.begin();
-	}
+			// Swallow any following whitepace or comments so the caller
+			// of the parser doesn't have to check.
+			skip_ws_and_comments(itr, end);
 
-	void reset_line_number() { _line = 1; }
-    };
-    const std::string ParseString::_ws = " \n\t";
-    const std::string ParseString::delim = "()\" \n\t";
+			stream.flags(initial_flags);
+			return _wrap_result(*vec.begin());
+		}
+
+		void reset_line_number() { _line = 1; }
+	};
+	const std::string ParseString::_ws = " \n\t";
+	const std::string ParseString::delim = "()\" \n\t";
 }
 #endif
