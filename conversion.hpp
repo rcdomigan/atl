@@ -41,7 +41,22 @@ namespace atl {
 	static inline T& unwrap(Any& input) { return unwrapping::Any<T>::a(input); }
 
 	template<class T>
-	static inline T const& unwrap(Any const& input) { return unwrapping::Any<T>::a(input); }
+	static inline T& unwrap(void* input)
+	{ return unwrapping::Any<T>::a(*reinterpret_cast<Any*>(input)); }
+
+
+	template<class T>
+	static inline T const& unwrap(Any const* input)
+	{ return unwrapping::Any<T>::a(*input); }
+
+	template<class T>
+	static inline T const& unwrap(Any const& input)
+	{
+		static_assert(!std::is_same<T, Ast>::value,
+		              "Can't pass Asts by value, and C++ can't tell if this was passed by "
+		              "value or const reference.");
+		return unwrapping::Any<T>::a(input);
+	}
 
 	/*********************************/
 	/* __        __                  */
