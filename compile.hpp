@@ -208,21 +208,30 @@ namespace atl
         {
             using namespace std;
 
-            auto head = ast[0];
-            auto result = [&head](Any aa, size_t ss, FormTag ff)
-                { return _Form(aa, ss, ff, head._tag); };
+            Any scratch;
+            Any* head = &ast[0];
 
-            auto compile_tail = [&](Any input)
+            // Stash a value and point head to it
+            auto value_to_head = [&](Any const& value)
+	            {
+		            scratch = value;
+		            head = &scratch;
+	            };
+
+            auto result = [&head](Any aa, size_t ss, FormTag ff)
+                { return _Form(aa, ss, ff, head->_tag); };
+
+            auto compile_tail = [&](Any& input)
                 {
-                    return _compile(input, code,
+                    return _compile(&input, code,
                                     Context(context.tail, false, ast));
                 };
 
         setup_form:
-            switch(head._tag)
+            switch(head->_tag)
                 {
                 case tag<Symbol>::value:
-                    head = value_or_undef(unwrap<Symbol>(head));
+	                value_to_head(value_or_undef(unwrap<Symbol>(head)));
                     goto setup_form;
 
                 case tag<CxxMacro>::value:
@@ -233,13 +242,13 @@ namespace atl
 
                 case tag<Lambda>::value:
                     {
-                        auto formals = ast_iterator::range(ast[1]);
+	                    auto& formals = unwrap<Ast>(ast[1]);
                         auto size = ast_iterator::size(formals);
 
                         compile_helpers::IncHopRAII inc_hops(_env);
                         lexical::MapRAII local(&_env);
 
-                        for(auto ff : zip(ast_iterator::range(ast[1]),
+                        for(auto ff : zip(unwrap<Ast>(ast[1]),
                                           CountingRange()))
                             local.map.define(unwrap<Symbol>(*get<0>(ff)).name,
                                              // The `offset` should go high to low
@@ -254,7 +263,7 @@ namespace atl
                         auto compile_body = [&]()
                             {
                                 entry_point = code.pos_end();
-                                auto comp_val = _compile(ast[2], code, context);
+                                auto comp_val = _compile(&ast[2], code, context);
 
                                 // Might need to allocate for more params to make the tail call happy
                                 size = max(size, comp_val.pad_to);
@@ -272,7 +281,6 @@ namespace atl
                                 SkipBlock my_def(code);
                                 comp_val = compile_body();
                             }
-
                         return _Form(gc.amake<Procedure>(entry_point, size, comp_val.result_tag),
                                      0,
                                      FormTag::done,
@@ -310,7 +318,7 @@ namespace atl
                         };
 
                         auto alt_address = will_jump();
-                        _compile(ast[1],  code, Context(false, false, ast)); // get the predicate
+                        _compile(&ast[1],  code, Context(false, false, ast)); // get the predicate
                         code.if_();
 
                         // consiquent
@@ -351,8 +359,8 @@ namespace atl
                     }
                 case tag<Define>::value:
                     {
-                        auto def_compile = [&](Any input) {
-                            return _compile(input, code, Context(true, true, ast));
+                        auto def_compile = [&](Any& input) {
+                            return _compile(&input, code, Context(true, true, ast));
                         };
 
                         auto sym = unwrap<Symbol>(ast[1]);
@@ -381,11 +389,11 @@ namespace atl
 
                         // Lambda is a little bit of a special case.
                         if(is<Ast>(value)) {
-                            head = unwrap<Ast>(value)[0];
-                            if(is<Symbol>(head))
-                                head = value_or_undef(unwrap<Symbol>(head));
+                            head = &unwrap<Ast>(value)[0];
+                            if(is<Symbol>(*head))
+	                            value_to_head(value_or_undef(unwrap<Symbol>(head)));
 
-                            if(is<Lambda>(head))
+                            if(is<Lambda>(*head))
                                 body_result = def_compile(value);
 
                             value = body_result.applicable;
@@ -419,7 +427,7 @@ namespace atl
                         return _Form(wrap<Null>(), 0, FormTag::done, body_result.result_tag);
                     }
                 default:
-                    return result(head, 0, FormTag::function);
+                    return result(*head, 0, FormTag::function);
                 }
         }
 
@@ -436,169 +444,177 @@ namespace atl
         };
 
         // :returns: thing that can be applied and the size of its tail call
-        _Compile _compile(Any input, AssembleVM& code, Context context)
+        _Compile _compile(Any* input, AssembleVM& code, Context context)
         {
             using namespace std;
 
             auto atom_result = [&]()
-                {
-                    return _Compile(wrap<Null>(), 0, input._tag);
-                };
+                { return _Compile(wrap<Null>(), 0, input->_tag); };
+
+            Any scratch;
+            auto value_to_input = [&](Any const& value)
+	            {
+		            scratch = value;
+		            input = &scratch;
+	            };
 
         compile_value:
-            switch(input._tag) {
-            case tag<Ast>::value:
-                {
-                    auto& ast = unwrap<Ast>(input);
-                    auto form = this->form(ast, code, context);
+            switch(input->_tag)
+	            {
+	            case tag<Ast>::value:
+		            {
+			            auto& ast = unwrap<Ast>(input);
+			            auto form = this->form(ast, code, context);
 
-                    switch(form.form_tag) {
-                    case FormTag::done:
-                        return _Compile(form.applicable, form.pad_to, form.result_tag);
+			            switch(form.form_tag) {
+			            case FormTag::done:
+				            return _Compile(form.applicable, form.pad_to, form.result_tag);
 
-                    case FormTag::macro_expansion:
-	                    {
-		                    input = form.applicable;
-		                    goto compile_value;
-	                    }
-                    case FormTag::declare_type:
-	                    {
-		                    auto rval = _compile(ast[2], code, context);
-		                    rval.result_tag = form.result_tag;
-		                    return rval;
-	                    }
-                    case FormTag::function:
-                        {
-                            auto fn = form.applicable;
-                            auto rest = slice(ast, 1);
+			            case FormTag::macro_expansion:
+				            {
+					            value_to_input(form.applicable);
+					            goto compile_value;
+				            }
+			            case FormTag::declare_type:
+				            {
+					            auto rval = _compile(&ast[2], code, context);
+					            rval.result_tag = form.result_tag;
+					            return rval;
+				            }
+			            case FormTag::function:
+				            {
+					            auto fn = form.applicable;
+					            auto rest = slice(ast, 1);
 
-                            auto is_procedure = is<Procedure>(fn);
-                            size_t padding = 0;
-                            size_t tail_size = 0;
+					            auto is_procedure = is<Procedure>(fn);
+					            size_t padding = 0;
+					            size_t tail_size = 0;
 
-                            if(is_procedure) {
-                                // The function called in tail position may
-                                // tail call a function taking more parameters.
-                                tail_size = max(unwrap<Procedure>(fn).tail_params,
-                                                rest.size());
-                                padding = tail_size - rest.size();
-                            }
+					            if(is_procedure) {
+						            // The function called in tail position may
+						            // tail call a function taking more parameters.
+						            tail_size = max(unwrap<Procedure>(fn).tail_params,
+						                            rest.size());
+						            padding = tail_size - rest.size();
+					            }
 
-                            // pad out to leave space for a tail call
-                            for(size_t i=0; i < padding; ++i) code.constant(-1);
+					            // pad out to leave space for a tail call
+					            for(size_t i=0; i < padding; ++i) code.constant(-1);
 
-                            auto observed_types = std::vector<tag_t>();
-                            observed_types.reserve(rest.size());
+					            auto observed_types = std::vector<tag_t>();
+					            observed_types.reserve(rest.size());
 
-                            for(auto& vv : rest)
-                                observed_types.push_back(_compile(vv, code, Context(false, false, ast)
-                                                                  ).result_tag);
+					            for(auto& vv : rest)
+						            observed_types.push_back(_compile(&vv, code, Context(false, false, ast)
+						                                              ).result_tag);
 
-                            tag_t result_type = tag<Any>();
+					            tag_t result_type = tag<Any>();
 
-                            if(is_procedure)
-                                {
-                                    auto proc = unwrap<Procedure>(fn);
-                                    result_type = proc.return_type;
+					            if(is_procedure)
+						            {
+							            auto proc = unwrap<Procedure>(fn);
+							            result_type = proc.return_type;
 
-                                    if(context.tail)
-                                        code.tail_call(tail_size, proc.body);
-                                    else
-                                        code.call_procedure(proc.body);
-                                }
-                            else if(is<Undefined>(fn))
-                                {
-                                    // TODO: I'm just assuming this is the
-                                    // definition of the current function.
-                                    // co-recursive functions with different max
-                                    // tail size than their aritys will totes
-                                    // break.
-                                    code.constant(rest.size())
-                                        .pointer(nullptr);
-                                    unwrap<Undefined>(fn).backtrack.push_back(code.pos_last());
+							            if(context.tail)
+								            code.tail_call(tail_size, proc.body);
+							            else
+								            code.call_procedure(proc.body);
+						            }
+					            else if(is<Undefined>(fn))
+						            {
+							            // TODO: I'm just assuming this is the
+							            // definition of the current function.
+							            // co-recursive functions with different max
+							            // tail size than their aritys will totes
+							            // break.
+							            code.constant(rest.size())
+								            .pointer(nullptr);
+							            unwrap<Undefined>(fn).backtrack.push_back(code.pos_last());
 
-                                    code.tail_call();
+							            code.tail_call();
 
-                                    result_type = tag<Undefined>();
-                                }
-                            else
-                                result_type = _compile
-                                    (form.applicable, code, Context(false, false, ast, &observed_types))
-                                    .result_tag;
+							            result_type = tag<Undefined>();
+						            }
+					            else
+						            {
+							            result_type = _compile
+								            (&form.applicable, code, Context(false, false, ast, &observed_types))
+								            .result_tag;
+						            }
+					            return _Compile(form.applicable, tail_size, result_type);
+				            }}
+			            throw "should be unreachable";
+		            }
+	            case tag<Symbol>::value:
+		            value_to_input(value_or_undef(unwrap<Symbol>(input)));
+		            goto compile_value;
+	            case tag<Parameter>::value:
+		            {
+			            auto param = unwrap<Parameter>(input);
+			            if(param.hops) { // -> non local
+				            code.nested_argument(param.offset, param.hops);
+			            } else {
+				            code.argument(param.offset);
+			            }
+			            break;
+		            }
+	            case tag<Undefined>::value:
+		            {
+			            code.pointer(nullptr);
+			            unwrap<Undefined>(input).backtrack.push_back(code.pos_last());
 
-                            return _Compile(form.applicable, tail_size, result_type);
-                        }}
-                    throw "should be unreachable";
-                }
-            case tag<Symbol>::value:
-                input = value_or_undef(unwrap<Symbol>(input));
-                goto compile_value;
-            case tag<Parameter>::value:
-                {
-                    auto param = unwrap<Parameter>(input);
-                    if(param.hops) { // -> non local
-                        code.nested_argument(param.offset, param.hops);
-                    } else {
-                        code.argument(param.offset);
-                    }
-                    break;
-                }
-            case tag<Undefined>::value:
-                {
-                    code.pointer(nullptr);
-                    unwrap<Undefined>(input).backtrack.push_back(code.pos_last());
+			            // Assume a thunk will get patched in later.
+			            code.call_procedure();
+			            break;
+		            }
+	            case tag<Fixnum>::value:
+		            code.constant(value<Fixnum>(input));
+		            return atom_result();
 
-                    // Assume a thunk will get patched in later.
-                    code.call_procedure();
-                    break;
-                }
-            case tag<Fixnum>::value:
-                code.constant(value<Fixnum>(input));
-                return atom_result();
+	            case tag<Bool>::value:
+		            code.constant(value<Bool>(input));
+		            return atom_result();
 
-            case tag<Bool>::value:
-                code.constant(value<Bool>(input));
-                return atom_result();
+	            case tag<Pointer>::value:
+		            input = unwrap<Pointer>(input).value;
+		            goto compile_value;
 
-            case tag<Pointer>::value:
-                code.pointer(value<Pointer>(input));
-                return atom_result();
+	            case tag<String>::value:
+		            code.pointer(&value<String>(input));
+		            return atom_result();
 
-            case tag<String>::value:
-                code.pointer(&value<String>(input));
-                return atom_result();
+	            case tag<Type>::value:
+		            {
+			            code.pointer(value<Type>(input));
+			            return _Compile(wrap<Null>(), 0, abstract_type::return_tag(*value<Type>(input)));
+		            }
+	            case tag<CxxFunctor>::value:
+		            {
+			            auto& fn = unwrap<CxxFunctor>(input);
 
-            case tag<Type>::value:
-                {
-                    code.pointer(value<Type>(input));
-                    return _Compile(wrap<Null>(), 0, abstract_type::return_tag(*value<Type>(input)));
-                }
-            case tag<CxxFunctor>::value:
-                {
-                    auto& fn = unwrap<CxxFunctor>(input);
+			            // TODO: check arity against the CxxFunctions types.
+			            code.std_function(&fn.fn, context.expression.size() - 1);
+			            return _Compile(wrap<Null>(), 0, abstract_type::return_tag(*fn.types));
+		            }
+	            case tag<Method>::value:
+		            {
+			            auto& dispatcher = unwrap<Method>(input);
+			            value_to_input
+				            (dispatcher.value(make_range(&*context.observed_types->begin(),
+				                                         &*context.observed_types->end())));
+			            goto compile_value;
+		            }
+	            case tag<Procedure>::value:
+		            {
+			            auto proc = unwrap<Procedure>(input);
+			            code.call_procedure(proc.body);
+			            return _Compile(wrap<Null>(), 0, proc.return_type);
+		            }
 
-                    // TODO: check arity against the CxxFunctions types.
-                    code.std_function(&fn.fn, context.expression.size() - 1);
-                    return _Compile(wrap<Null>(), 0, abstract_type::return_tag(*fn.types));
-                }
-            case tag<Method>::value:
-                {
-                    auto& dispatcher = unwrap<Method>(input);
-                    input = dispatcher.value(make_range(&*context.observed_types->begin(),
-                                                        &*context.observed_types->end()));
-                    goto compile_value;
-                }
-            case tag<Procedure>::value:
-                {
-                    auto proc = unwrap<Procedure>(input);
-                    code.call_procedure(proc.body);
-                    return _Compile(wrap<Null>(), 0, proc.return_type);
-                }
-
-            default:
-                {
-                    throw std::string("Illegal syntax or something.");
-                }}
+	            default:
+		            {
+			            throw std::string("Illegal syntax or something.");
+		            }}
             return _Compile(wrap<Null>(), 0, tag<Any>::value);
         }
 
@@ -609,10 +625,10 @@ namespace atl
 
         // For most external use.  The generated code can be passed to
         // the VM for evaluation.
-        tag_t any(Any ast)
+        tag_t any(Any expr)
         {
             return _compile
-	            (ast, code, Context(false, false, unwrap<Ast>(ast)))
+	            (&expr, code, Context(false, false, unwrap<Ast>(expr.value)))
 	            .result_tag;
         }
 

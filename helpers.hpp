@@ -15,42 +15,6 @@ namespace atl
 	{
 		typedef ::Range<Ast::iterator> Range;
 
-		Ast::const_iterator const_begin(const Any aa) {
-			switch(aa._tag) {
-			case tag<Slice>::value:
-				return unwrap<Slice>(aa).begin();
-			case tag<Ast>::value:
-				return unwrap<Ast>(aa).begin();
-			}
-			throw std::string("Can only get the Ast iterators for certain types");
-		}
-
-		Ast::const_iterator const_end(const Any aa) {
-			switch(aa._tag) {
-			case tag<Slice>::value:
-				return const_cast<const Slice&&>(unwrap<Slice>(aa)).end();
-			case tag<Ast>::value:
-				return unwrap<Ast>(aa).end();
-			}
-			throw std::string("Can only get the Ast iterators for certain types");
-		}
-
-		Ast::const_iterator const_begin(const AnyRange& rr)
-		{ return Ast::const_iterator(rr.begin()); }
-		Ast::const_iterator const_end(const AnyRange& rr)
-		{ return Ast::const_iterator(rr.end()); }
-
-		Ast::const_iterator const_begin(::Range<const Any*> const& rr)
-		{ return Ast::const_iterator(rr.begin()); }
-		Ast::const_iterator const_end(::Range<const Any*> const & rr)
-		{ return Ast::const_iterator(rr.end()); }
-
-		Ast::const_iterator const_begin(::Range<Ast::const_iterator> const& rr)
-		{ return rr.begin(); }
-		Ast::const_iterator const_end(::Range<Ast::const_iterator> const & rr)
-		{ return rr.end(); }
-
-
 		Ast::iterator begin(AnyRange& rr)
 		{ return Ast::iterator(rr.begin()); }
 
@@ -68,13 +32,6 @@ namespace atl
 
 		Ast::iterator end(Ast& rr)
 		{ return rr.end(); }
-
-		Ast::iterator begin(Any rr)
-		{ return begin(unwrap<Ast>(rr)); }
-
-		Ast::iterator end(Any rr)
-		{ return end(unwrap<Ast>(rr)); }
-
 
 		template<class T>
 		size_t size(T const& seq)
@@ -210,7 +167,7 @@ namespace atl
 					_Run do_apply(space);
 
 					foreach_tuple(do_apply, tup);
-					ast->end_at(space.size());
+					ast.end_ast();
 					return ast.pointer();
 				};
 		}

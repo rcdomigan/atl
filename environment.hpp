@@ -38,7 +38,7 @@ namespace atl
 			stdout = &cout;
 		}
 
-        Any eval(Any value)
+        Any eval(Any const& value)
 		{
 			auto tag = compile.any(value);
 			compile.assert_ready();

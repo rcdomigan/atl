@@ -34,7 +34,7 @@ TEST_F(ParserTest, Atoms) {
 }
 
 TEST_F(ParserTest, SimpleIntList) {
-	auto& ast = unwrap<Ast>(atl.parse.string_("(1 2 3)"));
+	auto& ast = unwrap<Ast>(atl.parse.string_("(1 2 3)").value);
 
     auto expected = vector<Any>{
         wrap(1),
@@ -50,7 +50,7 @@ TEST_F(ParserTest, SimpleIntList) {
 }
 
 
-void _check_nested(Ast const& parsed, Ast const& expected)
+void _check_nested(Ast& parsed, Ast& expected)
 {
 #ifdef DEBUGGING
 	cout << "parsed: " << printer::range(parsed)
@@ -78,7 +78,7 @@ TEST_F(ParserTest, nested_int_list)
 {
 	Arena arena;
 	using namespace make_ast;
-    auto& parsed = atl.parse.string_("(1 2 (4 5) 3)");
+    auto parsed = atl.parse.string_("(1 2 (4 5) 3)");
 
     auto expected =
 	    make(lift(1),
@@ -88,14 +88,14 @@ TEST_F(ParserTest, nested_int_list)
 	         lift(3))
 	    (ast_alloc(arena));
 
-    _check_nested(unwrap<Ast>(unwrap<Pointer>(parsed)),
+    _check_nested(unwrap<Ast>(parsed.value),
                   *expected);
 }
 
 
 TEST_F(ParserTest, TestQuote) {
 	using namespace make_ast;
-    auto& parsed = atl.parse.string_("'(2 3)");
+    auto parsed = atl.parse.string_("'(2 3)");
 
     auto expected =
 	    make(lift<Quote>(),
@@ -103,14 +103,14 @@ TEST_F(ParserTest, TestQuote) {
 	              lift(3)))
 	    (ast_alloc(atl.gc));
 
-    _check_nested(unwrap<Ast>(parsed), *expected);
+    _check_nested(unwrap<Ast>(parsed.value), *expected);
 }
 
 
 TEST_F(ParserTest, test_nested_quote)
 {
 	using namespace make_ast;
-	auto& parsed = atl.parse.string_("(1 '(2 3) 4)");
+	auto parsed = atl.parse.string_("(1 '(2 3) 4)");
 
 	auto expected = make
 		(lift(1),
@@ -120,7 +120,7 @@ TEST_F(ParserTest, test_nested_quote)
 		 lift(4))
 		(ast_alloc(atl.gc));
 
-    _check_nested(unwrap<Ast>(parsed), *expected);
+    _check_nested(unwrap<Ast>(parsed.value), *expected);
 }
 
 
@@ -129,8 +129,8 @@ TEST_F(ParserTest, test_stream_parsing)
 	string contents = "(a b c)";
 	stringstream as_stream(contents);
 
-	auto& a = unwrap<Ast>(atl.parse.string_(contents));
-	auto& b = unwrap<Ast>(atl.parse.stream(as_stream));
+	auto& a = unwrap<Ast>(atl.parse.string_(contents).value);
+	auto& b = unwrap<Ast>(atl.parse.stream(as_stream).value);
 
 	for(auto& vv : zip(a, b))
 		ASSERT_EQ(unwrap<Symbol>(*get<0>(vv)).name,
@@ -142,8 +142,8 @@ TEST_F(ParserTest, test_multi_line_stream_parsing)
 	string contents = "(1 2 3)\n\n(4 5 6)";
 	stringstream as_stream(contents);
 
-	auto& a = unwrap<Ast>(atl.parse.stream(as_stream));
-	auto& b = unwrap<Ast>(atl.parse.stream(as_stream));
+	auto& a = unwrap<Ast>(atl.parse.stream(as_stream).value);
+	auto& b = unwrap<Ast>(atl.parse.stream(as_stream).value);
 
 	vector<int> expected = {1, 2, 3};
 	for(auto& vv : zip(a, expected))
@@ -161,7 +161,7 @@ TEST_F(ParserTest, test_comments)
 {
 	string contents = ";; (a b c)\n (2 3 4)";
 
-	auto& res = unwrap<Ast>(atl.parse.string_(contents));
+	auto& res = unwrap<Ast>(atl.parse.string_(contents).value);
 
     auto expected = vector<Any>{
         wrap(2),

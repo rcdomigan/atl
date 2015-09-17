@@ -12,7 +12,7 @@
 #include "./testing_utils.hpp"
 
 #include "./utility.cpp"
-#include "./test_type.hpp"
+#include "./test_type.cpp"
 #include "./vm.cpp"
 #include "./parser.cpp"
 #include "./compile.cpp"

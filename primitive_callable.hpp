@@ -119,7 +119,7 @@ namespace atl
 				std::copy(ast->begin(), ast->end(),
 				          std::back_inserter(space));
 
-				output->end_at(space.size());
+				output.end_ast();
 				return make_pointer(output.pointer());
 			});
 

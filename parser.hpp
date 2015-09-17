@@ -193,7 +193,7 @@ namespace atl
 		}
 
 		/* parse one S-expression from a string into an ast */
-		Any& string_(const std::string& input)
+		Any string_(const std::string& input)
 		{
 			auto& vec = _gc.sequence();
 
@@ -212,7 +212,7 @@ namespace atl
 		}
 
 		/* parse one S-expression from a stream into an ast */
-		Any& stream(istream &stream)
+		Any stream(istream &stream)
 		{
 			auto initial_flags = stream.flags();
 			noskipws(stream);

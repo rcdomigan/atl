@@ -36,7 +36,7 @@ TEST_F(CompilerTest, test_compile_atom)
 {
 	atl.compile.any(atl.parse.string_("5"));
 	run_code(atl.vm, atl.compile.code);
-	ASSERT_EQ(atl.vm.stack[0], 5);
+	ASSERT_EQ(5, atl.vm.stack[0]);
 }
 
 TEST_F(CompilerTest, BasicApplication) {
@@ -44,7 +44,7 @@ TEST_F(CompilerTest, BasicApplication) {
 
     run_code(atl.vm, atl.compile.code);
 
-    ASSERT_EQ(atl.vm.stack[0], 12);
+    ASSERT_EQ(12, atl.vm.stack[0]);
 }
 
 TEST_F(CompilerTest, NestedApplication) {
@@ -53,7 +53,7 @@ TEST_F(CompilerTest, NestedApplication) {
 
     run_code(atl.vm, atl.compile.code);
 
-    ASSERT_EQ(atl.vm.stack[0], 13);
+    ASSERT_EQ(13, atl.vm.stack[0]);
 }
 
 TEST_F(CompilerTest, TestCxxStdFunction) {

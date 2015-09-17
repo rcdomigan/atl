@@ -50,6 +50,10 @@ namespace atl {
 	{ return unwrapping::Any<T>::a(*input); }
 
 	template<class T>
+	static inline T& unwrap(Any* input)
+	{ return unwrapping::Any<T>::a(*input); }
+
+	template<class T>
 	static inline T const& unwrap(Any const& input)
 	{
 		static_assert(!std::is_same<T, Ast>::value,

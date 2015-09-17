@@ -42,8 +42,8 @@ struct ListTest : public ::testing::Test
                                   (unwrap<std::string>(*bitr)));
                         break;
                     case tag<Ast>::value:
-                        assert_equiv((unwrap<Ast>(*aitr)),
-                                     (unwrap<Ast>(*bitr)));
+                        assert_equiv((unwrap<Ast>(&*aitr)),
+                                     (unwrap<Ast>(&*bitr)));
                         break;
                     default:
                         ASSERT_EQ((*aitr),
@@ -72,8 +72,8 @@ struct ListTest : public ::testing::Test
                             return true;
                         break;
                     case tag<Ast>::value:
-                        if(_assert_not_equiv((unwrap<Ast>(*aitr)),
-                                             (unwrap<Ast>(*bitr))))
+                        if(_assert_not_equiv((unwrap<Ast>(&*aitr)),
+                                             (unwrap<Ast>(&*bitr))))
                             return true;
                         break;
                     default:
@@ -99,14 +99,14 @@ TEST_F(ListTest, test_equiv_ast)
 
     seq.push_back(wrap<Fixnum>(1));
     seq.push_back(wrap<Fixnum>(2));
-    car->end_at(seq.size());
+    car.end_ast();
 
     auto& seq3 = atl.gc.sequence();
     car = push_nested_ast(seq3);
 
     seq3.push_back(wrap<Fixnum>(1));
     seq3.push_back(wrap<Fixnum>(2));
-    car->end_at(seq3.size());
+    car.end_ast();
 
     auto& seq2 = atl.gc.sequence();
     car = push_nested_ast(seq2);
@@ -114,13 +114,13 @@ TEST_F(ListTest, test_equiv_ast)
     seq2.push_back(wrap<Fixnum>(1));
     seq2.push_back(wrap<Fixnum>(2));
     seq2.push_back(wrap<Fixnum>(3));
-    car->end_at(seq2.size());
+    car.end_ast();
 
-    assert_equiv(unwrap<Ast>(seq[0]),
-                 unwrap<Ast>(seq3[0]));
+    assert_equiv(unwrap<Ast>(&seq[0]),
+                 unwrap<Ast>(&seq3[0]));
 
-    assert_not_equiv((unwrap<Ast>(seq[0])),
-                     (unwrap<Ast>(seq2[0])));
+    assert_not_equiv((unwrap<Ast>(&seq[0])),
+                     (unwrap<Ast>(&seq2[0])));
 }
 
 TEST_F(ListTest, test_quote)
@@ -129,15 +129,16 @@ TEST_F(ListTest, test_quote)
     // need to tag the list memebers.  Make sure quoting works first.
     {
         auto rval = atl.string_("'(1 2 (a b))");
+        cout << "test_quote: " << printer::any(rval) << endl;
 
         ASSERT_EQ(tag<Pointer>::value, rval._tag);
-        assert_equiv((unwrap<Ast>(atl.parse.string_("(1 2 (a b))"))),
+        assert_equiv((unwrap<Ast>(atl.parse.string_("(1 2 (a b))").value)),
                      (unwrap<Ast>(*unwrap<Pointer>(rval).value)));
     }
 
     {
         auto rval = atl.string_("'(1)");
-        assert_equiv((unwrap<Ast>(atl.parse.string_("(1)"))),
+        assert_equiv((unwrap<Ast>(atl.parse.string_("(1)").value)),
                      (unwrap<Ast>(*unwrap<Pointer>(rval).value)));
     }
 }
@@ -158,7 +159,7 @@ TEST_F(ListTest, test_quote_embedded)
 		(ast_alloc(arena));
 
 	assert_equiv(*expr,
-	             unwrap<Ast>(atl.parse.string_("'(1 2 3)")));
+	             unwrap<Ast>(atl.parse.string_("'(1 2 3)").value));
 }
 
 
@@ -204,7 +205,7 @@ TEST_F(ListTest, test_slice)
 	auto result = atl.string_("(slice '(1 2 3 4) 2)");
 
     assert_equiv((unwrap<Slice>(result)),
-                 (unwrap<Ast>(atl.parse.string_("(3 4)"))));
+                 (unwrap<Ast>(atl.parse.string_("(3 4)").value)));
 }
 
 
@@ -217,7 +218,7 @@ TEST_F(ListTest, test_make_ast)
 			(ast_alloc(atl.env.gc));
 
 		assert_equiv((*ast),
-		             unwrap<Ast>(atl.parse.string_("(1 2 3)")));
+		             unwrap<Ast>(atl.parse.string_("(1 2 3)").value));
 	}
 
 	{
@@ -227,7 +228,7 @@ TEST_F(ListTest, test_make_ast)
 			(ast_alloc(atl.env.gc));
 
 		assert_equiv((*ast),
-		             unwrap<Ast>(atl.parse.string_("(1 (2 3) 4)")));
+		             unwrap<Ast>(atl.parse.string_("(1 (2 3) 4)").value));
 	}
 }
 
@@ -235,7 +236,7 @@ TEST_F(ListTest, test_make_ast)
 TEST_F(ListTest, test_cons)
 {
     auto result = atl.string_("(cons 0 '(1))");
-    assert_equiv(unwrap<Ast>(atl.parse.string_("(0 1)")),
+    assert_equiv(unwrap<Ast>(atl.parse.string_("(0 1)").value),
                  unwrap<Ast>(result));
 }
 

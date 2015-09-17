@@ -98,8 +98,8 @@ TEST_F(AtlTest, running_embedded_ast)
 
 	auto expr =
 		make(make(lift(wrap<Lambda>()),
-		          lift(*formals),
-		          lift(*body)),
+		          lift(make_pointer(formals)),
+		          lift(make_pointer(body))),
 		     lift(1),
 		     lift(2))
 		(ast_alloc(gc));

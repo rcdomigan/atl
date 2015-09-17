@@ -231,7 +231,10 @@ namespace atl
 			IteratorBase() = default;
 
 			Value& operator*() { return *value; }
-			const Value& operator*() const { return *value; }
+			Value const& operator*() const { return *value; }
+
+			Value* operator->() { return value; }
+			Value const* operator->() const { return value; }
 
 			IteratorBase& operator++()
 			{
@@ -269,7 +272,7 @@ namespace atl
 	{
 		typedef size_t value_type;
 		tag_t _tag;
-		value_type value;
+		value_type value;  // distance from this to end of ast
 
 		Ast() = delete;
 
@@ -304,9 +307,6 @@ namespace atl
 		iterator end() { return iterator(_begin() + value); }
 		const_iterator begin() const { return const_iterator(_begin()); }
 		const_iterator end() const { return const_iterator(_begin() + value); }
-
-		void end_at(size_t pos)
-		{ value = pos; }
 
 		size_t size() const { return end() - begin(); }
 		bool empty() const { return value == 0; }

@@ -36,7 +36,7 @@ namespace atl
 	    void set_stdout(std::ostream& out)
 	    { env.stdout = &out; }
 
-        Any eval(Any value)
+        Any eval(Any const& value)
 	    { return env.eval(value); }
 
 	    // Parse, compile, and run the first sexpr in a string
