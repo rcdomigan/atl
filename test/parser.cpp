@@ -35,7 +35,7 @@ TEST_F(ParserTest, Atoms) {
 
 TEST_F(ParserTest, SimpleIntList) {
     auto parsed = atl.parse.string_("(1 2 3)");
-    auto ast = ast_iterator::range(parsed);
+    auto ast = to_Ast(parsed);
 
     auto expected = vector<Any>{
         wrap(1),

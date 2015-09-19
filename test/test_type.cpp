@@ -26,8 +26,7 @@ TEST(TestType, test_ast)
 	space.emplace_back(tag<Fixnum>::value, reinterpret_cast<void*>(2));
 	space.emplace_back(tag<Fixnum>::value, reinterpret_cast<void*>(3));
 
-	auto& ast = *(new (space.data())Ast(0));
-	ast.end_at(&*space.end());
+	Ast ast(reinterpret_cast<AstData*>(&space.front()));
 
 	ASSERT_EQ(3, ast.size());
 	ASSERT_EQ(1, reinterpret_cast<Fixnum&>(ast[0]).value);

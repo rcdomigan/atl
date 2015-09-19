@@ -233,13 +233,13 @@ namespace atl
 
                 case tag<Lambda>::value:
                     {
-                        auto formals = ast_iterator::range(ast[1]);
-                        auto size = ast_iterator::size(formals);
+	                    auto formals = Ast(&unwrap<AstData>(ast[1]));
+	                    auto size = formals.size();
 
                         compile_helpers::IncHopRAII inc_hops(_env);
                         lexical::MapRAII local(&_env);
 
-                        for(auto ff : zip(ast_iterator::range(ast[1]),
+                        for(auto ff : zip(formals,
                                           CountingRange()))
                             local.map.define(unwrap<Symbol>(*get<0>(ff)).name,
                                              // The `offset` should go high to low
@@ -356,7 +356,7 @@ namespace atl
                         };
 
                         auto sym = unwrap<Symbol>(ast[1]);
-                        Any value = ast[2];
+                        Any& value = ast[2];
 
                         pcode::Offset entry_point;
 
@@ -380,8 +380,8 @@ namespace atl
                             value = value_or_undef(unwrap<Symbol>(value));
 
                         // Lambda is a little bit of a special case.
-                        if(is<Ast>(value)) {
-                            head = unwrap<Ast>(value)[0];
+                        if(is<AstData>(value)) {
+	                        head = AstData_to_Ast(value)[0];
                             if(is<Symbol>(head))
                                 head = value_or_undef(unwrap<Symbol>(head));
 
@@ -611,9 +611,19 @@ namespace atl
         // the VM for evaluation.
         tag_t any(Any ast)
         {
-            return _compile
-	            (ast, code, Context(false, false, unwrap<Ast>(ast)))
-	            .result_tag;
+	        switch(ast._tag)
+		        {
+		        case tag<AstData>::value:
+			        throw WrongTypeError("Cannot use AstData passed by value");
+		        case tag<Ast>::value:
+			        return _compile
+				        (ast, code, Context(false, false, unwrap<Ast>(ast)))
+				        .result_tag;
+		        default:
+			        return _compile
+				        (ast, code, Context(false, false, Ast()))
+				        .result_tag;
+		        }
         }
 
         // Reset the pcode entry point to compile another expression (as for the REPL).

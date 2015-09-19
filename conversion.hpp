@@ -34,7 +34,8 @@ namespace atl {
 			: public std::conditional< is_reinterperable<typename std::decay<T>::type>::value,
 			                           Reinterpret<T>,
 			                           Pimpl<T>
-			                           >::type {};
+			                           >::type
+		{};
 	}
 
 	template<class T>
@@ -42,6 +43,11 @@ namespace atl {
 
 	template<class T>
 	static inline T const& unwrap(Any const& input) { return unwrapping::Any<T>::a(input); }
+
+	// template<class T>
+	// static inline T const& unwrap(void const* input)
+	// { return unwrapping::Any<T>::a(*reinterpret_cast<Any const*>(input)); }
+
 
 	/*********************************/
 	/* __        __                  */

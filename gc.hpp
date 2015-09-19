@@ -169,20 +169,23 @@ namespace atl
 			: vect(vect_), position(pos)
 		{}
 
-		Ast* pointer() { return reinterpret_cast<Ast*>(&(*vect)[position]); }
+		AstData* ast_data() { return reinterpret_cast<AstData*>(&(*vect)[position]); }
 
 		// Last + 1 element of the wrapped Ast
 		void end_ast()
-		{ pointer()->value = vect->size() - position - 1; }
+		{
+			reinterpret_cast<AstData*>(vect->data() + position)->value
+				= vect->size() - position - 1;
+		}
 
-		Ast& operator*() { return reinterpret_cast<Ast&>((*vect)[position]); }
-		Ast* operator->() { return pointer(); }
+		Ast operator*() { return Ast(ast_data()); }
 	};
 
 	MovableAstPointer push_nested_ast(AstSubstrate& substrate)
 	{
-		substrate.push_back(wrap(Ast(0)));
-		return MovableAstPointer(&substrate, substrate.size() - 1);
+		auto pos = substrate.size();
+		substrate.emplace_back(tag<AstData>::value, nullptr);
+		return MovableAstPointer(&substrate, pos);
 	}
 
 

@@ -238,8 +238,7 @@ namespace atl
 			IteratorBase& operator++()
 			{
 				using namespace std;
-				if( ((value->_tag == tag<AstData>::value))
-				    && (value->value == value + 1))
+				if(value->_tag == tag<AstData>::value)
 					value = reinterpret_cast<typename
 					                         conditional<is_const<Value>::value,
 					                                     add_const<AstData>,
@@ -287,9 +286,9 @@ namespace atl
 		{}
 
 		Any* flat_begin() { return reinterpret_cast<Any*>(this) + 1; }
-		Any* flat_end() { return reinterpret_cast<Any*>(this) + value; }
+		Any* flat_end() { return flat_begin() + value; }
 		const Any* flat_begin() const { return reinterpret_cast<Any const*>(this) + 1; }
-		const Any* flat_end() const { return reinterpret_cast<Any const*>(this) + value; }
+		const Any* flat_end() const { return flat_begin() + value; }
 
 		iterator begin() { return iterator(flat_begin()); }
 		const_iterator begin() const { return const_iterator(flat_begin()); }
@@ -344,23 +343,6 @@ namespace atl
 	Ast AstData_to_Ast(Any &input)
 	{ return Ast(&reinterpret_cast<AstData&>(input)); }
 
-	Ast Any_to_Ast(Any input)
-	{ return Ast(reinterpret_cast<AstData*>(input.value)); }
-
-
-	// Construct an Ast based on input's tagged type.
-	Ast to_Ast(Any& input)
-	{
-		switch(input._tag)
-			{
-			case tag<AstData>::value:
-				return to_Ast(input);
-			case tag<Ast>::value:
-				return reinterpret_cast<Ast&>(input);
-			default:
-				throw WrongTypeError("Can only wrap_ast Ast or AstData");
-			}
-	}
 
 	struct Parameter
 	{

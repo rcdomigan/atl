@@ -44,11 +44,11 @@ namespace atl
 		auto cc = primitives::Constructor(env.lexical);
 		mpl::for_each<TypesVec, wrap_t_arg< mpl::placeholders::_1> >(cc);
 
-		wrap_function<Any* (Any*, long)>
+		wrap_function<Any* (AstData*, long)>
 			(env.lexical,
 			 "nth",
-			 [](Any *ast, long n) -> Any*
-			{ return &unwrap<Ast>(*ast)[n]; });
+			 [](AstData *ast, long n) -> Any*
+			{ return &Ast(ast)[n]; });
 
 		static auto fn_construct_params = abstract_type::make_concrete({tag<Type>::value, tag<Type>::value});
 		fn_construct_params.front().count = abstract_type::Node::CountType::at_least_one;
@@ -105,13 +105,11 @@ namespace atl
 		/** | |___| \__ \ |_\__ \ **/
 		/** |_____|_|___/\__|___/ **/
 		/***************************/
-		wrap_function<Pointer (Any*, Ast*)>
+		wrap_function<AstData* (Any*, Ast*)>
 			(env.lexical,
 			 "cons-ast",
-			 [&env](Any* car, Ast* ast) -> Pointer
+			 [&env](Any* car, Ast* ast)
 			{
-				using namespace ast_iterator;
-
 				auto& space = env.gc.sequence();
 				auto output = push_nested_ast(space);
 
@@ -119,8 +117,8 @@ namespace atl
 				std::copy(ast->begin(), ast->end(),
 				          std::back_inserter(space));
 
-				output->end_at(space.size());
-				return make_pointer(output.pointer());
+				output.end_ast();
+				return output.ast_data();
 			});
 
 		wrap_macro
@@ -130,7 +128,7 @@ namespace atl
 			 {
 				 using namespace make_ast;
 				 return wrap
-					 (*make
+					 (make
 					  (sym("cons-ast"),
 					   make(lift<Quote>(),
 					        lift(ast[0])),
@@ -163,7 +161,7 @@ namespace atl
 			 {
 				 using namespace make_ast;
 				 return wrap
-					 (*make
+					 (make
 					  (sym(":"),
 					   lift(ast[0]),
 					   make(sym("__eval__"), lift(ast[1])))
