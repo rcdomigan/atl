@@ -99,7 +99,7 @@ namespace atl
 
                             ++itr;
                             parse(vec, itr, end);
-                            quote->end_at(vec.size());
+                            quote.end_ast();
                             return;
                         }
 
@@ -107,8 +107,7 @@ namespace atl
                         {		/* sub expression */
                             ++itr;
                             if(*itr == ')') {
-	                            auto null = push_nested_ast(vec);
-	                            null->end_at(vec.size());
+	                            push_nested_ast(vec);
                                 return;
                             }
 
@@ -123,7 +122,7 @@ namespace atl
                                 }
 
                             ++itr;
-                            ast->end_at(vec.size());
+                            ast.end_ast();
                             return;
                         }
 
@@ -178,10 +177,19 @@ namespace atl
 	    //_gc.mark_callback( [this](GC &gc) { _gc.mark(_mark); });
 	}
 
+	    // AstData won't survive when passed out by value; make sure
+	    // an Ast wraps it.
+	    Any _returnify(Any& input)
+	    {
+		    if(is<AstData>(input))
+			    return Any(tag<Ast>::value, &input);
+		    else
+			    return input;
+	    }
+
 	    /* parse one S-expression from a string into an ast */
-	Any& string_(const std::string& input) {
+	Any string_(const std::string& input) {
 	    auto& vec = _gc.sequence();
-	    vec.push_back(nil<Null>::value());
 
 	    auto itr = input.begin(),
 		    end = input.end();
@@ -194,16 +202,15 @@ namespace atl
 		                                .append(input)
 		                                .append("`"));
 
-	    return *vec.begin();
+	    return _returnify(*vec.begin());
 	}
 
 	/* parse one S-expression from a stream into an ast */
-	Any& stream(istream &stream) {
+	Any stream(istream &stream) {
 	    auto initial_flags = stream.flags();
 	    noskipws(stream);
 
 	    auto& vec = _gc.sequence();
-	    vec.push_back(nil<Null>::value());
 
 	    auto itr = istreambuf_iterator<char>(stream),
 		    end = istreambuf_iterator<char>();
@@ -214,7 +221,7 @@ namespace atl
 	    skip_ws_and_comments(itr, end);
 
 	    stream.flags(initial_flags);
-	    return *vec.begin();
+	    return _returnify(*vec.begin());
 	}
 
 	void reset_line_number() { _line = 1; }

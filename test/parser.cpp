@@ -33,9 +33,9 @@ TEST_F(ParserTest, Atoms) {
 
 }
 
-TEST_F(ParserTest, SimpleIntList) {
+TEST_F(ParserTest, test_simple_int_list) {
     auto parsed = atl.parse.string_("(1 2 3)");
-    auto ast = to_Ast(parsed);
+    auto ast = unwrap<Ast>(parsed);
 
     auto expected = vector<Any>{
         wrap(1),
@@ -53,7 +53,7 @@ TEST_F(ParserTest, SimpleIntList) {
 }
 
 
-void _check_nested(Ast const& parsed, Ast const& expected)
+void _check_nested(AstData const& parsed, AstData const& expected)
 {
 	for(auto& vv : zip(parsed, expected))
 		{
@@ -61,8 +61,8 @@ void _check_nested(Ast const& parsed, Ast const& expected)
 			          (*get<1>(vv))._tag);
 
 			if(is<Ast>(*get<0>(vv)))
-				_check_nested(unwrap<Ast>(*get<0>(vv)),
-				              unwrap<Ast>(*get<1>(vv)));
+				_check_nested(unwrap<AstData>((*get<0>(vv)).value),
+				              unwrap<AstData>((*get<1>(vv)).value));
 			else
 				{
 #ifdef DEBUGGING
@@ -90,8 +90,8 @@ TEST_F(ParserTest, nested_int_list)
 	         lift(3))
 	    (ast_alloc(arena));
 
-    _check_nested(unwrap<Ast>(parsed),
-                  *expected);
+    _check_nested(unwrap<AstData>(parsed.value),
+                  *expected.value);
 }
 
 
@@ -105,7 +105,7 @@ TEST_F(ParserTest, TestQuote) {
 	              lift(3)))
 	    (ast_alloc(atl.gc));
 
-    _check_nested(unwrap<Ast>(parsed), *expected);
+    _check_nested(unwrap<AstData>(parsed.value), *expected.value);
 }
 
 
@@ -122,7 +122,7 @@ TEST_F(ParserTest, test_nested_quote)
 		 lift(4))
 		(ast_alloc(atl.gc));
 
-    _check_nested(unwrap<Ast>(parsed), *expected);
+    _check_nested(unwrap<AstData>(parsed.value), *expected.value);
 }
 
 
