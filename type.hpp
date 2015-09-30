@@ -81,8 +81,8 @@ namespace atl
 
 
 #define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(DeclareType)(Type)(Ast)(AstData)
-#define ATL_PIMPL_SEQ (Slice)(String)(Symbol)(Procedure)(Macro)(Undefined)(Parameter)(Method)(Struct)(CxxFunctor)(CxxMacro)
-#define ATL_TYPES_SEQ ATL_REINTERPERABLE_SEQ ATL_PIMPL_SEQ(Mark)
+#define ATL_PIMPL_SEQ (Slice)(String)(Symbol)(Procedure)(Macro)(Undefined)(Parameter)(Struct)(CxxFunctor)(CxxMacro)
+#define ATL_TYPES_SEQ ATL_REINTERPERABLE_SEQ ATL_PIMPL_SEQ
 
 #define M(r, _, i, elem)						\
 	struct elem;							\
@@ -102,7 +102,7 @@ namespace atl
 #undef M
 
 
-    typedef mpl::vector26< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
+    typedef mpl::vector24< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
 
     template<class T>
     struct tag : public _Tag<typename std::remove_const<T>::type> {};
@@ -452,14 +452,6 @@ namespace atl
         {}
     };
 
-    /**
-     * uses an arbitrary callback if invoked during the GC's mark phase
-     */
-    class GC;
-    struct Mark {
-	std::function<void (GC&)> _mark;
-	Mark(std::function<void (GC&)> mark) : _mark(mark) {}
-    };
 
     /*********************/
     /**  _    Other     **/
