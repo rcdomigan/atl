@@ -29,9 +29,9 @@ TEST(TestGC, test_make_ast_gc_and_arena)
 	auto ast1 = make_ast::make(lift(1), lift(2), lift(3))
 		(ast_alloc(arena));
 
-	ASSERT_EQ(ast0->size(), 3);
-	ASSERT_EQ(ast1->size(), 3);
+	ASSERT_EQ(3, ast0.size());
+	ASSERT_EQ(3, ast1.size());
 
-	for(auto zz : zip(*ast0, *ast1))
+	for(auto zz : zip(ast0, ast1))
 		ASSERT_EQ((*get<0>(zz)), (*get<1>(zz)));
 }

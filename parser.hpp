@@ -177,18 +177,9 @@ namespace atl
 	    //_gc.mark_callback( [this](GC &gc) { _gc.mark(_mark); });
 	}
 
-	    // AstData won't survive when passed out by value; make sure
-	    // an Ast wraps it.
-	    Any _returnify(Any& input)
-	    {
-		    if(is<AstData>(input))
-			    return Any(tag<Ast>::value, &input);
-		    else
-			    return input;
-	    }
 
-	    /* parse one S-expression from a string into an ast */
-	Any string_(const std::string& input) {
+	/* parse one S-expression from a string into an ast */
+	PassByValue string_(const std::string& input) {
 	    auto& vec = _gc.sequence();
 
 	    auto itr = input.begin(),
@@ -202,11 +193,11 @@ namespace atl
 		                                .append(input)
 		                                .append("`"));
 
-	    return _returnify(*vec.begin());
+	    return PassByValue(*vec.begin());
 	}
 
 	/* parse one S-expression from a stream into an ast */
-	Any stream(istream &stream) {
+	PassByValue stream(istream &stream) {
 	    auto initial_flags = stream.flags();
 	    noskipws(stream);
 
@@ -221,7 +212,7 @@ namespace atl
 	    skip_ws_and_comments(itr, end);
 
 	    stream.flags(initial_flags);
-	    return _returnify(*vec.begin());
+	    return PassByValue(*vec.begin());
 	}
 
 	void reset_line_number() { _line = 1; }

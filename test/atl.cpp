@@ -98,12 +98,12 @@ TEST_F(AtlTest, running_embedded_ast)
 
 	auto expr =
 		make(make(lift(wrap<Lambda>()),
-		          lift(*formals),
-		          lift(*body)),
+		          lift(formals),
+		          lift(body)),
 		     lift(1),
 		     lift(2))
 		(ast_alloc(gc));
 
-	auto rval = atl.eval(wrap(*expr));
-	ASSERT_EQ((unwrap<Fixnum>(rval).value), 5);
+	auto rval = atl.eval(PassByValue(expr));
+	ASSERT_EQ(5, unwrap<Fixnum>(rval).value);
 }

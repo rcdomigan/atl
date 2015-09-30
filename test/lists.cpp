@@ -234,7 +234,7 @@ TEST_F(ListTest, test_index_embedded)
 		 lift(1))
 		(ast_alloc(arena));
 
-	auto rval = atl.eval(wrap(expr));
+	auto rval = atl.eval(PassByValue(expr));
 	ASSERT_EQ(2, unwrap<Fixnum>(*unwrap<Pointer>(rval).value).value);
 }
 

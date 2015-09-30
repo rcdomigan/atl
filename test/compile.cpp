@@ -108,7 +108,7 @@ TEST_F(CompilerTest, BasicLambda) {
 	     lift(7))
 	    (ast_alloc(atl.gc));
 
-    atl.compile.any(wrap(expr));
+    atl.compile.any(PassByValue(expr));
 
     run_code(atl.vm, atl.compile.code);
 
@@ -127,7 +127,7 @@ TEST_F(CompilerTest, LambdaWithIf) {
 	     lift(7), lift(3))
 	    (ast_alloc(atl.gc));
 
-    atl.compile.any(wrap(expr));
+    atl.compile.any(PassByValue(expr));
 
     run_code(atl.vm, atl.compile.code);
 
@@ -179,8 +179,8 @@ TEST_F(CompilerTest, DefineLambda)
 	                       make(sym("my-add3"), sym("a"), sym("a"), sym("a"))))
 		(ast_alloc(atl.gc));
 
-    atl.compile.any(wrap(my_add3));
-    atl.compile.any(wrap(my_add1));
+    atl.compile.any(PassByValue(my_add3));
+    atl.compile.any(PassByValue(my_add1));
 
     ASSERT_EQ(3,
               unwrap<Procedure>(atl.lexical.toplevel._local["my-add1"].value).tail_params);
@@ -204,7 +204,7 @@ TEST_F(CompilerTest, SimpleRecursion)
 		                make(sym("add2"), sym("b"), lift(1))))))
 		(ast_alloc(atl.gc));
 
-	atl.compile.any(wrap(simple_recur));
+	atl.compile.any(PassByValue(simple_recur));
     atl.compile.any(atl.parse.string_("(simple-recur 3 2)"));
 
     run_code(atl.vm, atl.compile.code);

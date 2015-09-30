@@ -432,16 +432,6 @@ namespace atl
         {}
     };
 
-    struct Method {
-        typedef std::function<Any (Range<tag_t*>)> Dispatch;
-        Dispatch value;
-
-        Method(Dispatch vv)
-            : value(vv)
-        {}
-    };
-
-
     struct Type
     {
         typedef abstract_type::Type value_type;

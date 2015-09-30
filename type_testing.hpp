@@ -11,6 +11,7 @@
 
 namespace atl
 {
+	/// Returns true if the input Any is tagged with T's type-tag.
     template<class T> bool is(const Any&);
 
     template<class T>

@@ -140,6 +140,108 @@ namespace atl
 				};
 		}
 	}
+
+	/// Work-alike wrapper for Any so which is safe to pass around by
+	/// value (ie wrap AstData with an Ast).
+	struct PassByValue
+	{
+		tag_t _tag;
+		void* value;
+
+		PassByValue& _store_value(Any& input)
+		{
+			if(is<AstData>(input))
+				{
+					_tag = tag<Ast>::value;
+					value = &input;
+				}
+			else
+				{
+					_tag = input._tag;
+					value = input.value;
+				}
+			return *this;
+		}
+
+		PassByValue(tag_t tt, void* vv)
+			: _tag(tt), value(vv)
+		{}
+
+		PassByValue(Any& input)
+		{ _store_value(input); }
+
+		PassByValue(Ast& input)
+		{
+			_tag = tag<Ast>::value;
+			value = input.value;
+		}
+
+		PassByValue(AstData& input)
+		{
+			_tag = tag<Ast>::value;
+			value = &input;
+		}
+
+		PassByValue() = default;
+
+		PassByValue& operator=(Any& input)
+		{
+			_store_value(input);
+			return *this;
+		}
+
+		Any& as_Any() { return *reinterpret_cast<Any*>(this); }
+		Any as_Any() const { return *reinterpret_cast<Any const*>(this); }
+	};
+
+	/// If we have an Any which we know will not be an AstData, we can
+	/// use this function to wrap it without any type dispatch.
+	///
+	/// @param input: An Any that the caller promises is not an AstData
+	PassByValue pass_safe_value(Any input)
+	{ return PassByValue(input._tag, input.value); }
+
+	template<class T>
+	PassByValue pass_value()
+	{ return PassByValue(tag<T>::value, nullptr); }
+
+	namespace unwrap_PBV
+	{
+		template<class T>
+		struct Unwrap
+		{
+			static_assert(!std::is_same<AstData, T>::value,
+			              "PassByValue should not directly contain an AstData.");
+
+			static inline constexpr T& a(atl::PassByValue& aa)
+			{ return unwrap<T>(aa.as_Any()); }
+
+			static inline constexpr T const& a(atl::PassByValue const& aa)
+			{ return unwrap<T>(aa.as_Any()); }
+		};
+	}
+
+	template<class T>
+	T& unwrap(PassByValue& input)
+	{ return unwrap_PBV::Unwrap<T>::a(input); }
+
+	template<class T>
+	T unwrap(PassByValue const& input)
+	{ return unwrap_PBV::Unwrap<T>::a(input); }
+
+	template<class T>
+	bool is(PassByValue const& value)
+	{ return is<T>(reinterpret_cast<Any const&>(value)); }
+
+
+	/* Pass through an ast or wrap an AstData */
+	Ast pass_ast(Any& input)
+	{
+		if(is<AstData>(input))
+			return Ast(&unwrap<AstData>(input));
+		else
+			return unwrap<Ast>(input);
+	}
 }
 
 #endif

@@ -6,8 +6,6 @@
 
 #include <tiny_vm.hpp>
 #include <primitive_callable.hpp>
-// #include <compile.hpp>
-// #include <parser.hpp>
 #include <lexical_environment.hpp>
 #include "./testing_utils.hpp"
 

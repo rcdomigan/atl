@@ -30,7 +30,7 @@ TEST_F(TestMacros, test_primitives)
 	           {
 		           using namespace make_ast;
 		           return wrap
-			           (*make
+			           (make
 			            (lift<If>(),
 			             sym("#t"),
 			             make(lift<Quote>(), lift(ast[0])),
@@ -51,7 +51,7 @@ TEST_F(TestMacros, test_applicable)
 	           {
 		           using namespace make_ast;
 		           return wrap
-			           (*make
+			           (make
 			            (make
 			             (lift<Lambda>(),
 			              make(sym("a"), sym("b")),

@@ -24,13 +24,10 @@ struct ParserTest : public ::testing::Test {
     Atl atl;
 };
 
-TEST_F(ParserTest, Atoms) {
-    ASSERT_EQ(unwrap<Fixnum>(atl.parse.string_("2")).value,
-              2);
-
-    ASSERT_EQ(unwrap<String>(atl.parse.string_("\"Hello, world!\"")).value,
-              "Hello, world!");
-
+TEST_F(ParserTest, test_atoms)
+{
+    ASSERT_EQ(2, unwrap<Fixnum>(atl.parse.string_("2")).value);
+    ASSERT_EQ("Hello, world!", unwrap<String>(atl.parse.string_("\"Hello, world!\"")).value);
 }
 
 TEST_F(ParserTest, test_simple_int_list) {
@@ -61,8 +58,8 @@ void _check_nested(AstData const& parsed, AstData const& expected)
 			          (*get<1>(vv))._tag);
 
 			if(is<Ast>(*get<0>(vv)))
-				_check_nested(unwrap<AstData>((*get<0>(vv)).value),
-				              unwrap<AstData>((*get<1>(vv)).value));
+				_check_nested(unwrap<AstData>((*get<0>(vv))),
+				              unwrap<AstData>((*get<1>(vv))));
 			else
 				{
 #ifdef DEBUGGING
@@ -90,8 +87,8 @@ TEST_F(ParserTest, nested_int_list)
 	         lift(3))
 	    (ast_alloc(arena));
 
-    _check_nested(unwrap<AstData>(parsed.value),
-                  *expected.value);
+    _check_nested(*expected.value,
+                  *unwrap<Ast>(parsed).value);
 }
 
 
@@ -105,7 +102,8 @@ TEST_F(ParserTest, TestQuote) {
 	              lift(3)))
 	    (ast_alloc(atl.gc));
 
-    _check_nested(unwrap<AstData>(parsed.value), *expected.value);
+    _check_nested(*expected.value,
+                  *unwrap<Ast>(parsed).value);
 }
 
 
@@ -122,7 +120,8 @@ TEST_F(ParserTest, test_nested_quote)
 		 lift(4))
 		(ast_alloc(atl.gc));
 
-    _check_nested(unwrap<AstData>(parsed.value), *expected.value);
+	_check_nested(*unwrap<Ast>(parsed).value,
+	              *expected.value);
 }
 
 
