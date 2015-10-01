@@ -7,3 +7,6 @@ CXX=g++ $(CXXFLAGS)
 
 %: %.cpp ../*.hpp ./*.hpp
 	$(CXX) $< $(GTEST_LINK) -o $@
+
+test: test.cpp ../*.hpp ./*.cpp
+	$(CXX) test.cpp $(GTEST_LINK) -o test
