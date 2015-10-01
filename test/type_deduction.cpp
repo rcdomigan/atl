@@ -132,11 +132,12 @@ TEST_F(TestBasicTypeDeduction, test_declare_for_any)
 	ASSERT_EQ(tag<Fixnum>::value, rval);
 }
 
-TEST_F(TestBasicTypeDeduction, test_type_function)
-{
-	auto rval = atl.string_("(: (-> Fixnum Fixnum Fixnum) (\\ (a b) (add2 a b)))");
-	cout << type_name(rval) << endl;
-}
+// TODO
+/* TEST_F(TestBasicTypeDeduction, test_type_function) */
+/* { */
+/* 	auto rval = atl.string_("(: (-> Fixnum Fixnum Fixnum) (__\\__ (a b) (add2 a b)))"); */
+/* 	ASSERT_EQ(tag<Fixnum>::value, rval._tag); */
+/* } */
 
 TEST_F(TestBasicTypeDeduction, test_applying_declared_type)
 {

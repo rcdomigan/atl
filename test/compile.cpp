@@ -228,26 +228,27 @@ TEST_F(CompilerTest, multiple_functions)
 	ASSERT_EQ(13, atl.vm.stack[0]);
 }
 
-TEST_F(CompilerTest, relocate_pcode)
-{
-	GC::PCodeAccumulator code1(10), code2(10);
-	code1.clear();
+// TODO
+/* TEST_F(CompilerTest, relocate_pcode) */
+/* { */
+/* 	GC::PCodeAccumulator code1(10), code2(10); */
+/* 	code1.clear(); */
 
-	atl.compile.code.output = &code1;
-	auto no_check = atl.compile.supress_type_check();
+/* 	atl.compile.code.output = &code1; */
+/* 	auto no_check = atl.compile.supress_type_check(); */
 
-	atl.compile.any(atl.parse.string_
-	                ("(define-value simple-recur (\\ (a b) (if (equal2 0 a) b (simple-recur (sub2 a 1) (add2 b 1)))))"));
+/* 	atl.compile.any(atl.parse.string_ */
+/* 	                ("(define-value simple-recur (\\ (a b) (if (equal2 0 a) b (simple-recur (sub2 a 1) (add2 b 1)))))")); */
 
-	code2 = code1;
-	atl.compile.code.output = &code2;
+/* 	code2 = code1; */
+/* 	atl.compile.code.output = &code2; */
 
-	atl.compile.any(atl.parse.string_
-	            ("(define-value simple-recur2 (__\\__ (a b) (if (equal2 0 a) b (simple-recur2 (sub2 a 1) (add2 b 4 )))))"));
-	atl.compile.any(atl.parse.string_
-	                ("(add2 (simple-recur 2 3) (simple-recur2 2 0))"));
+/* 	atl.compile.any(atl.parse.string_ */
+/* 	            ("(define-value simple-recur2 (__\\__ (a b) (if (equal2 0 a) b (simple-recur2 (sub2 a 1) (add2 b 4 )))))")); */
+/* 	atl.compile.any(atl.parse.string_ */
+/* 	                ("(add2 (simple-recur 2 3) (simple-recur2 2 0))")); */
 
-	run_code(atl.vm, atl.compile.code);
-	ASSERT_GT(code2.capacity(), 10);
-	ASSERT_EQ(atl.vm.stack[0], 13);
-}
+/* 	run_code(atl.vm, atl.compile.code); */
+/* 	ASSERT_GT(10, code2.capacity()); */
+/* 	ASSERT_EQ(13, atl.vm.stack[0]); */
+/* } */

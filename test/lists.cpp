@@ -238,6 +238,7 @@ TEST_F(ListTest, test_index_embedded)
 	ASSERT_EQ(2, unwrap<Fixnum>(*unwrap<Pointer>(rval).value).value);
 }
 
+// TODO:
 // TEST_F(ListTest, test_slice)
 // {
 // 	auto result = atl.string_("(slice '(1 2 3 4) 2)");
@@ -260,11 +261,11 @@ TEST_F(ListTest, test_make_nested_ast)
 	             *unwrap<Ast>(atl.parse.string_("(1 (2 3) 4)")).value);
 }
 
-
-TEST_F(ListTest, test_cons)
-{
-    auto result = atl.string_("(cons 0 '(1))");
-    assert_equiv(*unwrap<Ast>(atl.parse.string_("(0 1)")).value,
-                 *unwrap<Ast>(result).value);
-}
+// TODO:
+/* TEST_F(ListTest, test_cons) */
+/* { */
+/*     auto result = atl.string_("(cons 0 '(1))"); */
+/*     assert_equiv(*unwrap<Ast>(atl.parse.string_("(0 1)")).value, */
+/*                  *unwrap<Ast>(result).value); */
+/* } */
 
