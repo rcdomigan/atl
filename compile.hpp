@@ -138,7 +138,7 @@ namespace atl
         };
 
         // Get a value if available, otherwise return undefined.
-        Any value_or_undef(Symbol &sym)
+        PassByValue value_or_undef(Symbol &sym)
         {
             auto def = _env->find(sym.name);
 
@@ -146,7 +146,7 @@ namespace atl
                 auto udef = gc.amake<Undefined>(nullptr);
                 _env->define(sym.name, udef);
                 _undefined.emplace(sym.name);
-                return udef;
+                return PassByValue(udef);
             }
             return def->second.value;
         }
@@ -162,16 +162,15 @@ namespace atl
         struct _Form
         {
             // result from 'form'
-            Any applicable;
+            PassByValue applicable;
             size_t pad_to;
             FormTag form_tag;
             tag_t result_tag;
 
-            _Form(Any applicable_,
+            _Form(PassByValue applicable_,
                   size_t pad_to_,
                   FormTag form_tag_,
                   tag_t result_tag_)
-
                 : applicable(applicable_),
                   pad_to(pad_to_),
                   form_tag(form_tag_),
@@ -203,16 +202,18 @@ namespace atl
         SavedExcursion save_excursion()
 	    { return SavedExcursion(this); }
 
-        // What needs to be handled specially in the car of an Ast?
+        /// \internal
+        /// Evaluates the application position of an s-expression and
+        /// returns a _Form structure with information for _compile.
         _Form form(Ast ast, AssembleVM& code, Context context)
         {
             using namespace std;
 
-            auto head = ast[0];
-            auto result = [&head](Any aa, size_t ss, FormTag ff)
+            PassByValue head = ast[0];
+            auto result = [&head](PassByValue aa, size_t ss, FormTag ff)
                 { return _Form(aa, ss, ff, head._tag); };
 
-            auto compile_tail = [&](Any input)
+            auto compile_tail = [&](PassByValue input)
                 {
                     return _compile(input, code,
                                     Context(context.tail, false, ast));
@@ -226,20 +227,20 @@ namespace atl
                     goto setup_form;
 
                 case tag<CxxMacro>::value:
-	                return _Form(unwrap<CxxMacro>(head).fn(slice(ast, 1)),
+	                return _Form(pass_safe_value(unwrap<CxxMacro>(head).fn(slice(ast, 1))),
 	                             0,
 	                             FormTag::macro_expansion,
 	                             0);
 
                 case tag<Lambda>::value:
                     {
-                        auto formals = ast_iterator::range(ast[1]);
-                        auto size = ast_iterator::size(formals);
+	                    Ast formals = pass_ast(ast[1]);
+	                    auto size = formals.size();
 
                         compile_helpers::IncHopRAII inc_hops(_env);
                         lexical::MapRAII local(&_env);
 
-                        for(auto ff : zip(ast_iterator::range(ast[1]),
+                        for(auto ff : zip(formals,
                                           CountingRange()))
                             local.map.define(unwrap<Symbol>(*get<0>(ff)).name,
                                              // The `offset` should go high to low
@@ -273,7 +274,7 @@ namespace atl
                                 comp_val = compile_body();
                             }
 
-                        return _Form(gc.amake<Procedure>(entry_point, size, comp_val.result_tag),
+                        return _Form(pass_safe_value(gc.amake<Procedure>(entry_point, size, comp_val.result_tag)),
                                      0,
                                      FormTag::done,
                                      comp_val.result_tag);
@@ -282,7 +283,7 @@ namespace atl
                     {
                         // TODO: copy?  Not sure how to handle this with GC.
                         code.pointer(&ast[1]);
-                        return _Form(wrap<Null>(),
+                        return _Form(pass_safe_value(wrap<Null>()),
                                      0,
                                      FormTag::done,
                                      tag<Pointer>::value);
@@ -297,7 +298,7 @@ namespace atl
 			                auto frame = save_excursion();
 			                rval = Compile::any(ast[1]);
 		                }
-		                return _Form(wrap<Null>(),
+		                return _Form(pass_safe_value(wrap<Null>()),
 		                             0,
 		                             FormTag::declare_type,
 		                             rval);
@@ -337,7 +338,7 @@ namespace atl
 		                         .append(" and ")
 		                         .append(type_name(alternate.result_tag)));
 
-                        return _Form(wrap<Null>(), padding, FormTag::done,
+                        return _Form(pass_value<Null>(), padding, FormTag::done,
                                      consiquent.result_tag);
                     }
                 case tag<Ast>::value:
@@ -351,19 +352,19 @@ namespace atl
                     }
                 case tag<Define>::value:
                     {
-                        auto def_compile = [&](Any input) {
+                        auto def_compile = [&](PassByValue input) {
                             return _compile(input, code, Context(true, true, ast));
                         };
 
                         auto sym = unwrap<Symbol>(ast[1]);
-                        Any value = ast[2];
+                        PassByValue value = ast[2];
 
                         pcode::Offset entry_point;
 
-                        Any def;
+                        PassByValue def;
                         auto found = _env->_local.find(sym.name);
                         if(found == _env->_local.end())
-                            def = gc.amake<Undefined>(nullptr);
+	                        def = pass_safe_value(gc.amake<Undefined>(nullptr));
 
                         else if(is<Undefined>(found->second.value))
                             def = found->second.value;
@@ -372,7 +373,8 @@ namespace atl
                             throw WrongTypeError("A symbol cannot be defined twice in the same scope");
 
                         _undefined.erase(sym.name);
-                        _env->define(sym.name, def);
+                        _env->define(sym.name,
+                                     def.as_Any());
 
                         _Compile body_result;
 
@@ -381,7 +383,7 @@ namespace atl
 
                         // Lambda is a little bit of a special case.
                         if(is<Ast>(value)) {
-                            head = unwrap<Ast>(value)[0];
+	                        head = unwrap<Ast>(value)[0];
                             if(is<Symbol>(head))
                                 head = value_or_undef(unwrap<Symbol>(head));
 
@@ -405,18 +407,22 @@ namespace atl
 
                                 code.return_(0);
 
-                                value = gc.amake<Procedure>(entry_point, 0, tag<Any>::value);
+                                value = pass_safe_value
+	                                (gc.amake<Procedure>
+	                                 (entry_point, 0, tag<Any>::value));
                             }
 
                         for(auto& vv : unwrap<Undefined>(def).backtrack)
                             code[vv] = entry_point;
 
-                        _env->define(sym.name, value);
+                        _env->define(sym.name, value.as_Any());
 
                         if(_env->_prev == nullptr)
                             code.main_entry_point = code.pos_end();
 
-                        return _Form(wrap<Null>(), 0, FormTag::done, body_result.result_tag);
+                        return _Form(pass_value<Null>(),
+                                     0,
+                                     FormTag::done, body_result.result_tag);
                     }
                 default:
                     return result(head, 0, FormTag::function);
@@ -425,24 +431,28 @@ namespace atl
 
         struct _Compile
         {
-            Any applicable;
+            PassByValue applicable;
             size_t pad_to;
             tag_t result_tag;
 
             _Compile() = default;
-            _Compile(Any aa, size_t pad, tag_t rt)
+            _Compile(PassByValue aa, size_t pad, tag_t rt)
                 : applicable(aa), pad_to(pad), result_tag(rt)
             {}
         };
 
-        // :returns: thing that can be applied and the size of its tail call
-        _Compile _compile(Any input, AssembleVM& code, Context context)
-        {
+	    /// \internal Take an input and generate byte-code.
+	    ///
+	    /// @param input: the thing to compile
+	    /// @param code: the byte-code we're generating
+	    /// @param context: relavent context, ie are we in a tail call
+	    /// @return: Type information and other things a calling _compile needs to know about.
+        _Compile _compile(PassByValue input, AssembleVM& code, Context context) {
             using namespace std;
 
             auto atom_result = [&]()
                 {
-                    return _Compile(wrap<Null>(), 0, input._tag);
+                    return _Compile(pass_value<Null>(), 0, input._tag);
                 };
 
         compile_value:
@@ -571,7 +581,10 @@ namespace atl
             case tag<Type>::value:
                 {
                     code.pointer(value<Type>(input));
-                    return _Compile(wrap<Null>(), 0, abstract_type::return_tag(*value<Type>(input)));
+                    return _Compile
+	                    (pass_value<Null>(),
+	                     0,
+	                     abstract_type::return_tag(*value<Type>(input)));
                 }
             case tag<CxxFunctor>::value:
                 {
@@ -579,27 +592,22 @@ namespace atl
 
                     // TODO: check arity against the CxxFunctions types.
                     code.std_function(&fn.fn, context.expression.size() - 1);
-                    return _Compile(wrap<Null>(), 0, abstract_type::return_tag(*fn.types));
-                }
-            case tag<Method>::value:
-                {
-                    auto& dispatcher = unwrap<Method>(input);
-                    input = dispatcher.value(make_range(&*context.observed_types->begin(),
-                                                        &*context.observed_types->end()));
-                    goto compile_value;
+                    return _Compile
+	                    (pass_value<Null>(),
+	                     0, abstract_type::return_tag(*fn.types));
                 }
             case tag<Procedure>::value:
                 {
                     auto proc = unwrap<Procedure>(input);
                     code.call_procedure(proc.body);
-                    return _Compile(wrap<Null>(), 0, proc.return_type);
+                    return _Compile(pass_value<Null>(), 0, proc.return_type);
                 }
 
             default:
                 {
                     throw std::string("Illegal syntax or something.");
                 }}
-            return _Compile(wrap<Null>(), 0, tag<Any>::value);
+            return _Compile(pass_value<Null>(), 0, tag<Any>::value);
         }
 
         // Lets macros reach in and explicitly add values to the
@@ -609,11 +617,16 @@ namespace atl
 
         // For most external use.  The generated code can be passed to
         // the VM for evaluation.
-        tag_t any(Any ast)
-        {
-            return _compile
-	            (ast, code, Context(false, false, unwrap<Ast>(ast)))
-	            .result_tag;
+        tag_t any(PassByValue ast)
+	    {
+		    if(is<Ast>(ast))
+			    return _compile
+				    (ast, code, Context(false, false, unwrap<Ast>(ast)))
+				    .result_tag;
+		    else
+			    return _compile
+				    (ast, code, Context(false, false, Ast()))
+				    .result_tag;
         }
 
         // Reset the pcode entry point to compile another expression (as for the REPL).

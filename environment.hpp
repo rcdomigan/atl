@@ -38,7 +38,7 @@ namespace atl
 			stdout = &cout;
 		}
 
-        Any eval(Any value)
+        PassByValue eval(PassByValue value)
 		{
 			auto tag = compile.any(value);
 			compile.assert_ready();
@@ -53,7 +53,8 @@ namespace atl
 			}
 			compile.repl_reset();
 
-			return Any(tag, reinterpret_cast<void*>(vm.result()));
+			Any result(tag, reinterpret_cast<void*>(vm.result()));
+			return PassByValue(result);
 		}
 
 		tag_t struct_tag() { return _struct_tag++; }

@@ -36,17 +36,17 @@ namespace atl
 	    void set_stdout(std::ostream& out)
 	    { env.stdout = &out; }
 
-        Any eval(Any value)
+        PassByValue eval(PassByValue value)
 	    { return env.eval(value); }
 
 	    // Parse, compile, and run the first sexpr in a string
-        Any string_(const std::string& ss)
+        PassByValue string_(const std::string& ss)
 	    { return eval(parse.string_(ss)); }
 
 	    // Parse, compile, and run all the sexprs in a stream
-        Any stream(istream& ss)
+        PassByValue stream(istream& ss)
 	    {
-		    Any rval;
+		    PassByValue rval;
 		    while(ss.peek() != EOF)
 			    rval = eval(parse.stream(ss));
 		    return rval;

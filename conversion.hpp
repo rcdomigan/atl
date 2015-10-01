@@ -34,7 +34,8 @@ namespace atl {
 			: public std::conditional< is_reinterperable<typename std::decay<T>::type>::value,
 			                           Reinterpret<T>,
 			                           Pimpl<T>
-			                           >::type {};
+			                           >::type
+		{};
 	}
 
 	template<class T>
@@ -42,6 +43,11 @@ namespace atl {
 
 	template<class T>
 	static inline T const& unwrap(Any const& input) { return unwrapping::Any<T>::a(input); }
+
+	// template<class T>
+	// static inline T const& unwrap(void const* input)
+	// { return unwrapping::Any<T>::a(*reinterpret_cast<Any const*>(input)); }
+
 
 	/*********************************/
 	/* __        __                  */
@@ -114,6 +120,16 @@ namespace atl {
 	template<class T>
 	static inline Any wrap() { return Any(tag<T>::value, nullptr); }
 
+
+	template<class T>
+	Pointer make_pointer(T* value)
+	{
+		static_assert(is_atl_type<T>::value,
+		              "Will only wrap non-pimpl types with Pointer.  "
+		              "A pimpl type may first be wrapped in an Any.");
+		return Pointer(reinterpret_cast<Any*>(value));
+	}
+
 	namespace get_value
 	{
 		using namespace tmpl;
@@ -136,12 +152,14 @@ namespace atl {
 		template<class T, class Input>
 		struct GetConstValue
 		{
-			typedef typename std::remove_reference<typename std::remove_pointer<T>::type
-			                                       >::type U;
+			typedef typename Apply<AtDef,
+			                       CxxToAtlType,
+			                       Apply<std::remove_reference,
+			                             std::remove_pointer<T> >,
+			                       Identity<T>
+			                       >::type AtlType;
 
-			typedef typename AtDef<CxxToAtlType, U, T>::type AtlType;
-
-			typedef decltype(AtlType::value) Return;
+			typedef decltype(AtlType::value) const& Return;
 
 			static Return a(Input input) { return unwrap<AtlType>(input).value; }
 		};
@@ -160,8 +178,8 @@ namespace atl {
 		// is the object referenced or pointed to const?
 		template<class T>
 		struct IsConstObject
-			: std::is_const<typename std::remove_pointer<typename std::remove_reference<T>::type>::type
-			                >::type {};
+			: Apply<std::is_const, Apply<std::remove_pointer, std::remove_reference<T> >
+			        >::type {};
 
 		template<class T, class Input>
 		struct FromAtl

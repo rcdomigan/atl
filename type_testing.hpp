@@ -11,6 +11,7 @@
 
 namespace atl
 {
+	/// Returns true if the input Any is tagged with T's type-tag.
     template<class T> bool is(const Any&);
 
     template<class T>
@@ -31,7 +32,8 @@ namespace atl
     Is : public mpl::if_< std::is_pointer<T>
                           , Is_pointer_to<T>
                           , Is_immediate<T>
-                          >::type {};
+                          >::type
+    { static_assert(is_atl_type<T>::value, "Can only test tags for ATL types."); };
 
     template<class T>
     inline bool is(const Any &a) { return Is<T>::do_it(a); }

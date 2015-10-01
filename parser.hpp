@@ -77,7 +77,7 @@ namespace atl
 	}
 
 	template<class Itr>
-	void parse(memory_pool::DynamicVector &vec, Itr &&itr, Itr &&end) {
+	void parse(AstSubstrate &vec, Itr &&itr, Itr &&end) {
 	    for(; itr != end; ++itr) {
 		switch(*itr)
                     {
@@ -94,13 +94,12 @@ namespace atl
 
                     case '\'':
                         {		/* quote */
-                            auto quote = vec.push_seq<Ast>();
-                            vec[0] = wrap<Quote>();
-                            ++vec;
+	                        auto quote = push_nested_ast(vec);
+                            vec.push_back(wrap<Quote>());
 
                             ++itr;
                             parse(vec, itr, end);
-                            quote->end_at(vec.end());
+                            quote.end_ast();
                             return;
                         }
 
@@ -108,12 +107,11 @@ namespace atl
                         {		/* sub expression */
                             ++itr;
                             if(*itr == ')') {
-                                auto null = vec.push_seq<Ast>();
-                                null->end_at(vec.end());
+	                            push_nested_ast(vec);
                                 return;
                             }
 
-                            auto ast = vec.push_seq<Ast>();
+                            auto ast = push_nested_ast(vec);
                             while(*itr != ')')
                                 {
                                     if(itr == end)
@@ -124,7 +122,7 @@ namespace atl
                                 }
 
                             ++itr;
-                            ast->end_at(vec.end());
+                            ast.end_ast();
                             return;
                         }
 
@@ -144,8 +142,7 @@ namespace atl
                                 }
 
                             ++itr;
-                            vec[0] = Any(tag<String>::value, str);
-                            ++vec;
+                            vec.emplace_back(tag<String>::value, str);
                             return;
                         }
 
@@ -160,14 +157,13 @@ namespace atl
 
                             if(string_is_number(scratch))
                                 {
-                                    vec[0] = wrap( atoi(scratch.c_str()) );
+	                                vec.push_back(wrap(atoi(scratch.c_str())));
                                 }
                             else
                                 {
-                                    vec[0] = _gc.amake<Symbol>(scratch);
+	                                vec.push_back(_gc.amake<Symbol>(scratch));
                                 }
 
-                            ++vec;
                             return;
                         }
                     }
@@ -181,14 +177,14 @@ namespace atl
 	    //_gc.mark_callback( [this](GC &gc) { _gc.mark(_mark); });
 	}
 
+
 	/* parse one S-expression from a string into an ast */
-	Any& string_(const std::string& input) {
-	    auto vec = _gc.dynamic_seq();
-	    **vec = nil<Null>::value();
+	PassByValue string_(const std::string& input) {
+	    auto& vec = _gc.sequence();
 
 	    auto itr = input.begin(),
 		    end = input.end();
-	    parse(*vec, itr, end);
+	    parse(vec, itr, end);
 
 	    // Check that there was just one expression in our string
 	    while(itr != input.end() && std::isspace(*itr)) ++itr;
@@ -197,27 +193,26 @@ namespace atl
 		                                .append(input)
 		                                .append("`"));
 
-	    return *vec->begin();
+	    return PassByValue(*vec.begin());
 	}
 
 	/* parse one S-expression from a stream into an ast */
-	Any& stream(istream &stream) {
+	PassByValue stream(istream &stream) {
 	    auto initial_flags = stream.flags();
 	    noskipws(stream);
 
-	    auto vec = _gc.dynamic_seq();
-	    **vec = nil<Null>::value();
+	    auto& vec = _gc.sequence();
 
 	    auto itr = istreambuf_iterator<char>(stream),
 		    end = istreambuf_iterator<char>();
-	    parse(*vec, itr, end);
+	    parse(vec, itr, end);
 
 	    // Swallow any following whitepace or comments so the caller
 	    // of the parser doesn't have to check.
 	    skip_ws_and_comments(itr, end);
 
 	    stream.flags(initial_flags);
-	    return *vec->begin();
+	    return PassByValue(*vec.begin());
 	}
 
 	void reset_line_number() { _line = 1; }

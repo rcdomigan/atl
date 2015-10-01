@@ -41,37 +41,14 @@ namespace atl
 			 });
 
 
-		auto alloc_ast_type = new abstract_type::Type(abstract_type::make_concrete({tag<Ast>::value}));
-		env.lexical.define
-			("__alloc_ast__",
-			 wrap
-			 (env.gc.make<CxxFunctor>
-			  ([&](vm_stack::iterator begin, vm_stack::iterator end) -> void
-			  {
-				  auto range = make_range(begin, end);
-				  auto stack = env.gc.dynamic_seq(range.size() + 2);
-				  auto seq = stack->end();
-				  stack->push_back(Any(tag<AstData>::value,
-				                       0));
-
-				  for(auto pair = begin; pair < end; pair += 2)
-					  stack->push_back(Any(pair[1],
-					                       reinterpret_cast<void*>(pair[0])));
-
-				  seq->value = stack->end();
-				  *begin = reinterpret_cast<vm_stack::value_type>(seq);
-			  },
-				  "__alloc_ast__",
-				  alloc_ast_type)));
-
 		auto cc = primitives::Constructor(env.lexical);
 		mpl::for_each<TypesVec, wrap_t_arg< mpl::placeholders::_1> >(cc);
 
-		wrap_function<Any* (Any*, long)>
+		wrap_function<Any* (AstData*, long)>
 			(env.lexical,
 			 "nth",
-			 [](Any *ast, long n) -> Any*
-			{ return &unwrap<Ast>(*ast)[n]; });
+			 [](AstData *ast, long n) -> Any*
+			{ return &Ast(ast)[n]; });
 
 		static auto fn_construct_params = abstract_type::make_concrete({tag<Type>::value, tag<Type>::value});
 		fn_construct_params.front().count = abstract_type::Node::CountType::at_least_one;
@@ -131,20 +108,17 @@ namespace atl
 		wrap_function<AstData* (Any*, Ast*)>
 			(env.lexical,
 			 "cons-ast",
-			 [&env](Any* car, Ast* ast) -> AstData*
+			 [&env](Any* car, Ast* ast)
 			{
-				using namespace ast_iterator;
+				auto& space = env.gc.sequence();
+				auto output = push_nested_ast(space);
 
-				auto output = env.gc.dynamic_seq();
-				auto vec = output->end();
-				output->push_back(Any(tag<AstData>::value, nullptr));
-
-				output->push_back(*car);
+				space.push_back(*car);
 				std::copy(ast->begin(), ast->end(),
-				          std::back_insert_iterator<memory_pool::DynamicVector>(*output));
+				          std::back_inserter(space));
 
-				vec->value = output->end();
-				return reinterpret_cast<AstData*>(vec);
+				output.end_ast();
+				return output.ast_data();
 			});
 
 		wrap_macro
@@ -154,7 +128,7 @@ namespace atl
 			 {
 				 using namespace make_ast;
 				 return wrap
-					 (*make
+					 (make
 					  (sym("cons-ast"),
 					   make(lift<Quote>(),
 					        lift(ast[0])),
@@ -187,7 +161,7 @@ namespace atl
 			 {
 				 using namespace make_ast;
 				 return wrap
-					 (*make
+					 (make
 					  (sym(":"),
 					   lift(ast[0]),
 					   make(sym("__eval__"), lift(ast[1])))

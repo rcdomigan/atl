@@ -145,80 +145,47 @@ namespace atl
 				if(ptr >= _end)	 return 1;
 				return 0; }
 		};
+	}
 
-		struct DynamicVector
+
+	// This is a basic vector with the copy constructor disabled so I
+	// can pass it around by reference and not worry about accidently
+	// copying by value.
+	struct AstSubstrate
+		: public std::vector<Any>
+	{
+		AstSubstrate() : std::vector<Any>() {}
+		AstSubstrate(AstSubstrate const&) = delete;
+	};
+
+	// An iterator like thing which follows the position of an object
+	// in a vector so it will remain valid after a resize.
+	struct MovableAstPointer
+	{
+		AstSubstrate *vect;
+		size_t position;
+
+		MovableAstPointer(AstSubstrate* vect_, size_t pos)
+			: vect(vect_), position(pos)
+		{}
+
+		AstData* ast_data() { return reinterpret_cast<AstData*>(&(*vect)[position]); }
+
+		// Last + 1 element of the wrapped Ast
+		void end_ast()
 		{
-			typedef Any* iterator;
-			typedef const Any* const_iterator;
-			typedef Any value_type;
+			reinterpret_cast<AstData*>(vect->data() + position)->value
+				= vect->size() - position - 1;
+		}
 
-			Any *_buffer, *_end, *_buffer_end;
+		Ast operator*() { return Ast(ast_data()); }
+	};
 
-			DynamicVector(size_t initial_size)
-			{
-				_buffer = new Any[initial_size + 1];
-				_buffer++;	// reserve for the array end pointer
-				_end = _buffer;
-				_buffer_end = _buffer + initial_size;
-			}
-
-			DynamicVector(const DynamicVector&) = default;
-
-			iterator begin() { return _buffer; }
-			iterator end() { return _end; }
-
-			const_iterator begin() const { return _buffer; }
-			const_iterator end() const { return _end; }
-
-			Any& back() { return *(_end - 1); }
-
-			template<class T>
-			T* push_seq()
-			{
-				T *result = new (_end)T(_end + 1, _end + 1);
-				_end += 2;
-				return result;
-			}
-
-			void push_back(const Any& input)
-			{
-				*_end = input;
-				++_end;
-			}
-
-			Any pop_back()
-			{
-				--_end;
-				return _end[1];
-			}
-			void pop_back(size_t nn) { _end -= nn; }
-
-			void resize(size_t n) { } // TODO
-
-			DynamicVector& operator++()
-			{
-				++_end;
-				return *this;
-			}
-			DynamicVector operator++(int)
-			{
-				DynamicVector vec = *this;
-				++_end;
-				return vec;
-			}
-			Any& operator*() { return *_end; }
-			DynamicVector& operator+=(size_t n)
-			{
-				_end += n;
-				return *this;
-			}
-			Any& operator[](size_t n) { return _end[n]; }
-
-			std::back_insert_iterator<memory_pool::DynamicVector> back_insert_iterator()
-			{
-				return std::back_insert_iterator<memory_pool::DynamicVector>(*this);
-			}
-		};
+	MovableAstPointer push_nested_ast(AstSubstrate& substrate)
+	{
+		auto pos = substrate.size();
+		substrate.emplace_back(tag<AstData>::value, nullptr);
+		return MovableAstPointer(&substrate, pos);
 	}
 
 
@@ -228,7 +195,7 @@ namespace atl
 	{
 		virtual ~AllocatorBase() {}
 
-		virtual memory_pool::DynamicVector* sequence() = 0;
+		virtual AstSubstrate& sequence() = 0;
 		virtual Symbol* symbol(std::string const&) = 0;
 	};
 
@@ -339,14 +306,12 @@ namespace atl
 			return Any( tag<Type>::value , make<Type>(args...));
 		}
 
-		memory_pool::DynamicVector* dynamic_seq(size_t initial_size = 100)
+		virtual AstSubstrate& sequence() override
 		{
-			using DynamicVector = memory_pool::DynamicVector;
-			return new DynamicVector(initial_size);
+			auto rval = new AstSubstrate();
+			rval->reserve(100);
+			return *rval;
 		}
-
-		virtual memory_pool::DynamicVector* sequence() override
-		{ return dynamic_seq(); }
 
 		virtual Symbol* symbol(std::string const& name) override
 		{ return make<Symbol>(name); }
@@ -372,8 +337,12 @@ namespace atl
 	// scope. <STUB>
 	struct Arena : public AllocatorBase
 	{
-		memory_pool::DynamicVector* dynamic_seq(size_t size = 100)
-		{ return new memory_pool::DynamicVector(100); }
+		virtual AstSubstrate& sequence() override
+		{
+			auto rval = new AstSubstrate();
+			rval->reserve(100);
+			return *rval;
+		}
 
 		template<class Type, class ... Types>
 		Type* make(Types ... args)
@@ -383,24 +352,10 @@ namespace atl
 		Any amake(Types ... args)
 		{ return Any( tag<Type>::value , make<Type>(args...)); }
 
-		virtual memory_pool::DynamicVector* sequence() override
-		{ return dynamic_seq(); }
-
 		virtual Symbol* symbol(std::string const& name) override
 		{ return make<Symbol>(name); }
 	};
+
 }
 
-namespace std
-{
-	template<>
-	struct iterator_traits<atl::memory_pool::DynamicVector>
-	{
-		typedef size_t difference_type;
-		typedef atl::Any value_type;
-		typedef atl::Any* pointer;
-		typedef atl::Any& reference;
-		typedef output_iterator_tag iterator_category;
-	};
-}
 #endif
