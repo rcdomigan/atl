@@ -140,6 +140,6 @@ TEST_F(TestBasicTypeDeduction, test_type_function)
 
 TEST_F(TestBasicTypeDeduction, test_applying_declared_type)
 {
-	auto rval = atl.string_("((: (-> Fixnum Fixnum Fixnum) (\\ (a b) (add2 a b))) 2 3)");
+	auto rval = atl.string_("((: (-> Fixnum Fixnum Fixnum) (__\\__ (a b) (add2 a b))) 2 3)");
 	ASSERT_EQ(5, unwrap<Fixnum>(rval).value);
 }
