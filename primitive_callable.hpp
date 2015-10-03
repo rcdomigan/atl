@@ -141,32 +141,6 @@ namespace atl
 			{
 				return env.gc.make<Slice>(ast->begin() + nn, ast->end());
 			});
-
-		wrap_function<pcode::value_type (Any*)>
-			(env.lexical,
-			 "__eval__",
-			 [&env] (Any* expr) -> pcode::value_type
-			{
-				auto pcode_frame = env.compile.save_excursion();
-				auto stack_frame = env.vm.save_excursion();
-
-				auto rval = env.eval(*expr);
-				return reinterpret_cast<pcode::value_type>(rval.value);
-			});
-
-		wrap_macro
-			(env.lexical,
-			 "eval",
-			 [&env](CxxMacro::Input const& ast) -> Any
-			 {
-				 using namespace make_ast;
-				 return wrap
-					 (make
-					  (sym(":"),
-					   lift(ast[0]),
-					   make(sym("__eval__"), lift(ast[1])))
-					  (ast_alloc(env.gc)));
-			 });
 	}
 
 
