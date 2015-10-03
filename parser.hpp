@@ -198,7 +198,7 @@ namespace atl
 
 		/* parse one S-expression from a stream into an ast */
 		PassByValue stream(istream &stream)
-		s{
+		{
 			auto initial_flags = stream.flags();
 			noskipws(stream);
 
