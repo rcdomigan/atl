@@ -7,7 +7,7 @@
  */
 
 #include <type.hpp>
-#include <tiny_vm.hpp>
+#include <vm.hpp>
 #include <primitive_callable.hpp>
 #include <compile.hpp>
 #include <gc.hpp>

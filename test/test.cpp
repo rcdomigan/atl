@@ -7,7 +7,7 @@
 #include <gtest/gtest.h>
 
 #include <ffi.hpp>
-#include <tiny_vm.hpp>
+#include <vm.hpp>
 
 #include "./testing_utils.hpp"
 

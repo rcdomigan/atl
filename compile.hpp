@@ -9,7 +9,8 @@
  */
 
 #include "./exception.hpp"
-#include "./tiny_vm.hpp"
+#include "./vm.hpp"
+#include "./byte_code.hpp"
 #include "./type.hpp"
 #include "./lexical_environment.hpp"
 #include "./utility.hpp"
@@ -54,14 +55,14 @@ namespace atl
 
     struct Compile
     {
-        typedef AssembleVM::const_iterator iterator;
+        typedef AssembleCode::const_iterator iterator;
 	    typedef pcode::Offset Offset;
 
 	    std::set<std::string> _undefined;
         lexical::Map *_env;     // pushing a scope mutates where this points
         GC& gc;
 
-        AssembleVM code;
+        AssembleCode code;
 
 	    bool _do_type_check;
 
@@ -82,8 +83,8 @@ namespace atl
 	          _do_type_check(true)
 	    {}
 
-	    Compile(lexical::Map& env, GC& gc_, GC::PCodeAccumulator& output_)
-		    : _env(&env), gc(gc_), code(&output_),
+	    Compile(lexical::Map& env, GC& gc_, AssembleCode& output_)
+		    : _env(&env), gc(gc_), code(output_),
 		      _do_type_check(true)
         {}
 
@@ -96,8 +97,8 @@ namespace atl
         struct SkipBlock
         {
 	        pcode::Offset _skip_to;
-            AssembleVM& code;
-            SkipBlock(AssembleVM& code_) : code(code_)
+            AssembleCode& code;
+            SkipBlock(AssembleCode& code_) : code(code_)
             {
                 code.pointer(nullptr);
                 _skip_to = code.pos_last();
@@ -205,7 +206,7 @@ namespace atl
         /// \internal
         /// Evaluates the application position of an s-expression and
         /// returns a _Form structure with information for _compile.
-        _Form form(Ast ast, AssembleVM& code, Context context)
+        _Form form(Ast ast, AssembleCode& code, Context context)
         {
             using namespace std;
 
@@ -447,7 +448,7 @@ namespace atl
 	    /// @param code: the byte-code we're generating
 	    /// @param context: relavent context, ie are we in a tail call
 	    /// @return: Type information and other things a calling _compile needs to know about.
-        _Compile _compile(PassByValue input, AssembleVM& code, Context context) {
+        _Compile _compile(PassByValue input, AssembleCode& code, Context context) {
             using namespace std;
 
             auto atom_result = [&]()
@@ -632,8 +633,8 @@ namespace atl
         // Reset the pcode entry point to compile another expression (as for the REPL).
         void repl_reset()
         {
-	        code.output->erase(code.output->begin() + code.main_entry_point,
-	                           code.output->end());
+	        code.output->code.erase(code.output->begin() + code.main_entry_point,
+	                                code.output->end());
         }
 
         void reset()

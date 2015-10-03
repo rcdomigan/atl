@@ -10,6 +10,7 @@
 #include "./helpers.hpp"
 #include "./compile.hpp"
 #include "./lexical_environment.hpp"
+#include "./byte_code.hpp"
 
 namespace atl
 {
@@ -22,7 +23,7 @@ namespace atl
 		TinyVM& vm;
 
 
-		AssembleVM *pcode;
+		AssembleCode *pcode;
 		std::ostream* stdout;
 
 		tag_t _struct_tag;

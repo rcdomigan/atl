@@ -34,7 +34,7 @@ struct TrivialFunctions
     {}
 };
 
-void run_code(atl::TinyVM& vm, atl::AssembleVM& input)
+void run_code(atl::TinyVM& vm, atl::AssembleCode& input)
 {
 	atl::RunnableCode code(input);
 #ifdef DEBUGGING

@@ -6,7 +6,7 @@
  * Regression tests.  There may be unit tests some day if I can be bolloxed.
  */
 
-#include <tiny_vm.hpp>
+#include <vm.hpp>
 #include <print.hpp>
 #include <atl.hpp>
 
@@ -72,7 +72,7 @@ TEST_F(CompilerTest, TestCxxStdFunction) {
     run_code(atl.vm, atl.compile.code);
     ASSERT_EQ(atl.vm.stack[0], 9);
 
-    atl.compile.code = AssembleVM(&atl.gc.alloc_pcode());
+    atl.compile.code = AssembleCode(&atl.gc.alloc_pcode());
 
     multiple = 4;
     atl.compile.any(atl.parse.string_("(foo 3)"));

@@ -8,7 +8,7 @@
 
 #include <map>
 
-#include <tiny_vm.hpp>
+#include <vm.hpp>
 #include <abstract_type.hpp>
 #include <exception.hpp>
 #include <print.hpp>
