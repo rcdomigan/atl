@@ -107,6 +107,7 @@ namespace atl
 							++itr;
 							if(*itr == ')') {
 								push_nested_ast(vec);
+								++itr;
 								return;
 							}
 

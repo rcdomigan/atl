@@ -73,6 +73,21 @@ void _check_nested(AstData const& parsed, AstData const& expected)
 }
 
 
+TEST_F(ParserTest, test_empty_list)
+{
+	Arena arena;
+	using namespace make_ast;
+    auto parsed = atl.parse.string_("()");
+
+    auto expected =
+	    make()
+	    (ast_alloc(arena));
+
+    _check_nested(*expected.value,
+                  *unwrap<Ast>(parsed).value);
+}
+
+
 TEST_F(ParserTest, nested_int_list)
 {
 	Arena arena;
