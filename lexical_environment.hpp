@@ -90,13 +90,30 @@ namespace atl
 				}
 		}
 
-		struct MapRAII {
+		/**
+		 * Nest a namespace.  On close, hoist any Undefined symbols
+		 * into the enclosing namespace for resolution and cleanup the
+		 * rest.
+		 */
+		struct MapRAII
+		{
 			Map map;
 			Map **top;
-			MapRAII(Map** top_) : map(*top_), top(top_) {
+			MapRAII(Map** top_) : map(*top_), top(top_)
+			{
 				*top = &map;
 			}
-			~MapRAII() { *top = map._prev; }
+			~MapRAII()
+			{
+				if(map._prev)
+					{
+						auto prev = map._prev;
+						for(auto& vv : map)
+							if(is<Undefined>(vv.second.value))
+								prev->_local.insert(vv);
+					}
+				*top = map._prev;
+			}
 		};
 	}
 
