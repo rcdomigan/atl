@@ -77,29 +77,6 @@ namespace atl
 
 		value_type stack[stack_size];
 
-		struct SaveState
-		{
-			TinyVM& vm;
-			vm_stack::Offset pc;
-			iterator top;           // 1 past last value
-			iterator call_stack;
-
-			SaveState(TinyVM& vm_)
-				: vm(vm_),
-				  pc(vm_.pc),
-				  top(vm_.top),
-				  call_stack(vm_.call_stack)
-			{}
-
-			~SaveState()
-			{
-				vm.pc = pc;
-				vm.top = top;
-			}
-		};
-
-		SaveState save_excursion()
-		{ return SaveState(*this); }
 
 		TinyVM() : top(stack), call_stack(stack) {}
 

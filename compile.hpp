@@ -179,30 +179,6 @@ namespace atl
             {}
         };
 
-
-        struct SavedExcursion
-        {
-            Compile *compile;
-	        pcode::Offset main_entry, end;
-
-            SavedExcursion(Compile* comp)
-                : compile(comp), main_entry(comp->code.main_entry_point),
-                  end(comp->code.pos_end())
-            { comp->code.main_entry_point = end; }
-
-            ~SavedExcursion()
-            {
-	            if(compile)
-		            {
-			            compile->repl_reset();
-			            compile->code.main_entry_point = main_entry;
-		            }
-            }
-        };
-
-        SavedExcursion save_excursion()
-	    { return SavedExcursion(this); }
-
         /// \internal
         /// Evaluates the application position of an s-expression and
         /// returns a _Form structure with information for _compile.
@@ -295,10 +271,7 @@ namespace atl
 		                // The whole shooting match is given the
 		                // Type.value as its type.
 		                tag_t rval;
-		                {
-			                auto frame = save_excursion();
-			                rval = Compile::any(ast[1]);
-		                }
+		                rval = Compile::any(ast[1]);
 		                return _Form(pass_safe_value(wrap<Null>()),
 		                             0,
 		                             FormTag::declare_type,
@@ -610,11 +583,6 @@ namespace atl
                 }}
             return _Compile(pass_value<Null>(), 0, tag<Any>::value);
         }
-
-        // Lets macros reach in and explicitly add values to the
-        // PCode.  todo: This is not an ideal abstraction.
-        void push_value(vm_stack::value_type value)
-        { code.constant(value); }
 
         // For most external use.  The generated code can be passed to
         // the VM for evaluation.
