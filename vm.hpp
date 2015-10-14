@@ -52,7 +52,8 @@ namespace atl
 		void pop() { top--; ++pc; }
 
 		template<class Fn>
-		void call_cxx_function() {
+		void call_cxx_function()
+		{
 			auto fn = reinterpret_cast<Fn>(*(top - 1));
 			top -= 2;
 			auto n = *top;
@@ -67,7 +68,8 @@ namespace atl
 
 		void std_function() { call_cxx_function<CxxFunctor::value_type*>(); }
 
-		void if_() {
+		void if_()
+		{
 			top -= 2;
 			if(top[1] != 0) ++pc;
 			else pc = *top;
@@ -75,15 +77,26 @@ namespace atl
 
 		void jump() { --top; pc = *top; }
 
-		void call_procedure() {
-			*top        = reinterpret_cast<value_type>(pc + 1);    // next instruction
+		/** Use the top of the stack as a procedure address and call it
+		 * Pre call stack:
+		 *   [arg1]...[argN][next-instruction]
+		 *                                    ^- top
+		 * Post call:
+		 *   [arg1]...[argN][old-call-stack][return-address]
+		 *                   ^                              ^- top
+		 *                   ^- call_stack
+		 */
+		void call_procedure()
+		{
+			*top        = reinterpret_cast<value_type>(pc + 1);
 			pc          = back();
-			*(top - 1)  = reinterpret_cast<uintptr_t>(call_stack); // store the enclosing frame
-			call_stack  = top - 1;                                 // update the frame
+			*(top - 1)  = reinterpret_cast<uintptr_t>(call_stack);
+			call_stack  = top - 1;
 			++top;
 		}
 
-		void argument() {
+		void argument()
+		{
 			--top;
 			*top = *(call_stack - *top);
 			++top; ++pc;
@@ -93,7 +106,11 @@ namespace atl
 			throw std::string("TODO");
 		}
 
-		void return_() {
+		/** [return-value][number-of-arguments-to-procedure]
+		 *                                                  ^- top
+		 */
+		void return_()
+		{
 			auto num_args = back();
 			auto result   = *(top - 2);
 			top           = call_stack - num_args;
@@ -103,19 +120,41 @@ namespace atl
 			*top = result; ++top;
 		}
 
-		void tail_call() {
-			// move N arguments from the top of the stack to dst
+		/** Replace the current function's stack frame with arg0-argN
+		 * from the top of the stack, and re-use it when calling
+		 * `procedure-address`
+		 *
+		 * Pre call stack:
+		 *
+		 *  @caller's frame
+		 *   [caller's args...]
+		 *   [old-call-stack]	<- call_stack
+		 *   [return-address]
+		 *   ...
+		 *   [my args...]
+		 *   [N]
+		 *   [procedure-address]
+		 *						<- top
+		 * Post call:
+		 *
+		 *  @caller's frame
+		 *   [my-args...]
+		 *   [old-call-stack]	<- call_stack
+		 *   [return-address]
+		 *                      <- top
+		 */
+		void tail_call()
+		{
 			top -= 2;
-			auto next_pc = top[1];
-			auto nn = top[0];
+			auto num_args = top[0];
+			pc = top[1];
 
-			for(auto iitr = top - nn,
-				    dest = call_stack - nn;
+			for(auto iitr = top - num_args,
+				    dest = call_stack - num_args;
 			    iitr != top;
 			    ++iitr, ++dest)
 				*dest = *iitr;
 
-			pc = next_pc;
 			top = call_stack + 2;
 		}
 

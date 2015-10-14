@@ -32,11 +32,11 @@
 //   push               : [word]
 //   pop                : [out-going]
 //   jump               : [destination address]
-//   call_procedure     : [arg1]...[argN][@closure][next-instruction]<body...>
+//   call_procedure     : [arg1]...[argN][procedure-address]
 //   return_            : [return-value][number-of-arguments-to-procedure]
 //   argument           : [offset]
 //   nested_argument    : [offset][hops]
-//   tail_call          : [arg0]..[argN][N][dst]
+//   tail_call          : [arg0]..[argN][N][procedure-address]
 //   finish             : -
 
 
@@ -203,6 +203,7 @@ namespace atl
 	{ print(std::cout); }
 
 
+	/** Wraps a Code object with some instruction insertion methods. */
 	struct AssembleCode
 	{
 		typedef uintptr_t value_type;
