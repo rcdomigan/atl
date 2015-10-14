@@ -44,15 +44,15 @@ namespace atl
 			auto tag = compile.any(value);
 			compile.assert_ready();
 			{
-				RunnableCode code(compile.code);
+				auto code = compile.pass_code_out();
 #ifdef DEBUGGING
 				compile.dbg();
-				vm.run_debug(code);
+				vm.run_debug(*code);
 #else
-				vm.run(code);
+				vm.run(*code);
 #endif
+				compile.take_code(code);
 			}
-			compile.repl_reset();
 
 			Any result(tag, reinterpret_cast<void*>(vm.result()));
 			return PassByValue(result);

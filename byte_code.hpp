@@ -210,11 +210,39 @@ namespace atl
 
 		Code* output;
 
-		pcode::Offset main_entry_point;
+		/**
+		 * @param code_: the Code object we're appending to.
+		 */
+		AssembleCode(Code *code_)
+			: output(code_)
+		{ take_code(code_); }
 
-		AssembleCode(Code *output_)
-			: output(output_), main_entry_point(0)
-		{}
+		/** Pass the code out of AssembleCode and set what it's
+		 * working on to nullptr
+		 *
+		 * @return: code terminated with 'finish'
+		 */
+		Code* pass_code_out()
+		{
+			finish();
+			auto rval = output;
+			output = nullptr;
+			return rval;
+		}
+
+		/** Takes code and prepares it for appending. Strip off terminating
+		 * 'finish' instructions, strip that off during and add it back
+		 * when the code is passed back out with return_code.
+		 *
+		 * @param input: Pointer to the code we're modifying
+		 */
+		void take_code(Code *input)
+		{
+			output = input;
+			if(!output->code.empty() && output->code.back() == vm_codes::values::finish)
+				output->code.pop_back();
+
+		}
 
 #define M(r, data, instruction) AssembleCode& instruction() {             \
 			_push_back(vm_codes::Tag<vm_codes::instruction>::value); \
@@ -241,11 +269,6 @@ namespace atl
 		}
 
 		void pop_back() { output->code.pop_back(); }
-		void clear()
-		{
-			main_entry_point = 0;
-			output->code.clear();
-		}
 
 		const_iterator begin() const { return output->code.begin(); }
 		const_iterator end() const { return output->code.end(); }

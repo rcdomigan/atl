@@ -28,55 +28,19 @@
 
 namespace atl
 {
-	// The PCode needs to end in a 'finish' instruction to run.  The
-	// compiler doesn't put in the 'finish' statement by default since
-	// it may be awaiting more input.
-	struct RunnableCode
-	{
-		AssembleCode &code;
-		bool _do_pop;
-
-		RunnableCode(AssembleCode &code_)
-			: code(code_)
-		{
-			if(code.empty()
-			   || (code.back() != vm_codes::values::finish))
-				{
-					_do_pop = true;
-					code.finish();
-				}
-			else
-				_do_pop = false;
-		}
-
-		RunnableCode(RunnableCode&& other)
-			: code(other.code), _do_pop(other._do_pop)
-		{
-			other._do_pop = false;
-		}
-
-		~RunnableCode()
-		{
-			if(_do_pop)
-				code.pop_back();
-		}
-	};
-
 	struct TinyVM
 	{
 		typedef uintptr_t value_type;
 		typedef uintptr_t* iterator;
 		static const size_t stack_size = 100;
 
-		Code const* code_stuff;
-		Code::Backer const* code;
+		Code::Backer const* code;	// just the byte code
 
 		vm_stack::Offset pc;
 		iterator top;           // 1 past last value
-		iterator call_stack;
+		iterator call_stack;	// points to the pointer to the enclosing frame
 
-		value_type stack[stack_size];
-
+		value_type stack[stack_size]; // the function argument and adress stack
 
 		TinyVM() : top(stack), call_stack(stack) {}
 
@@ -172,46 +136,65 @@ namespace atl
 				}
 		}
 
+
+		/** \internal
+		 * Call the 'main' function if it exists otherwise
+		 * treat input as a code fragment and enter at pc = 0.
+		 *
+		 * @param input: code to enter
+		 */
+		void enter_code(Code const& input)
+		{
+			call_stack = nullptr;
+			if(input.has_main())
+				pc = input.main_entry_point();
+			else
+				pc = 0;
+		}
+
 		// Take code and run it.  Prints the stack and pc after each
 		// instruction.
 		//
 		// @param max_steps: vm will exit after max_steps instructions
 		// have been evaluated, even if we never reach a 'finish' instruction.
-		void run_debug(RunnableCode const& input,
-		               unsigned int max_steps = 1000)
+		void run_debug(Code const& input,
+		               unsigned int max_steps = 2048)
 		{
-            top = stack;
-            pc = input.code.main_entry_point;
+			enter_code(input);
 
-			this->code_stuff = input.code.output;
-			this->code = &code_stuff->code;
+			this->code = &input.code;
 
-			for(unsigned int i = 0; i < max_steps; ++i) {
+			for(unsigned int i = 0; ; ++i) {
 				std::cout << "====================\n"
 				          << "= " << vm_codes::name((*code)[pc]) << "\n"
 				          << "= call stack: " << call_stack << " pc: " << pc << "\n"
 				          << "====================" << std::endl;
-				if(step(*code)) break;
 				print_stack();
+				if(step(*code)) break;
+				if(i > max_steps)
+					throw BadPCodeInstruction("Too many steps in debug evaluation");
 			}
 			print_stack();
 		}
 
-		void run(RunnableCode const& input)
+		void run(Code const& input)
 		{
-			pc = input.code.main_entry_point;
+			enter_code(input);
 
-			this->code_stuff = input.code.output;
-			this->code = &code_stuff->code;
+			this->code = &input.code;
 
-			while(true) {
-				switch((*code)[pc]) {
+			while(true)
+				{
+					switch((*code)[pc])
+						{
 #define M(r, data, instruction) case vm_codes::values::instruction: instruction(); break;
-					BOOST_PP_SEQ_FOR_EACH(M, _, ATL_VM_NORMAL_BYTE_CODES)
+							BOOST_PP_SEQ_FOR_EACH(M, _, ATL_VM_NORMAL_BYTE_CODES)
 #undef M
-				case vm_codes::values::finish:
-						return;
-				}}}
+						case vm_codes::values::finish:
+								return;
+						}
+				}
+		}
 
 		iterator begin() { return stack; }
 		iterator end() { return top; }

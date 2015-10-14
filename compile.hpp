@@ -391,8 +391,8 @@ namespace atl
 
                         _env->define(sym.name, value.as_Any());
 
-                        if(_env->_prev == nullptr)
-                            code.main_entry_point = code.pos_end();
+                        code.output->offset_table.set(sym.name,
+                                                      entry_point);
 
                         return _Form(pass_value<Null>(),
                                      0,
@@ -598,16 +598,6 @@ namespace atl
 				    .result_tag;
         }
 
-        // Reset the pcode entry point to compile another expression (as for the REPL).
-        void repl_reset()
-        {
-	        code.output->code.erase(code.output->begin() + code.main_entry_point,
-	                                code.output->end());
-        }
-
-        void reset()
-        { code.clear(); }
-
         void dbg();
 
 	    // Check that all symbols have definitions, raise
@@ -626,13 +616,54 @@ namespace atl
 			    }
 	    }
 
+	    /** Prepare the `code` to run on the VM.  For a code fragment,
+	     * just append the 'finish' instruction.  For a 'program'
+	     * (something with a "main" function) append a call to "main"
+	     * and add a "__call-main__" symbol in the offset table for the VM
+	     * to use.
+	     *
+	     * @return: The setup code
+	     */
+	    Code* pass_code_out()
+	    {
+		    auto main = value_or_undef("main");
+		    if(!is<Undefined>(main))
+			    {
+				    auto num_tail_params = unwrap<Procedure>(main).tail_params;
+				    auto entry = code.pos_end();
+
+				    /* Make sure we're padded out for a tail call. */
+				    for(size_t i = 0; i < num_tail_params; ++i)
+					    code.constant(0);
+
+				    code.call_procedure(code.output->offset_table["main"]);
+				    code.output->offset_table.set("__call-main__",
+				                                  entry);
+			    }
+		    return code.pass_code_out();
+	    }
+
+	    /** Prepare to append more instructions to some code.  While
+	     * Compile has taken some code, the code is not suitable to
+	     * run on the VM.
+	     *
+	     * @param taking: Code we're going to append to.
+	     */
+	    void take_code(Code* taking)
+	    {
+		    if(taking->has_main())
+			    {
+				    auto& raw_code = taking->code;
+				    raw_code.erase(raw_code.begin() + taking->offset_table["__call-main__"],
+				                   raw_code.end());
+			    }
+
+		    code.take_code(taking);
+	    }
     };
 
     void Compile::dbg()
-    {
-        cout << "Main entry point: " << code.main_entry_point << endl;
-        dbg_code(*code.output);
-    }
+    { code.output->dbg(); }
 }
 
 
