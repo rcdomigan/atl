@@ -101,27 +101,18 @@ TEST_F(TestBasicTypeDeduction, test_declared_type_tag)
 
 TEST_F(TestBasicTypeDeduction, test_simple)
 {
-    // can't actually evauate; 'a' has no value.
-    ASSERT_TRUE(is<Fixnum>(atl.compile.any(atl.parse.string_("(add2 (: Fixnum 2) 3)"))));
-
-    atl.compile.reset();
-    ASSERT_EQ(unwrap<Fixnum>(atl.string_("(add2 (: Fixnum 2) 3)")).value,
-              5);
+	auto rval = atl.string_("(add2 (: Fixnum 2) 3)");
+    ASSERT_TRUE(is<Fixnum>(rval));
+    ASSERT_EQ(5, unwrap<Fixnum>(rval).value);
 }
 
 
 // Test that throwing in a type declaration doesn't break simple statements.
 TEST_F(TestBasicTypeDeduction, usable_in_lambda)
 {
-    auto tag = atl.compile.any(atl.parse.string_("(__\\__ (a) (add2 (: Fixnum a) 2))"));
-    ASSERT_TRUE(is<Fixnum>(tag));
-    atl.compile.reset();
-
-    tag = atl.compile.any(atl.parse.string_("((__\\__ (a) (add2 (: Fixnum a) 2)) 3)"));
-    ASSERT_TRUE(is<Fixnum>(tag));
-
-    ASSERT_EQ(unwrap<Fixnum>(atl.string_("((__\\__ (a) (add2 (: Fixnum a) 2)) 3)")).value,
-              5);
+	auto rval = atl.string_("((__\\__ (a) (add2 (: Fixnum a) 2)) 3)");
+    ASSERT_TRUE(is<Fixnum>(rval._tag));
+    ASSERT_EQ(5, unwrap<Fixnum>(rval).value);
 }
 
 

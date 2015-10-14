@@ -35,9 +35,9 @@ TEST_F(AtlTest, test_string_stream)
 
 	std::stringstream content
 		(";; used to test atl.cpp\n"
-		 "(define-value foo (__\\__ (a) (print-int (add2 a 3))))");
+		 "(define-value foo (__\\__ (a) (print-int (add2 a 3))))\n"
+		 "(define-value main (__\\__ () (foo 2)))");
 	atl.stream(content);
-	atl.string_("(foo 2)");
 
 	ASSERT_EQ(output.str(), "5\n");
 }
@@ -61,7 +61,7 @@ TEST_F(AtlTest, test_multiline_stream)
 		 "\n"
 		 "(define-value bar (__\\__ (a b) (add2 (add2 a 3) b)))");
 	atl.stream(content);
-	ASSERT_EQ((unwrap<Fixnum>(atl.string_("(bar 2 3)")).value),
+	ASSERT_EQ((unwrap<Fixnum>(atl.string_("(define-value main (__\\__ () (bar 2 3)))")).value),
 	          8);
 }
 
@@ -81,23 +81,18 @@ TEST_F(AtlTest, running_embedded_ast)
 	using namespace make_ast;
 	auto& gc = atl.gc;
 
-	auto sym = [&](std::string const& name) -> Symbol*
-		{
-			return gc.make<Symbol>(name);
-		};
-
-	auto formals = make(lift(sym("a")), lift(sym("b")))
+	auto formals = make(sym("a"), sym("b"))
 		(ast_alloc(gc));
 
-	auto body = make(lift(sym("add2")),
-	                 make(lift(sym("add2")),
-	                      lift(sym("a")),
+	auto body = make(sym("add2"),
+	                 make(sym("add2"),
+	                      sym("a"),
 	                      lift(2)),
-	                 lift(sym("b")))
+	                 sym("b"))
 		(ast_alloc(gc));
 
 	auto expr =
-		make(make(lift(wrap<Lambda>()),
+		make(make(lift<Lambda>(),
 		          lift(formals),
 		          lift(body)),
 		     lift(1),

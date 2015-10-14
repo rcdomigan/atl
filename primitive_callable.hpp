@@ -92,7 +92,7 @@ namespace atl
 		wrap_function<long ()>(env.lexical, "print-bytecode",
 		                       [&env]() {
 			                       if(env.pcode)
-				                       dbg_code(*env.pcode->output);
+				                       env.pcode->output->dbg();
 			                       else
 				                       cout << "environment pcode is not set." << endl;
 			                       return 0;
