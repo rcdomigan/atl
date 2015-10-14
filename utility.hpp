@@ -511,6 +511,7 @@ struct Range : public Range_base<IteratorType> {
     ~Range() = default;
 
     size_t size() const { return base_type::end() - base_type::begin(); }
+	bool empty() const { return base_type::end() == base_type::begin(); }
 };
 
 template<class Itr>
