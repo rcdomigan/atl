@@ -90,10 +90,52 @@ namespace atl
 		}
 	}
 
-	typedef std::unordered_map<std::string, size_t> OffsetTable;
+	struct OffsetTable
+	{
+		typedef std::unordered_map<std::string, size_t> Table;
+		typedef std::unordered_multimap<size_t, std::string> ReverseTable;
+		Table table;
+		ReverseTable reverse_table;
+
+		/*** Create or update an entry in the offset tables
+		 * @param name: name of the symbol referencing this piece of code
+		 * @param pos: position in the code being referenced
+		 */
+		void set(std::string const& name, size_t pos)
+		{
+			auto old = table.find(name);
+			if(old != table.end())
+				{
+					auto range = reverse_table.equal_range(old->second);
+					for(auto itr = range.first; itr != range.second; ++itr)
+					{
+						if(itr->second == name)
+							{
+								reverse_table.erase(itr);
+								break;
+							}
+					}
+				}
+
+			table[name] = pos;
+			reverse_table.emplace(std::make_pair(pos, name));
+		}
+
+		Range<typename ReverseTable::const_iterator>
+		symbols_at(size_t pos) const
+		{
+			auto range = reverse_table.equal_range(pos);
+			return make_range(range.first, range.second);
+		}
+
+		size_t operator[](std::string const& name)
+		{ return table[name]; }
+	};
+
 
 	struct Code
 	{
+		typedef typename pcode::value_type value_type;
 		typedef std::vector<pcode::value_type> Backer;
 		typedef typename Backer::iterator iterator;
 		typedef typename Backer::const_iterator const_iterator;
@@ -101,41 +143,65 @@ namespace atl
 		OffsetTable offset_table;
 		Backer code;
 
+		bool has_main() const { return offset_table.table.count("main") != 0; }
+		size_t main_entry_point() const
+		{ return offset_table.table.at("__call-main__"); }
+
 		iterator begin() { return code.begin(); }
 		iterator end() { return code.end(); }
 
 		const_iterator begin() const { return code.begin(); }
 		const_iterator end() const { return code.end(); }
+
+		void dbg() const;
+		void print(std::ostream &) const;
+
+		size_t size() const { return code.size(); }
 	};
 
-	void dbg_code(Code const& code)
+	void Code::print(std::ostream &out) const
 	{
-		using namespace std;
-
 		int pushing = 0;
 		size_t pos = 0;
+
 		for(auto& vv : code)
 			{
 				auto vname = vm_codes::name_or_null(vv);
 
-				cout << " " << pos << ": ";
+				out << " " << pos << ": ";
 
 				if(pushing)
 					{
 						--pushing;
-						cout << "@" << vv;
+						out << "@" << vv;
 					}
 				else
 					{
 						if(vv == vm_codes::Tag<vm_codes::push>::value)
 							++pushing;
-						cout << vname;
+						out << vname;
 					}
-				cout << endl;
+
+				auto sym_names = offset_table.symbols_at(pos);
+				if(!sym_names.empty())
+					{
+						out << "\t\t# " << sym_names.begin()->second;
+						for(auto name : make_range(++sym_names.begin(), sym_names.end()))
+							out << ", " << name.second;
+					}
+
+
+				out << std::endl;
+
+
 				++pos;
 			}
-		cout << "<--- done printing code --->" << endl;
+		out << "<--- done printing code --->" << std::endl;
 	}
+
+	void Code::dbg() const
+	{ print(std::cout); }
+
 
 	struct AssembleCode
 	{
