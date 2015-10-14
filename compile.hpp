@@ -139,14 +139,14 @@ namespace atl
         };
 
         // Get a value if available, otherwise return undefined.
-        PassByValue value_or_undef(Symbol &sym)
+	    PassByValue value_or_undef(std::string const& name)
         {
-            auto def = _env->find(sym.name);
+            auto def = _env->find(name);
 
             if(def == _env->end()) {
                 auto udef = gc.amake<Undefined>(nullptr);
-                _env->define(sym.name, udef);
-                _undefined.emplace(sym.name);
+                _env->define(name, udef);
+                _undefined.emplace(name);
                 return PassByValue(udef);
             }
             return def->second.value;
@@ -200,7 +200,7 @@ namespace atl
             switch(head._tag)
                 {
                 case tag<Symbol>::value:
-                    head = value_or_undef(unwrap<Symbol>(head));
+                    head = value_or_undef(unwrap<Symbol>(head).name);
                     goto setup_form;
 
                 case tag<CxxMacro>::value:
@@ -353,13 +353,13 @@ namespace atl
                         _Compile body_result;
 
                         while(is<Symbol>(value))
-                            value = value_or_undef(unwrap<Symbol>(value));
+                            value = value_or_undef(unwrap<Symbol>(value).name);
 
                         // Lambda is a little bit of a special case.
                         if(is<Ast>(value)) {
 	                        head = unwrap<Ast>(value)[0];
                             if(is<Symbol>(head))
-                                head = value_or_undef(unwrap<Symbol>(head));
+                                head = value_or_undef(unwrap<Symbol>(head).name);
 
                             if(is<Lambda>(head))
                                 body_result = def_compile(value);
@@ -515,7 +515,7 @@ namespace atl
                     throw "should be unreachable";
                 }
             case tag<Symbol>::value:
-                input = value_or_undef(unwrap<Symbol>(input));
+                input = value_or_undef(unwrap<Symbol>(input).name);
                 goto compile_value;
             case tag<Parameter>::value:
                 {
