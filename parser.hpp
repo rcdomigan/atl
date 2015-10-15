@@ -107,6 +107,7 @@ namespace atl
 							++itr;
 							if(*itr == ')') {
 								push_nested_ast(vec);
+								++itr;
 								return;
 							}
 
@@ -198,7 +199,7 @@ namespace atl
 
 		/* parse one S-expression from a stream into an ast */
 		PassByValue stream(istream &stream)
-		s{
+		{
 			auto initial_flags = stream.flags();
 			noskipws(stream);
 

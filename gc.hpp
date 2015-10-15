@@ -17,6 +17,7 @@
 #include <boost/mpl/map.hpp>
 
 #include "./debug.hpp"
+#include "./byte_code.hpp"
 
 namespace atl
 {
@@ -252,10 +253,9 @@ namespace atl
 
 			return result;
 		}
-	public:
-		typedef std::vector<pcode::value_type> PCodeAccumulator;
-		std::vector<PCodeAccumulator> code_blocks;
 
+		std::vector<Code> code_blocks;
+	public:
 		void mark_and_sweep()
 		{
 			for(auto i : _mark_callbacks)
@@ -274,7 +274,7 @@ namespace atl
 		{ _mark_callbacks.push_back(fn); }
 
 		/*****************************/
-		/**  __	 __	  _	    **/
+		/**  __	 __	      _	        **/
 		/** |  \/  | __ _| | _____  **/
 		/** | |\/| |/ _` | |/ / _ \ **/
 		/** | |	 | | (_| |   <	__/ **/
@@ -288,7 +288,7 @@ namespace atl
 			return alloc_from( (this->*mpl::at<PoolMap,T>::type::value) );
 		}
 
-		PCodeAccumulator& alloc_pcode()
+		Code& alloc_pcode()
 		{
 			code_blocks.emplace_back();
 			return code_blocks.back();

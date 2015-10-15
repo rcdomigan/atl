@@ -4,7 +4,7 @@
  * Created on Dec 21, 2014
  */
 
-#include <tiny_vm.hpp>
+#include <vm.hpp>
 #include <primitive_callable.hpp>
 #include <lexical_environment.hpp>
 #include "./testing_utils.hpp"
@@ -15,9 +15,9 @@ using namespace atl;
 
 struct VmTest : public ::testing::Test
 {
-	std::vector<pcode::value_type> code;
+	Code code;
 	TinyVM vm;
-    AssembleVM assemble;
+    AssembleCode assemble;
 
     VmTest() : assemble(&code) {}
 };

@@ -9,7 +9,8 @@
  */
 
 #include "./exception.hpp"
-#include "./tiny_vm.hpp"
+#include "./vm.hpp"
+#include "./byte_code.hpp"
 #include "./type.hpp"
 #include "./lexical_environment.hpp"
 #include "./utility.hpp"
@@ -54,14 +55,14 @@ namespace atl
 
     struct Compile
     {
-        typedef AssembleVM::const_iterator iterator;
+        typedef AssembleCode::const_iterator iterator;
 	    typedef pcode::Offset Offset;
 
 	    std::set<std::string> _undefined;
         lexical::Map *_env;     // pushing a scope mutates where this points
         GC& gc;
 
-        AssembleVM code;
+        AssembleCode code;
 
 	    bool _do_type_check;
 
@@ -82,8 +83,8 @@ namespace atl
 	          _do_type_check(true)
 	    {}
 
-	    Compile(lexical::Map& env, GC& gc_, GC::PCodeAccumulator& output_)
-		    : _env(&env), gc(gc_), code(&output_),
+	    Compile(lexical::Map& env, GC& gc_, AssembleCode& output_)
+		    : _env(&env), gc(gc_), code(output_),
 		      _do_type_check(true)
         {}
 
@@ -96,8 +97,8 @@ namespace atl
         struct SkipBlock
         {
 	        pcode::Offset _skip_to;
-            AssembleVM& code;
-            SkipBlock(AssembleVM& code_) : code(code_)
+            AssembleCode& code;
+            SkipBlock(AssembleCode& code_) : code(code_)
             {
                 code.pointer(nullptr);
                 _skip_to = code.pos_last();
@@ -138,14 +139,14 @@ namespace atl
         };
 
         // Get a value if available, otherwise return undefined.
-        PassByValue value_or_undef(Symbol &sym)
+	    PassByValue value_or_undef(std::string const& name)
         {
-            auto def = _env->find(sym.name);
+            auto def = _env->find(name);
 
             if(def == _env->end()) {
                 auto udef = gc.amake<Undefined>(nullptr);
-                _env->define(sym.name, udef);
-                _undefined.emplace(sym.name);
+                _env->define(name, udef);
+                _undefined.emplace(name);
                 return PassByValue(udef);
             }
             return def->second.value;
@@ -178,34 +179,10 @@ namespace atl
             {}
         };
 
-
-        struct SavedExcursion
-        {
-            Compile *compile;
-	        pcode::Offset main_entry, end;
-
-            SavedExcursion(Compile* comp)
-                : compile(comp), main_entry(comp->code.main_entry_point),
-                  end(comp->code.pos_end())
-            { comp->code.main_entry_point = end; }
-
-            ~SavedExcursion()
-            {
-	            if(compile)
-		            {
-			            compile->repl_reset();
-			            compile->code.main_entry_point = main_entry;
-		            }
-            }
-        };
-
-        SavedExcursion save_excursion()
-	    { return SavedExcursion(this); }
-
         /// \internal
         /// Evaluates the application position of an s-expression and
         /// returns a _Form structure with information for _compile.
-        _Form form(Ast ast, AssembleVM& code, Context context)
+        _Form form(Ast ast, AssembleCode& code, Context context)
         {
             using namespace std;
 
@@ -223,7 +200,7 @@ namespace atl
             switch(head._tag)
                 {
                 case tag<Symbol>::value:
-                    head = value_or_undef(unwrap<Symbol>(head));
+                    head = value_or_undef(unwrap<Symbol>(head).name);
                     goto setup_form;
 
                 case tag<CxxMacro>::value:
@@ -294,10 +271,7 @@ namespace atl
 		                // The whole shooting match is given the
 		                // Type.value as its type.
 		                tag_t rval;
-		                {
-			                auto frame = save_excursion();
-			                rval = Compile::any(ast[1]);
-		                }
+		                rval = Compile::any(ast[1]);
 		                return _Form(pass_safe_value(wrap<Null>()),
 		                             0,
 		                             FormTag::declare_type,
@@ -379,13 +353,13 @@ namespace atl
                         _Compile body_result;
 
                         while(is<Symbol>(value))
-                            value = value_or_undef(unwrap<Symbol>(value));
+                            value = value_or_undef(unwrap<Symbol>(value).name);
 
                         // Lambda is a little bit of a special case.
                         if(is<Ast>(value)) {
 	                        head = unwrap<Ast>(value)[0];
                             if(is<Symbol>(head))
-                                head = value_or_undef(unwrap<Symbol>(head));
+                                head = value_or_undef(unwrap<Symbol>(head).name);
 
                             if(is<Lambda>(head))
                                 body_result = def_compile(value);
@@ -417,8 +391,8 @@ namespace atl
 
                         _env->define(sym.name, value.as_Any());
 
-                        if(_env->_prev == nullptr)
-                            code.main_entry_point = code.pos_end();
+                        code.output->offset_table.set(sym.name,
+                                                      entry_point);
 
                         return _Form(pass_value<Null>(),
                                      0,
@@ -447,7 +421,7 @@ namespace atl
 	    /// @param code: the byte-code we're generating
 	    /// @param context: relavent context, ie are we in a tail call
 	    /// @return: Type information and other things a calling _compile needs to know about.
-        _Compile _compile(PassByValue input, AssembleVM& code, Context context) {
+        _Compile _compile(PassByValue input, AssembleCode& code, Context context) {
             using namespace std;
 
             auto atom_result = [&]()
@@ -541,7 +515,7 @@ namespace atl
                     throw "should be unreachable";
                 }
             case tag<Symbol>::value:
-                input = value_or_undef(unwrap<Symbol>(input));
+                input = value_or_undef(unwrap<Symbol>(input).name);
                 goto compile_value;
             case tag<Parameter>::value:
                 {
@@ -610,11 +584,6 @@ namespace atl
             return _Compile(pass_value<Null>(), 0, tag<Any>::value);
         }
 
-        // Lets macros reach in and explicitly add values to the
-        // PCode.  todo: This is not an ideal abstraction.
-        void push_value(vm_stack::value_type value)
-        { code.constant(value); }
-
         // For most external use.  The generated code can be passed to
         // the VM for evaluation.
         tag_t any(PassByValue ast)
@@ -628,16 +597,6 @@ namespace atl
 				    (ast, code, Context(false, false, Ast()))
 				    .result_tag;
         }
-
-        // Reset the pcode entry point to compile another expression (as for the REPL).
-        void repl_reset()
-        {
-	        code.output->erase(code.output->begin() + code.main_entry_point,
-	                           code.output->end());
-        }
-
-        void reset()
-        { code.clear(); }
 
         void dbg();
 
@@ -657,13 +616,54 @@ namespace atl
 			    }
 	    }
 
+	    /** Prepare the `code` to run on the VM.  For a code fragment,
+	     * just append the 'finish' instruction.  For a 'program'
+	     * (something with a "main" function) append a call to "main"
+	     * and add a "__call-main__" symbol in the offset table for the VM
+	     * to use.
+	     *
+	     * @return: The setup code
+	     */
+	    Code* pass_code_out()
+	    {
+		    auto main = value_or_undef("main");
+		    if(!is<Undefined>(main))
+			    {
+				    auto num_tail_params = unwrap<Procedure>(main).tail_params;
+				    auto entry = code.pos_end();
+
+				    /* Make sure we're padded out for a tail call. */
+				    for(size_t i = 0; i < num_tail_params; ++i)
+					    code.constant(0);
+
+				    code.call_procedure(code.output->offset_table["main"]);
+				    code.output->offset_table.set("__call-main__",
+				                                  entry);
+			    }
+		    return code.pass_code_out();
+	    }
+
+	    /** Prepare to append more instructions to some code.  While
+	     * Compile has taken some code, the code is not suitable to
+	     * run on the VM.
+	     *
+	     * @param taking: Code we're going to append to.
+	     */
+	    void take_code(Code* taking)
+	    {
+		    if(taking->has_main())
+			    {
+				    auto& raw_code = taking->code;
+				    raw_code.erase(raw_code.begin() + taking->offset_table["__call-main__"],
+				                   raw_code.end());
+			    }
+
+		    code.take_code(taking);
+	    }
     };
 
     void Compile::dbg()
-    {
-        cout << "Main entry point: " << code.main_entry_point << endl;
-        dbg_code(*code.output);
-    }
+    { code.output->dbg(); }
 }
 
 

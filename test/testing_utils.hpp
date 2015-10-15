@@ -8,6 +8,7 @@
 
 #include <gc.hpp>
 #include <ffi.hpp>
+#include "../compile.hpp"
 
 
 long add2(long a, long b) { return a + b; }
@@ -34,16 +35,42 @@ struct TrivialFunctions
     {}
 };
 
-void run_code(atl::TinyVM& vm, atl::AssembleVM& input)
+/** Run a block of code
+ * @param vm: The vm to run on
+ * @param code: The code to run
+ */
+void run_code(atl::TinyVM& vm, atl::Code& code)
 {
-	atl::RunnableCode code(input);
 #ifdef DEBUGGING
-	atl::dbg_code(*input.output);
+	code.dbg();
 	vm.run_debug(code, 100);
 #else
     vm.run(code);
 #endif
 }
+
+/** Run some code
+ * @param asmbl: Code is passed out of this AssembleCode then passed
+ *               back in when the function finishes.
+ */
+void run_code(atl::TinyVM& vm, atl::AssembleCode& asmbl)
+{
+	auto code = asmbl.pass_code_out();
+	run_code(vm, *code);
+    asmbl.take_code(code);
+}
+
+/**
+ * @param compiler: Code is passed out of compiler and run in vm, when
+ * the function finishes the code is passed back to compiler.
+ */
+void run_code(atl::TinyVM& vm, atl::Compile& compiler)
+{
+	auto code = compiler.pass_code_out();
+	run_code(vm, *code);
+	compiler.take_code(code);
+}
+
 
 
 #endif

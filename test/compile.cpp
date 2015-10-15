@@ -6,7 +6,7 @@
  * Regression tests.  There may be unit tests some day if I can be bolloxed.
  */
 
-#include <tiny_vm.hpp>
+#include <vm.hpp>
 #include <print.hpp>
 #include <atl.hpp>
 
@@ -35,14 +35,14 @@ struct CompilerTest : public ::testing::Test {
 TEST_F(CompilerTest, test_compile_atom)
 {
 	atl.compile.any(atl.parse.string_("5"));
-	run_code(atl.vm, atl.compile.code);
+	run_code(atl.vm, atl.compile);
 	ASSERT_EQ(atl.vm.stack[0], 5);
 }
 
 TEST_F(CompilerTest, BasicApplication) {
     atl.compile.any(atl.parse.string_("(add2 5 7)"));
 
-    run_code(atl.vm, atl.compile.code);
+    run_code(atl.vm, atl.compile);
 
     ASSERT_EQ(atl.vm.stack[0], 12);
 }
@@ -51,12 +51,13 @@ TEST_F(CompilerTest, NestedApplication) {
     auto ast = atl.parse.string_("(add2 (sub2 7 5) (add2 8 3))");
     atl.compile.any(ast);
 
-    run_code(atl.vm, atl.compile.code);
+    run_code(atl.vm, atl.compile);
 
     ASSERT_EQ(atl.vm.stack[0], 13);
 }
 
-TEST_F(CompilerTest, TestCxxStdFunction) {
+TEST_F(CompilerTest, TestCxxStdFunction)
+{
     long multiple = 3;
 
     auto shimmed_function = WrapStdFunction<long (long)>::a([&](long vv) -> long {
@@ -69,15 +70,15 @@ TEST_F(CompilerTest, TestCxxStdFunction) {
 
     atl.compile.any(atl.parse.string_("(foo 3)"));
 
-    run_code(atl.vm, atl.compile.code);
+    run_code(atl.vm, atl.compile);
     ASSERT_EQ(atl.vm.stack[0], 9);
 
-    atl.compile.code = AssembleVM(&atl.gc.alloc_pcode());
+    atl.compile.code = AssembleCode(&atl.gc.alloc_pcode());
 
     multiple = 4;
     atl.compile.any(atl.parse.string_("(foo 3)"));
 
-    run_code(atl.vm, atl.compile.code);
+    run_code(atl.vm, atl.compile);
     ASSERT_EQ(12, atl.vm.result());
 }
 
@@ -85,7 +86,7 @@ TEST_F(CompilerTest, IfTrue) {
     auto ast = atl.parse.string_("(if #t 3 4)");
     atl.compile.any(ast);
 
-    run_code(atl.vm, atl.compile.code);
+    run_code(atl.vm, atl.compile);
     ASSERT_EQ(atl.vm.stack[0], 3);
 }
 
@@ -93,7 +94,7 @@ TEST_F(CompilerTest, IfFalse) {
     auto ast = atl.parse.string_("(if #f 3 4)");
     atl.compile.any(ast);
 
-    run_code(atl.vm, atl.compile.code);
+    run_code(atl.vm, atl.compile);
     ASSERT_EQ(atl.vm.stack[0], 4);
 }
 
@@ -110,7 +111,7 @@ TEST_F(CompilerTest, BasicLambda) {
 
     atl.compile.any(PassByValue(expr));
 
-    run_code(atl.vm, atl.compile.code);
+    run_code(atl.vm, atl.compile);
 
     ASSERT_EQ(11, atl.vm.stack[0]);
 }
@@ -129,33 +130,55 @@ TEST_F(CompilerTest, LambdaWithIf) {
 
     atl.compile.any(PassByValue(expr));
 
-    run_code(atl.vm, atl.compile.code);
+    run_code(atl.vm, atl.compile);
 
     ASSERT_EQ(4, atl.vm.stack[0]);
 }
 
-TEST_F(CompilerTest, BasicDefine) {
+/* Try compiling and applying a lambda with no args */
+TEST_F(CompilerTest, test_thunk)
+{
+	using namespace make_ast;
+
+    auto expr = make
+	    (make(lift<Lambda>(),
+	          make(),
+	          make(sym("add2"),
+	               lift(1),
+	               lift(2))))
+	    (ast_alloc(atl.gc));
+
+    atl.compile.any(PassByValue(expr));
+
+    run_code(atl.vm, atl.compile);
+
+    ASSERT_EQ(3, atl.vm.stack[0]);
+}
+
+TEST_F(CompilerTest, test_basic_define)
+{
     // Test that defining a constant works
     auto ast = atl.parse.string_("(define-value foo 3)");
     atl.compile.any(ast);
 
-    ast = atl.parse.string_("(add2 foo foo)");
+    ast = atl.parse.string_("(define-value main (__\\__ () (add2 foo foo)))");
     atl.compile.any(ast);
 
-    run_code(atl.vm, atl.compile.code);
+    run_code(atl.vm, atl.compile);
 
     ASSERT_EQ(atl.vm.stack[0], 6);
 }
 
-TEST_F(CompilerTest, Backpatch) {
-    // Test that defining a constant works
-    auto ast = atl.parse.string_("(add2 foo foo)");
+TEST_F(CompilerTest, test_back_patching)
+{
+    // Test that defining a constant after it is used works
+    auto ast = atl.parse.string_("(define-value main (__\\__ () (add2 foo foo)))");
     atl.compile.any(ast);
 
     ast = atl.parse.string_("(define-value foo 3)");
     atl.compile.any(ast);
 
-    run_code(atl.vm, atl.compile.code);
+    run_code(atl.vm, atl.compile);
 
     ASSERT_EQ(atl.vm.stack[0], 6);
 }
@@ -186,8 +209,76 @@ TEST_F(CompilerTest, DefineLambda)
               unwrap<Procedure>(atl.lexical.toplevel._local["my-add1"].value).tail_params);
 }
 
+TEST_F(CompilerTest, test_nested_functions)
+{
+	using namespace make_ast;
+	auto no_check = atl.compile.supress_type_check();
 
-TEST_F(CompilerTest, SimpleRecursion)
+	auto simple_recur = make
+		(sym("define-value"), sym("foo"),
+		 make(lift<Lambda>(),
+		      make(sym("a")),
+		      make(sym("add2"), sym("a"), lift(3))))
+		(ast_alloc(atl.gc));
+
+	auto atl_main = make
+		(sym("define-value"), sym("main"),
+		 make(lift<Lambda>(),
+		      make(),
+		      make(sym("foo"), lift(2))))
+		(ast_alloc(atl.gc));
+
+	atl.compile.any(PassByValue(simple_recur));
+	atl.compile.any(PassByValue(atl_main));
+
+    run_code(atl.vm, atl.compile);
+
+	ASSERT_EQ(5, atl.vm.stack[0]);
+}
+
+TEST_F(CompilerTest, test_nested_function_results)
+{
+	using namespace make_ast;
+	auto no_check = atl.compile.supress_type_check();
+
+	auto foo = make
+		(sym("define-value"), sym("foo"),
+		 make(lift<Lambda>(),
+		      make(sym("a")),
+		      make(sym("add2"), sym("a"), lift(3))))
+		(ast_alloc(atl.gc));
+
+	auto bar = make
+		(sym("define-value"), sym("bar"),
+		 make(lift<Lambda>(),
+		      make(sym("a"), sym("b")),
+		      make(sym("add2"), sym("a"), sym("b"))))
+		(ast_alloc(atl.gc));
+
+	auto atl_main = make
+		(sym("define-value"), sym("main"),
+		 make
+		 (lift<Lambda>(),
+		  make(),
+		  make
+		  (sym("bar"),
+		   make
+		   (sym("foo"), lift(2)),
+		   make
+		   (sym("foo"), lift(3)))))
+		(ast_alloc(atl.gc));
+
+	atl.compile.any(PassByValue(foo));
+	atl.compile.any(PassByValue(bar));
+	atl.compile.any(PassByValue(atl_main));
+
+    run_code(atl.vm, atl.compile);
+
+	ASSERT_EQ(11, atl.vm.stack[0]);
+}
+
+
+TEST_F(CompilerTest, test_simple_recursion)
 {
 	using namespace make_ast;
 	auto no_check = atl.compile.supress_type_check();
@@ -205,11 +296,45 @@ TEST_F(CompilerTest, SimpleRecursion)
 		(ast_alloc(atl.gc));
 
 	atl.compile.any(PassByValue(simple_recur));
-    atl.compile.any(atl.parse.string_("(simple-recur 3 2)"));
+    atl.compile.any(atl.parse.string_("(define-value main (__\\__ () (simple-recur 3 2)))"));
 
-    run_code(atl.vm, atl.compile.code);
+    run_code(atl.vm, atl.compile);
 
 	ASSERT_EQ(5, atl.vm.stack[0]);
+}
+
+
+TEST_F(CompilerTest, test_simple_recursion_results)
+{
+	using namespace make_ast;
+	auto no_check = atl.compile.supress_type_check();
+
+	auto simple_recur = make
+		(sym("define-value"), sym("simple-recur"),
+		 make(lift<Lambda>(),
+		      make(sym("a"), sym("b")),
+		      make(sym("if"),
+		           make(sym("equal2"), lift(0), sym("a")),
+		           sym("b"),
+		           make(sym("simple-recur"),
+		                make(sym("sub2"), sym("a"), lift(1)),
+		                make(sym("add2"), sym("b"), lift(1))))))
+		(ast_alloc(atl.gc));
+
+	auto foo = make
+		(sym("define-value"), sym("foo"),
+		 make(lift<Lambda>(),
+		      make(sym("a")),
+		      make(sym("add2"), sym("a"), lift(3))))
+		(ast_alloc(atl.gc));
+
+	atl.compile.any(PassByValue(simple_recur));
+	atl.compile.any(PassByValue(foo));
+    atl.compile.any(atl.parse.string_("(define-value main (__\\__ () (foo (simple-recur 3 2))))"));
+
+    run_code(atl.vm, atl.compile);
+
+	ASSERT_EQ(8, atl.vm.stack[0]);
 }
 
 
@@ -222,9 +347,9 @@ TEST_F(CompilerTest, multiple_functions)
 	atl.compile.any(atl.parse.string_
 	            ("(define-value simple-recur2 (__\\__ (a b) (if (equal2 0 a) b (simple-recur2 (sub2 a 1) (add2 b 4 )))))"));
 	atl.compile.any(atl.parse.string_
-	            ("(add2 (simple-recur 2 3) (simple-recur2 2 0))"));
+	            ("(define-value main (__\\__ () (add2 (simple-recur 2 3) (simple-recur2 2 0))))"));
 
-	run_code(atl.vm, atl.compile.code);
+	run_code(atl.vm, atl.compile);
 	ASSERT_EQ(13, atl.vm.stack[0]);
 }
 

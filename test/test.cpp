@@ -7,7 +7,7 @@
 #include <gtest/gtest.h>
 
 #include <ffi.hpp>
-#include <tiny_vm.hpp>
+#include <vm.hpp>
 
 #include "./testing_utils.hpp"
 
@@ -17,12 +17,11 @@
 #include "./parser.cpp"
 #include "./compile.cpp"
 #include "./lists.cpp"
-// #include "./primitive.cpp"
 #include "./macros.cpp"
 #include "./gc.cpp"
 #include "./type_deduction.cpp"
 
-#include "./atl.cpp"
+// #include "./atl.cpp"
 
 int main(int argc, char *argv[]) {
   ::testing::InitGoogleTest(&argc, argv);
