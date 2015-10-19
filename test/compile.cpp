@@ -158,10 +158,10 @@ TEST_F(CompilerTest, test_thunk)
 TEST_F(CompilerTest, test_basic_define)
 {
     // Test that defining a constant works
-    auto ast = atl.parse.string_("(define-value foo 3)");
+    auto ast = atl.parse.string_("(define foo 3)");
     atl.compile.any(ast);
 
-    ast = atl.parse.string_("(define-value main (__\\__ () (add2 foo foo)))");
+    ast = atl.parse.string_("(define main (__\\__ () (add2 foo foo)))");
     atl.compile.any(ast);
 
     run_code(atl.vm, atl.compile);
@@ -172,10 +172,10 @@ TEST_F(CompilerTest, test_basic_define)
 TEST_F(CompilerTest, test_back_patching)
 {
     // Test that defining a constant after it is used works
-    auto ast = atl.parse.string_("(define-value main (__\\__ () (add2 foo foo)))");
+    auto ast = atl.parse.string_("(define main (__\\__ () (add2 foo foo)))");
     atl.compile.any(ast);
 
-    ast = atl.parse.string_("(define-value foo 3)");
+    ast = atl.parse.string_("(define foo 3)");
     atl.compile.any(ast);
 
     run_code(atl.vm, atl.compile);
@@ -190,13 +190,13 @@ TEST_F(CompilerTest, DefineLambda)
     // pushed to the stack.  This is a brittle test, but so it goes
     // for the moment.
 	using namespace make_ast;
-	auto my_add3 = make(sym("define-value"),
+	auto my_add3 = make(sym("define"),
 	                  sym("my-add3"),
 	                  make(lift<Lambda>(), make(sym("a"), sym("b"), sym("c")),
 	                       make(sym("add2"), sym("a"), sym("b"))))
 		(ast_alloc(atl.gc)),
 
-		my_add1 = make(sym("define-value"),
+		my_add1 = make(sym("define"),
 	                  sym("my-add1"),
 	                  make(lift<Lambda>(), make(sym("a")),
 	                       make(sym("my-add3"), sym("a"), sym("a"), sym("a"))))
@@ -215,14 +215,14 @@ TEST_F(CompilerTest, test_nested_functions)
 	auto no_check = atl.compile.supress_type_check();
 
 	auto simple_recur = make
-		(sym("define-value"), sym("foo"),
+		(sym("define"), sym("foo"),
 		 make(lift<Lambda>(),
 		      make(sym("a")),
 		      make(sym("add2"), sym("a"), lift(3))))
 		(ast_alloc(atl.gc));
 
 	auto atl_main = make
-		(sym("define-value"), sym("main"),
+		(sym("define"), sym("main"),
 		 make(lift<Lambda>(),
 		      make(),
 		      make(sym("foo"), lift(2))))
@@ -242,21 +242,21 @@ TEST_F(CompilerTest, test_nested_function_results)
 	auto no_check = atl.compile.supress_type_check();
 
 	auto foo = make
-		(sym("define-value"), sym("foo"),
+		(sym("define"), sym("foo"),
 		 make(lift<Lambda>(),
 		      make(sym("a")),
 		      make(sym("add2"), sym("a"), lift(3))))
 		(ast_alloc(atl.gc));
 
 	auto bar = make
-		(sym("define-value"), sym("bar"),
+		(sym("define"), sym("bar"),
 		 make(lift<Lambda>(),
 		      make(sym("a"), sym("b")),
 		      make(sym("add2"), sym("a"), sym("b"))))
 		(ast_alloc(atl.gc));
 
 	auto atl_main = make
-		(sym("define-value"), sym("main"),
+		(sym("define"), sym("main"),
 		 make
 		 (lift<Lambda>(),
 		  make(),
@@ -284,7 +284,7 @@ TEST_F(CompilerTest, test_simple_recursion)
 	auto no_check = atl.compile.supress_type_check();
 
 	auto simple_recur = make
-		(sym("define-value"), sym("simple-recur"),
+		(sym("define"), sym("simple-recur"),
 		 make(lift<Lambda>(),
 		      make(sym("a"), sym("b")),
 		      make(sym("if"),
@@ -296,7 +296,7 @@ TEST_F(CompilerTest, test_simple_recursion)
 		(ast_alloc(atl.gc));
 
 	atl.compile.any(PassByValue(simple_recur));
-    atl.compile.any(atl.parse.string_("(define-value main (__\\__ () (simple-recur 3 2)))"));
+    atl.compile.any(atl.parse.string_("(define main (__\\__ () (simple-recur 3 2)))"));
 
     run_code(atl.vm, atl.compile);
 
@@ -310,7 +310,7 @@ TEST_F(CompilerTest, test_simple_recursion_results)
 	auto no_check = atl.compile.supress_type_check();
 
 	auto simple_recur = make
-		(sym("define-value"), sym("simple-recur"),
+		(sym("define"), sym("simple-recur"),
 		 make(lift<Lambda>(),
 		      make(sym("a"), sym("b")),
 		      make(sym("if"),
@@ -322,7 +322,7 @@ TEST_F(CompilerTest, test_simple_recursion_results)
 		(ast_alloc(atl.gc));
 
 	auto foo = make
-		(sym("define-value"), sym("foo"),
+		(sym("define"), sym("foo"),
 		 make(lift<Lambda>(),
 		      make(sym("a")),
 		      make(sym("add2"), sym("a"), lift(3))))
@@ -330,7 +330,7 @@ TEST_F(CompilerTest, test_simple_recursion_results)
 
 	atl.compile.any(PassByValue(simple_recur));
 	atl.compile.any(PassByValue(foo));
-    atl.compile.any(atl.parse.string_("(define-value main (__\\__ () (foo (simple-recur 3 2))))"));
+    atl.compile.any(atl.parse.string_("(define main (__\\__ () (foo (simple-recur 3 2))))"));
 
     run_code(atl.vm, atl.compile);
 
@@ -343,11 +343,11 @@ TEST_F(CompilerTest, multiple_functions)
 	auto no_check = atl.compile.supress_type_check();
 
 	atl.compile.any(atl.parse.string_
-	            ("(define-value simple-recur (__\\__ (a b) (if (equal2 0 a) b (simple-recur (sub2 a 1) (add2 b 1)))))"));
+	            ("(define simple-recur (__\\__ (a b) (if (equal2 0 a) b (simple-recur (sub2 a 1) (add2 b 1)))))"));
 	atl.compile.any(atl.parse.string_
-	            ("(define-value simple-recur2 (__\\__ (a b) (if (equal2 0 a) b (simple-recur2 (sub2 a 1) (add2 b 4 )))))"));
+	            ("(define simple-recur2 (__\\__ (a b) (if (equal2 0 a) b (simple-recur2 (sub2 a 1) (add2 b 4 )))))"));
 	atl.compile.any(atl.parse.string_
-	            ("(define-value main (__\\__ () (add2 (simple-recur 2 3) (simple-recur2 2 0))))"));
+	            ("(define main (__\\__ () (add2 (simple-recur 2 3) (simple-recur2 2 0))))"));
 
 	run_code(atl.vm, atl.compile);
 	ASSERT_EQ(13, atl.vm.stack[0]);
@@ -363,13 +363,13 @@ TEST_F(CompilerTest, multiple_functions)
 /* 	auto no_check = atl.compile.supress_type_check(); */
 
 /* 	atl.compile.any(atl.parse.string_ */
-/* 	                ("(define-value simple-recur (\\ (a b) (if (equal2 0 a) b (simple-recur (sub2 a 1) (add2 b 1)))))")); */
+/* 	                ("(define simple-recur (\\ (a b) (if (equal2 0 a) b (simple-recur (sub2 a 1) (add2 b 1)))))")); */
 
 /* 	code2 = code1; */
 /* 	atl.compile.code.output = &code2; */
 
 /* 	atl.compile.any(atl.parse.string_ */
-/* 	            ("(define-value simple-recur2 (__\\__ (a b) (if (equal2 0 a) b (simple-recur2 (sub2 a 1) (add2 b 4 )))))")); */
+/* 	            ("(define simple-recur2 (__\\__ (a b) (if (equal2 0 a) b (simple-recur2 (sub2 a 1) (add2 b 4 )))))")); */
 /* 	atl.compile.any(atl.parse.string_ */
 /* 	                ("(add2 (simple-recur 2 3) (simple-recur2 2 0))")); */
 

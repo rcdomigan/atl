@@ -27,7 +27,7 @@ namespace atl
 		env.lexical.define("if", wrap<If>());
 		env.lexical.define("#f", atl_false());
 		env.lexical.define("#t", atl_true());
-		env.lexical.define("define-value", wrap<Define>());
+		env.lexical.define("define", wrap<Define>());
 
 		// for debugging (I still need a more general printing
 		// mechanism)

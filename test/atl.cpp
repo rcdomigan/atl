@@ -35,8 +35,8 @@ TEST_F(AtlTest, test_string_stream)
 
 	std::stringstream content
 		(";; used to test atl.cpp\n"
-		 "(define-value foo (__\\__ (a) (print-int (add2 a 3))))\n"
-		 "(define-value main (__\\__ () (foo 2)))");
+		 "(define foo (__\\__ (a) (print-int (add2 a 3))))\n"
+		 "(define main (__\\__ () (foo 2)))");
 	atl.stream(content);
 
 	ASSERT_EQ(output.str(), "5\n");
@@ -57,11 +57,11 @@ TEST_F(AtlTest, test_loaded_file)
 TEST_F(AtlTest, test_multiline_stream)
 {
 	std::stringstream content
-		("(define-value foo (__\\__ (a b) (add2 (add2 a 2) b)))\n"
+		("(define foo (__\\__ (a b) (add2 (add2 a 2) b)))\n"
 		 "\n"
-		 "(define-value bar (__\\__ (a b) (add2 (add2 a 3) b)))");
+		 "(define bar (__\\__ (a b) (add2 (add2 a 3) b)))");
 	atl.stream(content);
-	ASSERT_EQ((unwrap<Fixnum>(atl.string_("(define-value main (__\\__ () (bar 2 3)))")).value),
+	ASSERT_EQ((unwrap<Fixnum>(atl.string_("(define main (__\\__ () (bar 2 3)))")).value),
 	          8);
 }
 
