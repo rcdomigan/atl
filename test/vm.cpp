@@ -207,3 +207,28 @@ TEST_F(VmTest, SMoveN)
     for(int i = 0; i < 4; ++i)
         ASSERT_EQ(vm.stack[i], i + 1);
 }
+
+/** Try accessing parameters from a closure. */
+TEST_F(VmTest, test_bound_non_locals)
+{
+    auto fns = TrivialFunctions();
+
+	Closure my_closure;
+	my_closure.body = 0;
+	my_closure.values = {3, 5};
+
+	assemble
+		.call_closure(my_closure)
+		.finish();
+	my_closure.body = assemble.pos_end();
+
+	assemble
+		.closure_argument(0)
+		.closure_argument(1)
+		.std_function(&fns.wadd->fn, 2)
+		.return_(0);
+
+	run_code(vm, assemble);
+
+	ASSERT_EQ(8, vm.stack[0]);
+}

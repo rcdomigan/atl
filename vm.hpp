@@ -77,7 +77,7 @@ namespace atl
 
 		void jump() { --top; pc = *top; }
 
-		/** Use the top of the stack as a procedure address and call it
+		/** Use the top of the stack as a procedure address and call it.
 		 * Pre call stack:
 		 *   [arg1]...[argN][next-instruction]
 		 *                                    ^- top
@@ -95,6 +95,39 @@ namespace atl
 			++top;
 		}
 
+		/** Assume the top of the stack is a closure and call it
+		 * Pre call stack:
+		 *   [arg1]...[argN][closure]
+		 *                           ^- top
+		 * Post call:
+		 *   [arg1]...[argN][old-call-stack][return-address][bound-vars]
+		 *                   ^                                     top -^
+		 *                   ^- call_stack
+		 */
+		void call_closure()
+		{
+			--top;
+			auto closure	= reinterpret_cast<Closure*>(top[0]);
+			top[0]			= reinterpret_cast<value_type>(call_stack);
+			top[1]			= reinterpret_cast<value_type>(pc + 1);
+			top[2]			= reinterpret_cast<value_type>(&closure->values);
+			pc				= closure->body;
+			*top			= reinterpret_cast<uintptr_t>(call_stack);
+			call_stack		= top;
+			top += 3;
+		}
+
+		/** Gets the `arg-offset` value from this frame's closure.
+		 * pre: [arg-offset]<- top
+		 * post: [value]<-top
+		 * */
+		void closure_argument()
+		{
+			*(top - 1) = (*reinterpret_cast<Closure::Values*>(call_stack[2]))[*(top - 1)];
+			++pc;
+		}
+
+		/** Get the nth argument counting backwards from the top frame on call_stack */
 		void argument()
 		{
 			--top;
@@ -102,8 +135,26 @@ namespace atl
 			++top; ++pc;
 		}
 
-		void nested_argument() {
-			throw std::string("TODO");
+		/** Access the `offset`th parameter from an enclosing function
+		 * `hops` frames up the call stack.
+		 *
+		 * Pre call stack:
+		 *   [offset][hops]
+		 *                 ^- top
+		 * Post call stack:
+		 *   [value]
+		 *          ^- top
+		 */
+		void nested_argument()
+		{
+			top -= 2;
+			auto hops = top[0];
+
+			auto frame = call_stack;
+			for(; hops; --hops) frame = reinterpret_cast<iterator>(*frame);
+
+			top[0] = *(frame - top[1]);
+			++top;
 		}
 
 		/** [return-value][number-of-arguments-to-procedure]
