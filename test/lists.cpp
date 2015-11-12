@@ -261,6 +261,25 @@ TEST_F(ListTest, test_make_nested_ast)
 	             *unwrap<Ast>(atl.parse.string_("(1 (2 3) 4)")).value);
 }
 
+TEST_F(ListTest, test_nested_lambda)
+{
+	using namespace make_ast;
+	Arena arena;
+
+	auto expr = make
+		(sym("lambda"),
+		 make(sym("a")),
+		 make(sym("lambda"),
+		      make(sym("b")),
+		      make(sym("a"), sym("b"))))
+		(ast_alloc(arena));
+
+	assert_equiv(*expr.value,
+	             *unwrap<Ast>
+	             (atl.parse.string_
+	              ("(lambda (a) (lambda (b) (a b)))")).value);
+}
+
 // TODO:
 /* TEST_F(ListTest, test_cons) */
 /* { */

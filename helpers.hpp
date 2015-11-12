@@ -259,12 +259,16 @@ namespace atl
 				{ space.push_back(wrap<T>(args ...)); };
 		}
 
+		/** Add a symbol value to the ast
+		 *
+		 * @param name: symbol's name
+		 * @return: an ast_composer
+		 */
 		ast_composer sym(std::string const& name)
 		{
 			return [name](AstAllocator heap)
 				{ heap.push_back(wrap(heap.symbol(name))); };
 		}
-
 
 		struct _Run
 		{

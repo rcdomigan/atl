@@ -19,48 +19,34 @@
 
 namespace atl
 {
+	struct _EnvScope
+	{
+		typedef ToplevelMap Map;
+		Map local,
+			**current_environment,
+			*enclosing;
 
-    namespace compile_helpers
-    {
-	    // If an inner procedures is referencing argument in its
-	    // closure I have to follow return addresses to 'hop' up to
-	    // the enclosed parameters.
-	    //
-	    // TODO: It should be possible to compute fixed offsets in may
-	    // cases (if the inner function is tail recursive or not
-	    // recursive) rather than hopping at runtime
-        struct IncHopRAII
-        {
-            lexical::Map *env;
+		_EnvScope(Map **env_)
+		{
+			current_environment = env_;
+			enclosing = *env_;
+			*current_environment = &local;
+		}
 
-            template<class Fn>
-            static void _for_every_parameter(Fn fn, lexical::Map *env)
-            {
-                auto mm = env;
-                while(mm) {
-                    for(auto& aa : mm->_local) {
-                        if(is<Parameter>(aa.second))
-                            fn(unwrap<Parameter>(aa.second));
-                    }
-                    mm = mm->_prev; }
-            }
-
-            IncHopRAII(lexical::Map *env_) : env(env_)
-            { _for_every_parameter([](Parameter& vv) { ++vv.hops; }, env); }
-
-            ~IncHopRAII()
-            { _for_every_parameter([](Parameter& vv) { --vv.hops; }, env); }
-        };
-    }
+		~_EnvScope()
+		{ *current_environment = enclosing; }
+	};
 
     struct Compile
     {
         typedef AssembleCode::const_iterator iterator;
 	    typedef pcode::Offset Offset;
 
-	    std::set<std::string> _undefined;
-        lexical::Map *_env;     // pushing a scope mutates where this points
-        GC& gc;
+	    typedef ToplevelMap Env;
+	    Env &toplevel, *current_env;
+	    DefProcedure::Closure free_vars;
+
+	    GC& gc;
 
         AssembleCode code;
 
@@ -78,13 +64,8 @@ namespace atl
 		    { compile._do_type_check = true; }
 	    };
 
-        Compile(LexicalEnvironment& env)
-	        : _env(&env.toplevel), gc(env.gc), code(&gc.alloc_pcode()),
-	          _do_type_check(true)
-	    {}
-
-	    Compile(lexical::Map& env, GC& gc_, AssembleCode& output_)
-		    : _env(&env), gc(gc_), code(output_),
+	    Compile(Env& env, GC& gc_)
+		    : toplevel(env), current_env(&toplevel), gc(gc_), code(&gc_.alloc_pcode()),
 		      _do_type_check(true)
         {}
 
@@ -138,20 +119,6 @@ namespace atl
 
         };
 
-        // Get a value if available, otherwise return undefined.
-	    PassByValue value_or_undef(std::string const& name)
-        {
-            auto def = _env->find(name);
-
-            if(def == _env->end()) {
-                auto udef = gc.amake<Undefined>();
-                _env->define(name, udef);
-                _undefined.emplace(name);
-                return PassByValue(udef);
-            }
-            return def->second;
-        }
-
 	    // done            : The form has been evaluated, _compile can return
 	    // function        : The form was a function, _compile should call
 	    // declare_type    : The form declares the type of a nested form
@@ -172,8 +139,8 @@ namespace atl
                   size_t pad_to_,
                   FormTag form_tag_,
                   tag_t result_tag_)
-                : applicable(applicable_),
-                  pad_to(pad_to_),
+	            : applicable(applicable_),
+	              pad_to(pad_to_),
                   form_tag(form_tag_),
                   result_tag(result_tag_)
             {}
@@ -201,7 +168,7 @@ namespace atl
             switch(head._tag)
                 {
                 case tag<Symbol>::value:
-                    head = value_or_undef(unwrap<Symbol>(head).name);
+	                head = (*current_env)[unwrap<Symbol>(head).name];
                     goto setup_form;
 
                 case tag<CxxMacro>::value:
@@ -210,19 +177,19 @@ namespace atl
 	                             FormTag::macro_expansion,
 	                             0);
 
-                case tag<Lambda>::value:
+                case tag<DefProcedure>::value:
                     {
-	                    Ast formals = pass_ast(ast[1]);
+	                    Ast formals = unwrap_ast(ast[1]);
 	                    auto size = formals.size();
 
-                        compile_helpers::IncHopRAII inc_hops(_env);
-                        lexical::MapRAII local(&_env);
+	                    _EnvScope local_env(&current_env);
 
                         for(auto ff : zip(formals,
                                           CountingRange()))
-                            local.map.define(unwrap<Symbol>(*get<0>(ff)).name,
-                                             // The `offset` should go high to low
-                                             size - *get<1>(ff));
+                            current_env->define
+	                            (unwrap<Symbol>(*get<0>(ff)).name,
+	                             // The `offset` should go high to low
+	                             wrap<Parameter>(size - *get<1>(ff)));
 
                         // todo: For now I'm just putting the lambda body
                         // inline with the rest of the code.  I could save
@@ -261,7 +228,7 @@ namespace atl
                     {
                         // TODO: copy?  Not sure how to handle this with GC.
                         code.pointer(&ast[1]);
-                        return _Form(pass_safe_value(wrap<Null>()),
+                        return _Form(pass_value(wrap<Null>()),
                                      0,
                                      FormTag::done,
                                      tag<Pointer>::value);
@@ -336,25 +303,29 @@ namespace atl
 
                         pcode::Offset entry_point;
 
-                        if(current_env->count(name))
-                            throw WrongTypeError("A symbol cannot be defined twice in the same scope");
+                        auto found = current_env->find(sym.name);
 
-                        _undefined.erase(sym.name);
-                        _env->define(sym.name,
-                                     def.as_Any());
+                        Any def;
+                        if(found == current_env->end())
+	                        { def = wrap<Undefined>(); }
+                        else
+	                        { def = found->second; }
+
+                        free_vars.erase(sym.name);
+                        current_env->define(sym.name, def);
 
                         _Compile body_result;
 
                         while(is<Symbol>(value))
-                            value = value_or_undef(unwrap<Symbol>(value).name);
+	                        value = (*current_env)[unwrap<Symbol>(value).name];
 
                         // Lambda is a little bit of a special case.
                         if(is<Ast>(value)) {
 	                        head = unwrap<Ast>(value)[0];
                             if(is<Symbol>(head))
-                                head = value_or_undef(unwrap<Symbol>(head).name);
+	                            head = (*current_env)[unwrap<Symbol>(head).name];
 
-                            if(is<Lambda>(head))
+                            if(is<DefProcedure>(head))
                                 body_result = def_compile(value);
 
                             value = body_result.applicable;
@@ -379,10 +350,7 @@ namespace atl
 	                                 (entry_point, 0, tag<Any>::value));
                             }
 
-                        for(auto& vv : unwrap<Undefined>(def).backtrack)
-                            code[vv] = entry_point;
-
-                        _env->define(sym.name, value.as_Any());
+                        current_env->define(sym.name, value.as_Any());
 
                         code.output->offset_table.set(sym.name,
                                                       entry_point);
@@ -414,7 +382,8 @@ namespace atl
 	    /// @param code: the byte-code we're generating
 	    /// @param context: relavent context, ie are we in a tail call
 	    /// @return: Type information and other things a calling _compile needs to know about.
-        _Compile _compile(PassByValue input, AssembleCode& code, Context context) {
+        _Compile _compile(PassByValue input, AssembleCode& code, Context context)
+	    {
             using namespace std;
 
             auto atom_result = [&]()
@@ -493,16 +462,19 @@ namespace atl
                     throw "should be unreachable";
                 }
             case tag<Symbol>::value:
-                input = value_or_undef(unwrap<Symbol>(input).name);
-                goto compile_value;
+	            {
+		            auto const& name = unwrap<Symbol>(input).name;
+		            auto itr = current_env->find(name);
+		            if(itr == current_env->end())
+			            { throw UnboundSymbolError(std::string("Can't find definition for symbol ")
+			                                       .append(name)); }
+		            else
+			            { input = itr->second; }
+	            }
+	            goto compile_value;
             case tag<Parameter>::value:
                 {
-                    auto param = unwrap<Parameter>(input);
-                    if(param.hops) { // -> non local
-                        code.nested_argument(param.offset, param.hops);
-                    } else {
-                        code.argument(param.offset);
-                    }
+                    code.argument(unwrap<Parameter>(input).value);
                     break;
                 }
             case tag<Fixnum>::value:
@@ -549,9 +521,15 @@ namespace atl
         tag_t any(PassByValue ast)
 	    {
 		    if(is<Ast>(ast))
-			    return _compile
-				    (ast, code, Context(false, false, unwrap<Ast>(ast)))
-				    .result_tag;
+			    {
+				    auto tree = unwrap<Ast>(ast);
+				    assign_free(*current_env, gc, free_vars, tree);
+
+				    return _compile
+					    (tree,
+					     code, Context(false, false, tree))
+					    .result_tag;
+			    }
 		    else
 			    return _compile
 				    (ast, code, Context(false, false, Ast()))
@@ -564,12 +542,12 @@ namespace atl
 	    // UnboundSymbolError if they do not
 	    void assert_ready()
 	    {
-		    if(!_undefined.empty())
+		    if(!free_vars.empty())
 			    {
 				    std::string msg ("Undefined symbols after compilation: ");
-				    msg.append(*_undefined.begin());
+				    msg.append(*free_vars.begin());
 
-				    for(auto& nn : make_range(++_undefined.begin(), _undefined.end()))
+				    for(auto& nn : make_range(++free_vars.begin(), free_vars.end()))
 					    msg.append(nn);
 
 				    throw UnboundSymbolError(msg);
@@ -586,9 +564,10 @@ namespace atl
 	     */
 	    Code* pass_code_out()
 	    {
-		    auto main = value_or_undef("main");
-		    if(!is<Undefined>(main))
+		    auto main_itr = current_env->find("main");
+		    if(main_itr != current_env->end())
 			    {
+				    auto main = main_itr->second;
 				    auto num_tail_params = unwrap<Procedure>(main).tail_params;
 				    auto entry = code.pos_end();
 

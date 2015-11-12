@@ -8,6 +8,7 @@ test/atl
 test/compile
 test/gc
 test/helpers
+test/lexical_environment
 test/lists
 test/macros
 test/parser

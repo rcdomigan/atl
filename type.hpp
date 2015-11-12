@@ -345,6 +345,18 @@ namespace atl
 
 		iterator end() { return iterator(flat_end()); }
 		const_iterator end() const { return const_iterator(flat_end()); }
+
+		Any& operator[](size_t n) {
+			auto itr = begin();
+			itr = itr + n;
+			return *itr;
+		}
+
+		Any const& operator[](size_t n) const {
+			auto itr = begin();
+			itr = itr + n;
+			return *itr;
+		}
 	};
 
 	struct Ast
@@ -464,8 +476,20 @@ namespace atl
 
 	struct Parameter
 	{
-		size_t offset, hops;
-		Parameter(size_t offset_, size_t hops_) : offset(offset_), hops(hops_) {}
+		tag_t _tag;
+		size_t value;  // offset of the argument
+
+		Parameter() : _tag(tag<Parameter>::value), value(0) {}
+		Parameter(size_t offset_) noexcept : _tag(tag<Parameter>::value), value(offset_) {}
+	};
+
+	struct ClosureParameter
+	{
+		tag_t _tag;
+		size_t value;  // offset of the argument
+
+		ClosureParameter() : _tag(tag<ClosureParameter>::value), value(0) {}
+		ClosureParameter(size_t offset_) noexcept : _tag(tag<ClosureParameter>::value), value(offset_) {}
 	};
 
     struct String {

@@ -31,6 +31,14 @@ namespace atl {
 	struct BadPCodeInstruction : public std::runtime_error {
 		BadPCodeInstruction(const std::string& what_arg) : std::runtime_error(what_arg) {}
 	};
+
+	struct NoFunctionForScope : public std::runtime_error {
+		NoFunctionForScope(const std::string& what_arg) : std::runtime_error(what_arg) {}
+	};
+
+	struct RedefinitionError : public std::runtime_error {
+		RedefinitionError(const std::string& what_arg) : std::runtime_error(what_arg) {}
+	};
 }
 
 #endif

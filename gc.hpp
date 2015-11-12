@@ -150,8 +150,8 @@ namespace atl
 
 
 	// This is a basic vector with the copy constructor disabled so I
-	// can pass it around by reference and not worry about accidently
-	// copying by value.
+	// can pass it around by reference and not accidently copy by
+	// value.
 	struct AstSubstrate
 		: public std::vector<Any>
 	{
