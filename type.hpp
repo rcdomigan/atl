@@ -83,7 +83,7 @@ namespace atl
 
 
 #define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(DeclareType)(Type)(Ast)(AstData)(Parameter)(ClosureParameter)
-#define ATL_PIMPL_SEQ (Slice)(String)(Symbol)(Procedure)(Macro)(Undefined)(Struct)(CxxFunctor)(CxxMacro)
+#define ATL_PIMPL_SEQ (Slice)(String)(Symbol)(Procedure)(Macro)(Undefined)(Struct)(CxxFunctor)(CxxMacro)(DefProcedure)
 #define ATL_TYPES_SEQ ATL_REINTERPERABLE_SEQ ATL_PIMPL_SEQ
 
 #define M(r, _, i, elem)						\
@@ -104,7 +104,7 @@ namespace atl
 #undef M
 
 
-    typedef mpl::vector25< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
+    typedef mpl::vector26< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
 
     template<class T>
     struct tag : public _Tag<typename std::remove_const<T>::type> {};
@@ -387,17 +387,32 @@ namespace atl
 		Backtrack backtrack;
 	};
 
+    struct DefProcedure
+    {
+	    typedef std::set<std::string> Closure;
+	    Closure closure;
+
+        size_t tail_params;
+        tag_t return_type;
+
+	    DefProcedure(size_t padding=0, tag_t rtype=0)
+		    : tail_params(padding), return_type(rtype)
+        {}
+    };
 
     /* Macro and Procedure have the same data layout, but distinct tags */
     struct Procedure
     {
 	    pcode::Offset body;
+
+	    Ast formals;
+
         size_t tail_params;
 
         tag_t return_type;
 
-	    Procedure(pcode::Offset body_, size_t padding, tag_t rtype)
-            : body(body_), tail_params(padding), return_type(rtype)
+	    Procedure(pcode::Offset body_=0, size_t padding=0, tag_t rtype=0)
+		    : body(body_), tail_params(padding), return_type(rtype)
         {}
     };
 

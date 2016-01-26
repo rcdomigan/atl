@@ -198,6 +198,7 @@ namespace atl
 
 		virtual AstSubstrate& sequence() = 0;
 		virtual Symbol* symbol(std::string const&) = 0;
+		virtual DefProcedure* def_procedure() = 0;
 	};
 
 
@@ -214,6 +215,7 @@ namespace atl
 
 		memory_pool::Pool< Undefined > _undefined_heap;
 		memory_pool::Pool< Procedure > _procedure_heap;
+		memory_pool::Pool< DefProcedure > _def_procedure_heap;
 		memory_pool::Pool< String > _string_heap;
 		memory_pool::Pool< CxxFunctor > _primitive_recursive_heap;
 		memory_pool::Pool< Symbol > _symbol_heap;
@@ -228,6 +230,7 @@ namespace atl
 
 		typedef mpl::map< mpl::pair< Undefined , MemberPtr<Undefined, &GC::_undefined_heap > >
 		                  , mpl::pair< Procedure , MemberPtr<Procedure, &GC::_procedure_heap > >
+		                  , mpl::pair< DefProcedure , MemberPtr<DefProcedure, &GC::_def_procedure_heap > >
 		                  , mpl::pair< String , MemberPtr<String, &GC::_string_heap > >
 		                  , mpl::pair< CxxFunctor,
 		                               MemberPtr<CxxFunctor, &GC::_primitive_recursive_heap > >
@@ -311,6 +314,9 @@ namespace atl
 
 		virtual Symbol* symbol(std::string const& name) override
 		{ return make<Symbol>(name); }
+
+		virtual DefProcedure* def_procedure() override
+		{ return make<DefProcedure>(); }
 	};
 
 	template< class T,	memory_pool::Pool<T> GC::*member >
@@ -350,6 +356,9 @@ namespace atl
 
 		virtual Symbol* symbol(std::string const& name) override
 		{ return make<Symbol>(name); }
+
+		virtual DefProcedure* def_procedure() override
+		{ return make<DefProcedure>(); }
 	};
 
 }

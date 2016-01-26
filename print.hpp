@@ -107,9 +107,16 @@ namespace atl
 					return out << range(make_range(unwrap<AstData>(a)));
 				case tag<Slice>::value:
 					return out << range(make_range(unwrap<Slice>(a)), '[', ']');
-				case tag<Procedure>::value:
-					return out << "#<\\ "
-					           << ">" << flush;
+				case tag<DefProcedure>::value:
+					{
+						out << "#<DefProcedure" << flush;
+						auto closure = unwrap<DefProcedure>(a).closure;
+						if(!closure.empty())
+							{
+								out << " (" << closure.size() << " free vars)";
+							}
+						return out << ">" << flush;;
+					}
 				default:
 					return out << "#<" << type_name(a._tag) << ">";
 				}
@@ -118,6 +125,9 @@ namespace atl
 
 	void dbg_any(Any vv)
 	{ cout << printer::any(vv) << endl; }
+
+	void dbg_pbv(PassByValue value)
+	{ return dbg_any(value.as_Any()); }
 
 	void dbg_ast(Ast const& vv)
 	{ cout << printer::range(make_range(vv)) << endl; }
