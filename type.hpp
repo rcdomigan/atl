@@ -13,6 +13,7 @@
 #include <string>
 #include <algorithm>
 #include <iterator>
+#include <functional>
 
 #include <boost/mpl/at.hpp>
 #include <boost/mpl/size.hpp>
