@@ -14,15 +14,15 @@ namespace atl
 {
     namespace primitives
     {
-	    void wrap_macro(LexicalEnvironment& env, const std::string& name, CxxMacro::Fn fn)
+	    void wrap_macro(ToplevelMap& env, const std::string& name, CxxMacro::Fn fn)
         {
             env.define(name, wrap(new CxxMacro(fn, name)));
         }
 
         template<class T>
-        void wrap_function(LexicalEnvironment& env, std::string const& name, std::function<T> fn) {
+        void wrap_function(ToplevelMap& env, GC& gc, std::string const& name, std::function<T> fn) {
             env.define(name,
-                       wrap(WrapStdFunction<T>::a(fn, env.gc, name)));
+                       wrap(WrapStdFunction<T>::a(fn,gc, name)));
         }
 
         long print(Any a) {

@@ -18,7 +18,7 @@ namespace atl
 	{
 		GC& gc;
 		ParseString& parse;
-		LexicalEnvironment& lexical;
+		ToplevelMap& lexical;
 		Compile& compile;
 		TinyVM& vm;
 
@@ -30,7 +30,7 @@ namespace atl
 
 		Environment(GC& gc_,
 		            ParseString& parse_,
-		            LexicalEnvironment& lexical_,
+		            ToplevelMap& lexical_,
 		            Compile& compile_,
 		            TinyVM& vm_)
 			: gc(gc_), parse(parse_), lexical(lexical_),

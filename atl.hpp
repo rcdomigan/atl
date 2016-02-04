@@ -23,13 +23,13 @@ namespace atl
     {
         GC gc;
         ParseString parse;
-        LexicalEnvironment lexical;
+        ToplevelMap lexical;
         Compile compile;
         TinyVM vm;
 
 	    Environment env;
 
-	    Atl() : parse(gc), lexical(gc), compile(lexical),
+	    Atl() : parse(gc), compile(lexical, gc),
 	            env(gc, parse, lexical, compile, vm)
 	    { setup_interpreter(env); }
 

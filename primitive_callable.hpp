@@ -33,6 +33,7 @@ namespace atl
 		// mechanism)
 		wrap_function<long (long)>
 			(env.lexical,
+			 env.gc,
 			 "print-int",
 			 [&env](long a)
 			 {
@@ -47,13 +48,13 @@ namespace atl
 		/**  / ___ \| |  | | |_| | | | | | | | | (_| | |_| | (__  **/
 		/** /_/   \_\_|  |_|\__|_| |_|_| |_| |_|\__,_|\__|_|\___| **/
 		/***********************************************************/
-		wrap_function<long (long, long)>(env.lexical, "add2", [](long a, long b) { return a + b;});
-		wrap_function<long (long, long)>(env.lexical, "sub2", [](long a, long b) { return a - b;});
-		wrap_function<bool (long, long)>(env.lexical, "=", [](long a, long b) { return a = b;});
-		wrap_function<bool (long, long)>(env.lexical, "<", [](long a, long b) { return a < b;});
-		wrap_function<bool (long, long)>(env.lexical, ">", [](long a, long b) { return a > b;});
-		wrap_function<bool (long, long)>(env.lexical, "<=", [](long a, long b) { return a <= b;});
-		wrap_function<bool (long, long)>(env.lexical, ">=", [](long a, long b) { return a >= b;});
+		wrap_function<long (long, long)>(env.lexical, env.gc, "add2", [](long a, long b) { return a + b;});
+		wrap_function<long (long, long)>(env.lexical, env.gc, "sub2", [](long a, long b) { return a - b;});
+		wrap_function<bool (long, long)>(env.lexical, env.gc, "=", [](long a, long b) { return a = b;});
+		wrap_function<bool (long, long)>(env.lexical, env.gc, "<", [](long a, long b) { return a < b;});
+		wrap_function<bool (long, long)>(env.lexical, env.gc, ">", [](long a, long b) { return a > b;});
+		wrap_function<bool (long, long)>(env.lexical, env.gc, "<=", [](long a, long b) { return a <= b;});
+		wrap_function<bool (long, long)>(env.lexical, env.gc, ">=", [](long a, long b) { return a >= b;});
 
 		/////////////////////////////////////////////////////////////////////
 		//  ___       _                                 _   _              //
@@ -65,7 +66,9 @@ namespace atl
 		/////////////////////////////////////////////////////////////////////
 		// introspection
 
-		wrap_function<long ()>(env.lexical, "print-bytecode",
+		wrap_function<long ()>(env.lexical,
+		                       env.gc,
+		                       "print-bytecode",
 		                       [&env]() {
 			                       if(env.pcode)
 				                       env.pcode->output->dbg();

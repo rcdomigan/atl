@@ -163,7 +163,7 @@ TEST_F(VmTest, TestArguments)
 TEST_F(VmTest, SymToFunction)
 {
     GC gc;
-    LexicalEnvironment env(gc);
+    ToplevelMap env(gc);
     TrivialFunctions fns;
 
     env.define("add2", wrap(fns.wadd));
