@@ -221,7 +221,7 @@ namespace atl
                                           CountingRange()))
                             local.map.define(unwrap<Symbol>(*get<0>(ff)).name,
                                              // The `offset` should go high to low
-                                             gc.amake<Parameter>(size - *get<1>(ff), 0));
+                                             size - *get<1>(ff));
 
                         // todo: For now I'm just putting the lambda body
                         // inline with the rest of the code.  I could save
