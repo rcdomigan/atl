@@ -82,8 +82,8 @@ namespace atl
     struct is_pimpl : public std::false_type {};
 
 
-#define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(DeclareType)(Type)(Ast)(AstData)(Parameter)(ClosureParameter)
-#define ATL_PIMPL_SEQ (Slice)(String)(Symbol)(Procedure)(Macro)(Undefined)(Struct)(CxxFunctor)(CxxMacro)(DefProcedure)
+#define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(DeclareType)(Type)(Ast)(AstData)(Parameter)(ClosureParameter)(Undefined)
+#define ATL_PIMPL_SEQ (Slice)(String)(Symbol)(DefProcedure)(Procedure)(Macro)(Struct)(CxxFunctor)(CxxMacro)
 #define ATL_TYPES_SEQ ATL_REINTERPERABLE_SEQ ATL_PIMPL_SEQ
 
 #define M(r, _, i, elem)						\
@@ -154,6 +154,13 @@ namespace atl
     /**  | ._ _ ._ _  _  _|o _._|_ _   **/
     /** _|_| | || | |(/_(_||(_| |_(/_  **/
     /************************************/
+
+    struct Undefined
+    {
+        tag_t _tag;
+        Undefined() : _tag(tag<Undefined>::value) {}
+    };
+
 	struct Define
 	{
 		tag_t _tag;
@@ -374,18 +381,6 @@ namespace atl
     template<> struct
     tag<std::string*> : public tag<String> {};
 
-	struct Undefined
-	{
-		typedef std::vector<off_t> Backtrack;
-
-		// Information for the compiler ()
-		enum class LexicalBinding {unbound, parameter, indirect_parameter};
-		LexicalBinding binding_type;
-
-		size_t argument_position;
-
-		Backtrack backtrack;
-	};
 
     struct DefProcedure
     {

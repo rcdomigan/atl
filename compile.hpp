@@ -335,15 +335,7 @@ namespace atl
 
                         pcode::Offset entry_point;
 
-                        PassByValue def;
-                        auto found = _env->_local.find(sym.name);
-                        if(found == _env->_local.end())
-	                        def = pass_safe_value(gc.amake<Undefined>());
-
-                        else if(is<Undefined>(found->second))
-                            def = found->second;
-
-                        else
+                        if(current_env->count(name))
                             throw WrongTypeError("A symbol cannot be defined twice in the same scope");
 
                         _undefined.erase(sym.name);
@@ -490,21 +482,6 @@ namespace atl
                                     else
                                         code.call_procedure(proc.body);
                                 }
-                            else if(is<Undefined>(fn))
-                                {
-                                    // TODO: I'm just assuming this is the
-                                    // definition of the current function.
-                                    // co-recursive functions with different max
-                                    // tail size than their aritys will totes
-                                    // break.
-                                    code.constant(rest.size())
-                                        .pointer(nullptr);
-                                    unwrap<Undefined>(fn).backtrack.push_back(code.pos_last());
-
-                                    code.tail_call();
-
-                                    result_type = tag<Undefined>();
-                                }
                             else
                                 result_type = _compile
                                     (form.applicable, code, Context(false, false, ast, &observed_types))
@@ -525,15 +502,6 @@ namespace atl
                     } else {
                         code.argument(param.offset);
                     }
-                    break;
-                }
-            case tag<Undefined>::value:
-                {
-                    code.pointer(nullptr);
-                    unwrap<Undefined>(input).backtrack.push_back(code.pos_last());
-
-                    // Assume a thunk will get patched in later.
-                    code.call_procedure();
                     break;
                 }
             case tag<Fixnum>::value:

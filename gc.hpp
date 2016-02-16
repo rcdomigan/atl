@@ -213,7 +213,6 @@ namespace atl
 
 		void unregister(MarkType::iterator itr) { _mark.erase(itr); }
 
-		memory_pool::Pool< Undefined > _undefined_heap;
 		memory_pool::Pool< Procedure > _procedure_heap;
 		memory_pool::Pool< DefProcedure > _def_procedure_heap;
 		memory_pool::Pool< String > _string_heap;
@@ -228,8 +227,7 @@ namespace atl
 			const static PoolType value;
 		};
 
-		typedef mpl::map< mpl::pair< Undefined , MemberPtr<Undefined, &GC::_undefined_heap > >
-		                  , mpl::pair< Procedure , MemberPtr<Procedure, &GC::_procedure_heap > >
+		typedef mpl::map< mpl::pair< Procedure , MemberPtr<Procedure, &GC::_procedure_heap > >
 		                  , mpl::pair< DefProcedure , MemberPtr<DefProcedure, &GC::_def_procedure_heap > >
 		                  , mpl::pair< String , MemberPtr<String, &GC::_string_heap > >
 		                  , mpl::pair< CxxFunctor,
@@ -260,7 +258,6 @@ namespace atl
 			for(auto i : _mark_callbacks)
 				i(*this);
 
-			_undefined_heap.sweep();
 			_procedure_heap.sweep();
 			_string_heap.sweep();
 		}
