@@ -107,6 +107,26 @@ TEST_F(ParserTest, nested_int_list)
 }
 
 
+TEST_F(ParserTest, test_parsing_int_list_from_stream)
+{
+	Arena arena;
+	using namespace make_ast;
+	std::stringstream input{"(1 2 (4 5) 3) foo"};
+    auto parsed = atl.parse.stream(input);
+
+    auto expected =
+	    make(lift(1),
+	         lift(2),
+	         make(lift(4),
+	              lift(5)),
+	         lift(3))
+	    (ast_alloc(arena));
+
+    _check_nested(*expected.value,
+                  *unwrap<Ast>(parsed).value);
+}
+
+
 TEST_F(ParserTest, TestQuote) {
 	using namespace make_ast;
     auto parsed = atl.parse.string_("'(2 3)");
