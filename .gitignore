@@ -7,6 +7,7 @@ test/abstract_type
 test/atl
 test/compile
 test/gc
+test/helpers
 test/lists
 test/macros
 test/parser
