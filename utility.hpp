@@ -347,6 +347,41 @@ template<class Fn, class Tup>
 void foreach_tuple(Fn& fn, Tup& tup)
 { ForeachTuple<typename std::remove_reference<Tup>::type >::apply(fn, tup); }
 
+
+template<class Tup, size_t elem = 0, size_t last = std::tuple_size<Tup>::value>
+struct AndTuple
+{
+	template<class Fn>
+	static bool apply(Fn& fn, Tup& tup)
+	{
+		if(fn( std::get<elem>(tup) ))
+			{ return AndTuple<Tup,elem + 1, last>::apply(fn, tup); }
+		else
+			{ return false; }
+	}
+};
+
+template<class Tup, size_t elem>
+struct AndTuple<Tup, elem, elem>
+{
+	template<class Fn>
+	static bool apply(Fn& fn, Tup& tup) { return true; }
+};
+
+/** Fold `fn` across the elements of a tuple `tup` until either
+ * fn(elem) produces a falsy value or all of fn(elem) produce true.
+ *
+ * @tparam Fn: Particular type of fn (must be elem-type -> boolish)
+ * @tparam Tup: The tuple type
+ * @param fn: function that takes the type of tups element and returns bool
+ * @param tup: tuple to fold across
+ * @return: true of fn returns true for all the elements of tup
+ */
+template<class Fn, class Tup>
+bool and_tuple(Fn& fn, Tup& tup)
+{ return AndTuple<typename std::remove_reference<Tup>::type >::apply(fn, tup); }
+
+
 /******************************/
 /*   ____                _    */
 /*  / ___|___  _ __  ___| |_  */
