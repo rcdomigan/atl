@@ -353,6 +353,34 @@ namespace atl
 		else
 			return unwrap<Ast>(input);
 	}
+
+
+	struct AstSubscriter
+	{
+		PassByValue value;
+		AstSubscriter(PassByValue const& in) : value(in) {}
+		AstSubscriter() = delete;
+
+		AstSubscriter operator[](off_t pos)
+		{ return AstSubscriter(pass_value(unwrap<Ast>(value)[pos])); }
+	};
+
+	template<class T>
+	AstSubscriter subscripter(T&& ast)
+	{ return AstSubscriter(pass_value(ast)); }
+
+	template<class T>
+	AstSubscriter subscripter(PassByValue const& value)
+	{ return AstSubscriter(value); }
+
+
+	template<class T>
+	struct Unwrapped
+	{
+		template<class Input, class Fn>
+		static void a(Input&& in, Fn fn)
+		{ return fn(unwrap<T>(in)); };
+	};
 }
 
 #endif
