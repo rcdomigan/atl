@@ -40,30 +40,6 @@ namespace atl
 				 return a;
 			 });
 
-
-		auto cc = primitives::Constructor(env.lexical);
-		mpl::for_each<TypesVec, wrap_t_arg< mpl::placeholders::_1> >(cc);
-
-		wrap_function<Any* (AstData*, long)>
-			(env.lexical,
-			 "nth",
-			 [](AstData *ast, long n) -> Any*
-			{ return &Ast(ast)[n]; });
-
-		static auto fn_construct_params = abstract_type::make_concrete({tag<Type>::value, tag<Type>::value});
-		fn_construct_params.front().count = abstract_type::Node::CountType::at_least_one;
-		auto fn_construct
-			= env.gc.make<CxxFunctor>([&env](vm_stack::iterator begin, vm_stack::iterator end)
-			                      {
-				                      auto type = env.gc.make<abstract_type::Type>();
-				                      for(auto& vv : make_range(begin, end))
-					                      type->values.emplace_back(*reinterpret_cast<Type::value_type*>(vv));
-				                      *begin = reinterpret_cast<vm_stack::value_type>(type);
-			                      }, "->", &fn_construct_params);
-
-		env.lexical.define("->", wrap(fn_construct));
-
-
 		/***********************************************************/
 		/**     _         _ _   _                     _   _       **/
 		/**    / \   _ __(_) |_| |__  _ __ ___   __ _| |_(_) ___  **/
@@ -97,50 +73,6 @@ namespace atl
 				                       cout << "environment pcode is not set." << endl;
 			                       return 0;
 		                       });
-
-		/***************************/
-		/**  _     _     _        **/
-		/** | |   (_)___| |_ ___  **/
-		/** | |   | / __| __/ __| **/
-		/** | |___| \__ \ |_\__ \ **/
-		/** |_____|_|___/\__|___/ **/
-		/***************************/
-		wrap_function<AstData* (Any*, Ast*)>
-			(env.lexical,
-			 "cons-ast",
-			 [&env](Any* car, Ast* ast)
-			{
-				auto& space = env.gc.sequence();
-				auto output = push_nested_ast(space);
-
-				space.push_back(*car);
-				std::copy(ast->begin(), ast->end(),
-				          std::back_inserter(space));
-
-				output.end_ast();
-				return output.ast_data();
-			});
-
-		wrap_macro
-			(env.lexical,
-			 "cons",
-			 [&](CxxMacro::Input const& ast) -> Any
-			 {
-				 using namespace make_ast;
-				 return wrap
-					 (make
-					  (sym("cons-ast"),
-					   make(lift<Quote>(),
-					        lift(ast[0])),
-					   lift(ast[1]))
-					  (ast_alloc(env.gc)));
-			 });
-
-		wrap_function<Slice* (Ast*, long)>(env.lexical, "slice",
-		                                   [&env](Ast* ast, long nn) -> Slice*
-			{
-				return env.gc.make<Slice>(ast->begin() + nn, ast->end());
-			});
 	}
 
 
