@@ -15,16 +15,10 @@ long add2(long a, long b) { return a + b; }
 long sub2(long a, long b) { return a - b; }
 bool equal2(long a, long b) { return a == b; }
 
-struct TrivialGC
-{
-    template<class T, class ... Types>
-    T* make(Types ... args)
-    { return new T(args...); }
-};
 
 struct TrivialFunctions
 {
-    TrivialGC gc;
+	atl::Arena gc;
     atl::CxxFunctor *weq, *wadd, *wsub;
 
     TrivialFunctions()

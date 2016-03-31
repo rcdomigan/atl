@@ -206,7 +206,7 @@ TEST_F(CompilerTest, DefineLambda)
     atl.compile.any(PassByValue(my_add1));
 
     ASSERT_EQ(3,
-              unwrap<Procedure>(atl.lexical.toplevel._local["my-add1"].value).tail_params);
+              unwrap<Procedure>(atl.lexical.toplevel._local["my-add1"]).tail_params);
 }
 
 TEST_F(CompilerTest, test_nested_functions)

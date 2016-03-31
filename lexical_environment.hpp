@@ -9,7 +9,6 @@
 #include <map>
 
 #include <vm.hpp>
-#include <abstract_type.hpp>
 #include <exception.hpp>
 #include <print.hpp>
 
@@ -17,19 +16,9 @@ namespace atl
 {
 	namespace lexical
 	{
-		struct Value
-		{
-			abstract_type::Type metadata;
-			Any value;
-			Value() = default;
-			Value(Any vv, abstract_type::Type const& mm)
-				: metadata(mm), value(vv)
-			{}
-		};
-
 		struct Map
 		{
-			typedef std::map<std::string, Value> Impl;
+			typedef std::map<std::string, Any> Impl;
 			typedef Impl::iterator iterator;
 			Impl _local;
 			Map *_prev;
@@ -39,13 +28,8 @@ namespace atl
 			Map(GC &gc) : _prev(nullptr), _gc(gc) {}
 			Map() = delete;
 
-			void define(const std::string& name, Any const& value, abstract_type::Type const& type)
-			{
-				_local[name] = Value(value, type);
-			}
-
 			void define(const std::string& name, Any const& value)
-			{ define(name, value, abstract_type::make_abstract({value._tag})); }
+			{ _local[name] = value; }
 
 			iterator find(const string& k)
 			{
@@ -70,7 +54,7 @@ namespace atl
 				if (i == end())
 					throw UnboundSymbolError(std::string("Unbound symbol: ").append(name));
 				else
-					return i->second.value;
+					return i->second;
 			}
 
 			Any& value(Symbol& sym) {
@@ -84,9 +68,7 @@ namespace atl
 		{
 			for(auto& pair : _local)
 				{
-					std::cout << pair.first << " = (: " << printer::any(pair.second.value) << " ";
-					pair.second.metadata.dbg();
-					std::cout << ")" << std::endl;
+					std::cout << pair.first << " = (: " << printer::any(pair.second) <<  ")" << std::endl;
 				}
 		}
 
@@ -109,7 +91,7 @@ namespace atl
 					{
 						auto prev = map._prev;
 						for(auto& vv : map)
-							if(is<Undefined>(vv.second.value))
+							if(is<Undefined>(vv.second))
 								prev->_local.insert(vv);
 					}
 				*top = map._prev;

@@ -29,22 +29,6 @@ namespace atl
             cout << printer::any(a);
             return 0;
         }
-
-        struct Constructor
-        {
-            LexicalEnvironment& env;
-            Constructor(LexicalEnvironment& ee) : env(ee) {}
-
-            // My primitives aren't GCed so I think I'm OK allocating
-            // theirabstract_type::Type object in the regular heap.
-            template<class T>
-            void operator()(wrap_t_arg<T>)
-            {
-                auto type = new abstract_type::Type(abstract_type::make_concrete({tag<T>::value}));
-                env.define(type_name(tag<T>::value),
-                           wrap(Type(type)));
-            }
-        };
     }
 }
 

@@ -39,8 +39,8 @@ namespace atl
                 auto mm = env;
                 while(mm) {
                     for(auto& aa : mm->_local) {
-                        if(is<Parameter>(aa.second.value))
-                            fn(unwrap<Parameter>(aa.second.value));
+                        if(is<Parameter>(aa.second))
+                            fn(unwrap<Parameter>(aa.second));
                     }
                     mm = mm->_prev; }
             }
@@ -144,12 +144,12 @@ namespace atl
             auto def = _env->find(name);
 
             if(def == _env->end()) {
-                auto udef = gc.amake<Undefined>(nullptr);
+                auto udef = gc.amake<Undefined>();
                 _env->define(name, udef);
                 _undefined.emplace(name);
                 return PassByValue(udef);
             }
-            return def->second.value;
+            return def->second;
         }
 
 	    // done            : The form has been evaluated, _compile can return
@@ -338,10 +338,10 @@ namespace atl
                         PassByValue def;
                         auto found = _env->_local.find(sym.name);
                         if(found == _env->_local.end())
-	                        def = pass_safe_value(gc.amake<Undefined>(nullptr));
+	                        def = pass_safe_value(gc.amake<Undefined>());
 
-                        else if(is<Undefined>(found->second.value))
-                            def = found->second.value;
+                        else if(is<Undefined>(found->second))
+                            def = found->second;
 
                         else
                             throw WrongTypeError("A symbol cannot be defined twice in the same scope");
@@ -551,15 +551,6 @@ namespace atl
             case tag<String>::value:
                 code.pointer(&value<String>(input));
                 return atom_result();
-
-            case tag<Type>::value:
-                {
-                    code.pointer(value<Type>(input));
-                    return _Compile
-	                    (pass_value<Null>(),
-	                     0,
-	                     abstract_type::return_tag(*value<Type>(input)));
-                }
             case tag<CxxFunctor>::value:
                 {
                     auto& fn = unwrap<CxxFunctor>(input);
@@ -568,7 +559,7 @@ namespace atl
                     code.std_function(&fn.fn, context.expression.size() - 1);
                     return _Compile
 	                    (pass_value<Null>(),
-	                     0, abstract_type::return_tag(*fn.types));
+	                     0, fn.types.back()._tag);
                 }
             case tag<Procedure>::value:
                 {

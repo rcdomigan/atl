@@ -218,7 +218,6 @@ namespace atl
 		memory_pool::Pool< CxxFunctor > _primitive_recursive_heap;
 		memory_pool::Pool< Symbol > _symbol_heap;
 		memory_pool::Pool< Slice > _slice_heap;
-		memory_pool::Pool< abstract_type::Type > _abstract_type_heap;
 
 		template< class T,  memory_pool::Pool<T> GC::*member >
 		struct MemberPtr {
@@ -234,7 +233,6 @@ namespace atl
 		                               MemberPtr<CxxFunctor, &GC::_primitive_recursive_heap > >
 		                  , mpl::pair< Symbol,	MemberPtr<Symbol, &GC::_symbol_heap > >
 		                  , mpl::pair< Slice,  MemberPtr<Slice, &GC::_slice_heap > >
-		                  , mpl::pair< abstract_type::Type, MemberPtr<abstract_type::Type, &GC::_abstract_type_heap> >
 		                  > PoolMap;
 
 		template<class T>

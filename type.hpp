@@ -38,12 +38,12 @@
 
 #include "./exception.hpp"
 #include "./utility.hpp"
-#include "./abstract_type.hpp"
 
 namespace mpl = boost::mpl;
 
 namespace atl
 {
+	typedef size_t tag_t;
 	namespace pcode
 	{
 		typedef uintptr_t  value_type;
@@ -334,6 +334,8 @@ namespace atl
 		iterator end() { return value->end(); }
 		const_iterator end() const { return const_cast<AstData const*>(value)->end(); }
 
+		Any& back()
+		{ return *(end().value - 1); }
 
 		size_t size() const { return end() - begin(); }
 		bool empty() const { return value->value == 0; }
@@ -372,17 +374,17 @@ namespace atl
     template<> struct
     tag<std::string*> : public tag<String> {};
 
-
 	struct Undefined
 	{
-		typedef std::vector<pcode::Offset> Backtrack;
+		typedef std::vector<off_t> Backtrack;
+
+		// Information for the compiler ()
+		enum class LexicalBinding {unbound, parameter, indirect_parameter};
+		LexicalBinding binding_type;
+
+		size_t argument_position;
 
 		Backtrack backtrack;
-		abstract_type::Type *type;
-
-		Undefined(abstract_type::Type *tt)
-			: type(tt)
-		{}
 	};
 
 
@@ -404,15 +406,15 @@ namespace atl
     {
 	    const std::string _name;
 
-	typedef std::function<void (vm_stack::iterator begin, vm_stack::iterator end)> Fn;
-        typedef Fn value_type;
-	mutable value_type fn;
+	    typedef std::function<void (vm_stack::iterator begin, vm_stack::iterator end)> Fn;
+	    typedef Fn value_type;
+	    mutable value_type fn;
 
-	    abstract_type::Type const* types;
+	    Ast types;
 
 	    CxxFunctor(const Fn& fn
 	               , const std::string& name
-	               , abstract_type::Type const* tt)
+	               , Ast const& tt)
 		    : _name(name), fn(fn), types(tt)
 	    {}
     };
@@ -435,13 +437,8 @@ namespace atl
 
     struct Type
     {
-        typedef abstract_type::Type value_type;
         tag_t _tag;
-        value_type *value;
-
-        Type(abstract_type::Type* type_)
-            : _tag(tag<Type>::value), value(type_)
-        {}
+	    tag_t value;
     };
 
 
@@ -530,66 +527,9 @@ namespace atl
 	return primitive_type_names[t];
     }
     const char* type_name(Any a) { return type_name( type_tag(a)); }
-
-
-    ///////////////////////////////////////
-    //  ____       _     _               //
-    // | __ ) _ __(_) __| | __ _  ___ _  //
-    // |  _ \| '__| |/ _` |/ _` |/ _ (_) //
-    // | |_) | |  | | (_| | (_| |  __/_  //
-    // |____/|_|  |_|\__,_|\__, |\___(_) //
-    //                     |___/         //
-    ///////////////////////////////////////
-    // Bridge abstract and concrete types:
-
-    std::ostream& abstract_type::Node::print(std::ostream& out) const
-    {
-        switch(tag)
-            {
-            case SubType::function:
-                type_seq->print(out);
-                break;
-            case SubType::concrete:
-                out << type_name(type);
-                break;
-            case SubType::abstract:
-                out << 'a' << type;
-                break;
-            default:
-                out << "what?";
-                break;
-            }
-
-        switch(count)
-            {
-            case one:
-                break;
-            case at_least_one:
-                out << "+"; break;
-            case zero_or_more:
-                out << "*"; break;
-            }
-
-        return out;
-    }
-
-    // The tag of the returned type of an expression
-    namespace abstract_type
-    {
-        tag_t return_tag(Type const& tt)
-        {
-            if(tt.back().is_concrete())
-                return tt.back().type;
-            else if(tt.back().is_function())
-                return tag<Procedure>::value;
-            else
-                return tag<Undefined>::value;
-        }
-    }
 }
 
-namespace std
-{
+namespace std {
     template<>
     struct iterator_traits<typename atl::Ast::iterator> {
 	typedef size_t difference_type;

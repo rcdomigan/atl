@@ -54,10 +54,11 @@ namespace atl {
 				{ return sizeof...(Sig); }
 
 				template<class Alloc>
-				static abstract_type::Type* parameter_types(Alloc& gc)
+				static Ast parameter_types(Alloc& gc)
 				{
-					return gc.template make<abstract_type::Type>(abstract_type::make_concrete({GuessTag<Sig>::value...,
-									GuessTag<R>::value}));
+					using namespace make_ast;
+					return make(lift<Sig>()..., lift<R>())
+						(ast_alloc(gc));
 				}
 			};
 		};
