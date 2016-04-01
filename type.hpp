@@ -126,6 +126,9 @@ namespace atl
 		constexpr Any() : _tag(tag<Any>::value) , value(nullptr) {}
 		constexpr Any(tag_t t, void *v) : _tag(t) , value(v) {}
 		constexpr Any(tag_t t) : _tag(t) , value(nullptr) {}
+
+		bool operator<(Any const& other) const
+		{ return (value < other.value) && (_tag < other._tag); }
 	};
 
     bool operator==(const Any& aa, const Any& bb) {
@@ -227,6 +230,22 @@ namespace atl
 	/** | _|_|  ||  |_  **/
 	/**           pimpl **/
 	/*********************/
+    struct Symbol
+    {
+	    std::string name;
+	    Any type;
+
+	    Symbol(const std::string& name_)
+		    : name(name_),
+		      // type just needs to be unique, and using our address
+		      // seems like the simplest way to get a unique id.  I'll
+		      // just have to make sure I'm not using any pointer
+		      // based types before I things... This is probably a bad
+		      // idea.
+		      type(tag<Type>::value, this)
+	    {}
+    };
+
 	namespace ast_helper
 	{
 		// This is really a special iterator for when I have nested
@@ -241,7 +260,10 @@ namespace atl
 			IteratorBase() = default;
 
 			Value& operator*() { return *value; }
-			const Value& operator*() const { return *value; }
+			Value const& operator*() const { return *value; }
+
+			Value* operator->() { return value; }
+			Value const* operator->() const { return value; }
 
 			IteratorBase& operator++()
 			{
@@ -344,8 +366,64 @@ namespace atl
 		Any& back()
 		{ return *(end().value - 1); }
 
+		size_t flat_size() const { return value->flat_end() - value->flat_begin(); }
+
 		size_t size() const { return end() - begin(); }
 		bool empty() const { return value->value == 0; }
+
+		bool operator==(Ast const& other_ast) const
+		{
+			if(flat_size() != other_ast.flat_size())
+				{ return false; }
+
+			auto other = other_ast.begin(), self = begin();
+			while((other != other_ast.end()) && (self != other_ast.end()))
+				{
+					if(other->_tag != self->_tag)
+						{ return false; }
+
+					switch(self->_tag)
+						{
+						case tag<AstData>::value:
+							{
+								if(Ast(const_cast<AstData*>(reinterpret_cast<AstData const*>(self.value)))
+								   != Ast(const_cast<AstData*>(reinterpret_cast<AstData const*>(other.value))))
+									{ return false; }
+								break;
+							}
+						case tag<Ast>::value:
+							{
+								if(*reinterpret_cast<Ast const*>(self.value)
+								   != *reinterpret_cast<Ast const*>(other.value))
+									{ return false; }
+								break;
+							}
+						case tag<Symbol>::value:
+							{
+								if(reinterpret_cast<Symbol*>(self->value)->name
+								   != reinterpret_cast<Symbol*>(other->value)->name)
+									{ return false; }
+								break;
+							}
+						default:
+							if(other->value != self->value)
+								{ return false; }
+						}
+
+					++other;
+					++self;
+				}
+
+			if((other != other_ast.end()) || (self != end()))
+				{ return false; }
+			return true;
+		}
+
+		bool operator!=(Ast const& other) const
+		{ return !(other == *this); }
+
+		bool operator<(Ast const& other) const
+		{ return value < other.value; }
 	};
 
 	// Return an Ast pointing to an AstData `input` which was cast to
@@ -360,11 +438,6 @@ namespace atl
 		Parameter(size_t offset_, size_t hops_) : offset(offset_), hops(hops_) {}
 	};
 
-    struct Symbol
-    {
-	    std::string name;
-	    Symbol(const std::string& name_) : name(name_) {}
-    };
 
     struct String {
 	std::string value;
