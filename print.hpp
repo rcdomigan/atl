@@ -132,6 +132,33 @@ namespace atl
 	void dbg_ast(Ast const& vv)
 	{ cout << printer::range(make_range(vv)) << endl; }
 
+	std::ostream& print_type(PassByValue const& value, std::ostream& out)
+	{
+		switch(value._tag)
+			{
+			case tag<Ast>::value:
+				{
+					auto ast = unwrap<Ast>(value);
+					out << "(";
+					if(!ast.empty())
+						{
+							print_type(ast[0], out);
+							for(auto& vv : slice(ast, 1))
+								{
+									out << ' ';
+									print_type(vv, out);
+								}
+						}
+					return out << ")";
+				}
+			case tag<Type>::value:
+				{ return out << "#<Type: " << unwrap<Type>(value).value << ">"; }
+			default:
+				return out << type_name(value._tag);
+			}
+	}
+	void dbg_type(PassByValue const& value)
+	{ print_type(value, std::cout) << std::endl; }
 }
 
 
