@@ -307,6 +307,8 @@ namespace atl
 	{
 		typedef ast_helper::IteratorBase<Any> iterator;
 		typedef ast_helper::IteratorBase<const Any> const_iterator;
+		typedef Any* flat_iterator;
+		typedef Any const* const_flat_iterator;
 
 		tag_t _tag;
 		// this + value is the last element of the collection.
@@ -425,6 +427,16 @@ namespace atl
 		bool operator<(Ast const& other) const
 		{ return value < other.value; }
 	};
+
+
+	typedef Range<Ast::iterator> AstRange;
+	typedef Range<Ast::const_iterator> ConstAstRange;
+
+	AstRange slice_ast(Ast& ast, size_t off)
+	{ return make_range(ast.begin() + off, ast.end()); }
+
+	ConstAstRange slice_ast(Ast const& ast, size_t off)
+	{ return make_range(ast.begin() + off, ast.end()); }
 
 	// Return an Ast pointing to an AstData `input` which was cast to
 	// Any.
