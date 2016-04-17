@@ -61,197 +61,6 @@ namespace atl
 	}
 
 
-	namespace make_ast
-	{
-		// Maintains one 'dynamic_seq` for use with the make_ast functions
-		struct AstAllocator
-		{
-			AllocatorBase &allocator;
-			AstSubstrate *seq_space;
-
-			AstAllocator(AllocatorBase &aa)
-				: allocator(aa), seq_space(&aa.sequence())
-			{}
-
-			Symbol* symbol(std::string const& name)
-			{ return allocator.symbol(name); }
-
-			AstAllocator& push_back(Any value)
-			{
-				seq_space->push_back(value);
-				return *this;
-			}
-
-			MovableAstPointer nest_ast()
-			{ return push_nested_ast(*seq_space); }
-
-			size_t size()
-			{ return seq_space->size(); }
-		};
-
-		AstAllocator ast_alloc(AllocatorBase& aa)
-		{ return AstAllocator(aa); }
-
-		typedef std::function<void (AstAllocator)> ast_composer;
-		template<class T>
-		ast_composer lift(T tt)
-		{
-			return [tt](AstAllocator space)
-				{ space.push_back(wrap(tt)); };
-		}
-
-		template<class T>
-		ast_composer lift()
-		{
-			return [](AstAllocator space)
-				{ space.push_back(wrap<T>()); };
-		}
-
-		ast_composer sym(std::string const& name)
-		{
-			return [name](AstAllocator heap)
-				{ heap.push_back(wrap(heap.symbol(name))); };
-		}
-
-
-		struct _Run
-		{
-			AstAllocator space;
-			_Run(AstAllocator ss) : space(ss) {}
-
-			template<class Fn>
-			void operator()(Fn &fn) { fn(space); }
-		};
-
-		template<class ... Args>
-		std::function<Ast (AstAllocator)>
-		make(Args ... args)
-		{
-			auto tup = make_tuple(args...);
-			return [tup](AstAllocator space) -> Ast
-				{
-					// ast_pos needs to be positional!! ITERATOR WON'T WORK!
-					auto ast = space.nest_ast();
-					_Run do_apply(space);
-
-					foreach_tuple(do_apply, tup);
-					ast.end_ast();
-					return *ast;
-				};
-		}
-	}
-
-	namespace pattern_matcher
-	{
-		struct Match
-		{
-			bool is_match;
-			typedef std::vector<Any*> Matches;
-			Matches matches;
-
-			Any& operator[](off_t pos) { return *matches[pos]; }
-			operator bool() { return is_match; }
-
-			Match(bool is_match_, Matches&& matches_)
-				: is_match(is_match_), matches(matches_)
-			{}
-
-			Match(bool is_match_)
-				: is_match(is_match_)
-			{}
-
-			Match(Match && other)
-				: is_match(other.is_match), matches(std::move(other.matches))
-			{}
-		};
-
-		typedef std::function<Match (Any&)> Matcher;
-
-		template<class T>
-		Matcher capture()
-		{
-			return [](Any& expr) -> Match
-				{
-					if(is<T>(expr))
-						{ return Match(true, Match::Matches({&expr})); }
-					else
-						{ return Match(false); }
-				};
-		}
-
-		Matcher capture_whatever()
-		{
-			return [](Any& expr) -> Match
-				{
-					return Match(true, Match::Matches({&expr}));
-				};
-		}
-
-		template<class T>
-		Matcher match_is()
-		{
-			return [](Any& expr) -> Match
-				{
-				return Match(is<T>(expr));
-				};
-		}
-
-		Matcher whatever()
-		{
-			return [](Any& expr) -> Match
-				{ return Match(true); };
-		}
-
-		template<class ... Args>
-		Matcher match_ast(Args ... args)
-		{
-			auto tup = make_tuple(args...);
-			return [tup](Any& expr) -> Match
-				{
-					AstData* ast;
-
-					switch(expr._tag)
-						{
-						case tag<AstData>::value:
-							ast = &unwrap<AstData>(expr);
-							break;
-						case tag<Ast>::value:
-							ast = unwrap<Ast>(expr).value;
-							break;
-						default:
-							return Match(false);
-						}
-
-					Match match(true);
-					auto itr = ast->begin();
-
-					auto accume = [&](Matcher const& fn) -> bool
-						{
-							if(itr == ast->end())
-								{ return false; }
-
-							auto inner_result = fn(*itr);
-							if(inner_result.is_match)
-								{
-									++itr;
-									match.matches.insert(match.matches.end(),
-									                     inner_result.matches.begin(),
-									                     inner_result.matches.end());
-									return true;
-								}
-							else
-								{ return false; }
-						};
-
-					match.is_match = and_tuple(accume, tup);
-					if(itr != ast->end())
-						{ return Match(false); }
-					else
-						{ return match; }
-				};
-		}
-	}
-
 	/// Work-alike wrapper for Any so which is safe to pass around by
 	/// value (ie wrap AstData with an Ast).
 	struct PassByValue
@@ -305,12 +114,21 @@ namespace atl
 		Any as_Any() const { return *reinterpret_cast<Any const*>(this); }
 	};
 
-	/// If we have an Any which we know will not be an AstData, we can
-	/// use this function to wrap it without any type dispatch.
-	///
-	/// @param input: An Any that the caller promises is not an AstData
-	PassByValue pass_safe_value(Any input)
-	{ return PassByValue(input._tag, input.value); }
+	PassByValue pass_value(Any&& input)
+	{ return PassByValue(input); }
+
+	PassByValue pass_value(Any& input)
+	{ return PassByValue(input); }
+
+	template<class T>
+	PassByValue pass_value(T&& input)
+	{
+		typedef typename std::remove_reference<T>::type Type;
+		static_assert(!((tag<Type>::value == tag<AstData>::value)
+		                || (tag<Type>::value == tag<Any>::value)),
+		              "Use the overloads for AstData and Any");
+		return PassByValue(tag<Type>::value, wrap(input).value);
+	}
 
 	template<class T>
 	PassByValue pass_value()
@@ -325,10 +143,10 @@ namespace atl
 			              "PassByValue should not directly contain an AstData.");
 
 			static inline constexpr T& a(atl::PassByValue& aa)
-			{ return unwrap<T>(aa.as_Any()); }
+			{ return explicit_unwrap<T>(aa.as_Any()); }
 
 			static inline constexpr T const& a(atl::PassByValue const& aa)
-			{ return unwrap<T>(aa.as_Any()); }
+			{ return explicit_unwrap<T>(aa.as_Any()); }
 		};
 	}
 
@@ -345,13 +163,186 @@ namespace atl
 	{ return is<T>(reinterpret_cast<Any const&>(value)); }
 
 
+	namespace make_ast
+	{
+		// Maintains one 'dynamic_seq` for use with the make_ast functions
+		using ast_hof::AstAllocator;
+
+		AstAllocator ast_alloc(AllocatorBase& aa)
+		{ return AstAllocator(aa); }
+
+		typedef std::function<void (AstAllocator)> ast_composer;
+
+		ast_composer lift(Any tt)
+		{
+			return [tt](AstAllocator space)
+				{ space.push_back(tt); };
+		}
+
+		template<class T, class ... Args>
+		ast_composer lift(Args ... args)
+		{
+			return [args ...](AstAllocator space)
+				{ space.push_back(wrap<T>(args ...)); };
+		}
+
+		ast_composer sym(std::string const& name)
+		{
+			return [name](AstAllocator heap)
+				{ heap.push_back(wrap(heap.symbol(name))); };
+		}
+
+
+		struct _Run
+		{
+			AstAllocator space;
+			_Run(AstAllocator ss) : space(ss) {}
+
+			template<class Fn>
+			void operator()(Fn &fn) { fn(space); }
+		};
+
+		template<class ... Args>
+		std::function<Ast (AstAllocator)>
+		make(Args ... args)
+		{
+			auto tup = make_tuple(args...);
+			return [tup](AstAllocator space) -> Ast
+				{
+					ast_hof::NestAst nested(space);
+
+					_Run do_apply(space);
+					foreach_tuple(do_apply, tup);
+
+					return *nested.ast;
+				};
+		}
+
+		template<class Fn>
+		std::function<Ast (AstAllocator)>
+		map(Fn&& fn, Ast const& input)
+		{
+			return [fn, input](AstAllocator store) -> Ast
+				{ return ast_hof::map(fn, input, store); };
+		}
+	}
+
+	namespace pattern_matcher
+	{
+		struct Match
+		{
+			bool is_match;
+			typedef std::vector<Any*> Matches;
+			Matches matches;
+
+			Any& operator[](off_t pos) { return *matches[pos]; }
+			operator bool() { return is_match; }
+
+			Match(bool is_match_, Matches&& matches_)
+				: is_match(is_match_), matches(matches_)
+			{}
+
+			Match(bool is_match_)
+				: is_match(is_match_)
+			{}
+
+			Match(Match && other)
+				: is_match(other.is_match), matches(std::move(other.matches))
+			{}
+		};
+
+		typedef std::function<Match (Any&)> Matcher;
+
+		template<class T>
+		Matcher capture()
+		{
+			return [](Any& expr) -> Match
+				{
+					if(is<T>(expr))
+						{ return Match(true, Match::Matches({&expr})); }
+					else
+						{ return Match(false); }
+				};
+		}
+
+		Matcher capture_whatever()
+		{
+			return [](Any& expr) -> Match
+				{
+					return Match(true, Match::Matches({&expr}));
+				};
+		}
+
+		template<class T>
+		Matcher match_is()
+		{
+			return [](Any& expr) -> Match
+				{ return Match(is<T>(expr)); };
+		}
+
+		Matcher whatever()
+		{
+			return [](Any& expr) -> Match
+				{ return Match(true); };
+		}
+
+		template<class ... Args>
+		Matcher match_ast(Args ... args)
+		{
+			auto tup = make_tuple(args...);
+			return [tup](Any& expr) -> Match
+				{
+					AstData* ast;
+
+					switch(expr._tag)
+						{
+						case tag<AstData>::value:
+							ast = &explicit_unwrap<AstData>(expr);
+							break;
+						case tag<Ast>::value:
+							ast = explicit_unwrap<Ast>(expr).value;
+							break;
+						default:
+							return Match(false);
+						}
+
+					Match match(true);
+					auto itr = ast->begin();
+
+					auto accume = [&](Matcher const& fn) -> bool
+						{
+							if(itr == ast->end())
+								{ return false; }
+
+							auto inner_result = fn(*itr);
+							if(inner_result.is_match)
+								{
+									++itr;
+									match.matches.insert(match.matches.end(),
+									                     inner_result.matches.begin(),
+									                     inner_result.matches.end());
+									return true;
+								}
+							else
+								{ return false; }
+						};
+
+					match.is_match = and_tuple(accume, tup);
+					if(itr != ast->end())
+						{ return Match(false); }
+					else
+						{ return match; }
+				};
+		}
+	}
+
 	/* Pass through an ast or wrap an AstData */
-	Ast pass_ast(Any& input)
+	Ast unwrap_ast(Any& input)
 	{
 		if(is<AstData>(input))
-			return Ast(&unwrap<AstData>(input));
+			return Ast(&explicit_unwrap<AstData>(input));
 		else
-			return unwrap<Ast>(input);
+			return explicit_unwrap<Ast>(input);
 	}
 
 

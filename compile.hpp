@@ -179,6 +179,7 @@ namespace atl
             {}
         };
 
+
         /// \internal
         /// Evaluates the application position of an s-expression and
         /// returns a _Form structure with information for _compile.
@@ -204,7 +205,7 @@ namespace atl
                     goto setup_form;
 
                 case tag<CxxMacro>::value:
-	                return _Form(pass_safe_value(unwrap<CxxMacro>(head).fn(slice(ast, 1))),
+	                return _Form(pass_value(unwrap<CxxMacro>(head).fn(slice(ast, 1))),
 	                             0,
 	                             FormTag::macro_expansion,
 	                             0);
@@ -251,7 +252,7 @@ namespace atl
                                 comp_val = compile_body();
                             }
 
-                        return _Form(pass_safe_value(gc.amake<Procedure>(entry_point, size, comp_val.result_tag)),
+                        return _Form(pass_value(gc.amake<Procedure>(entry_point, size, comp_val.result_tag)),
                                      0,
                                      FormTag::done,
                                      comp_val.result_tag);
@@ -272,7 +273,7 @@ namespace atl
 		                // Type.value as its type.
 		                tag_t rval;
 		                rval = Compile::any(ast[1]);
-		                return _Form(pass_safe_value(wrap<Null>()),
+		                return _Form(pass_value(wrap<Null>()),
 		                             0,
 		                             FormTag::declare_type,
 		                             rval);
@@ -373,7 +374,7 @@ namespace atl
 
                                 code.return_(0);
 
-                                value = pass_safe_value
+                                value = pass_value
 	                                (gc.amake<Procedure>
 	                                 (entry_point, 0, tag<Any>::value));
                             }

@@ -32,8 +32,8 @@ TEST_F(TestHelpers, test_trivial_pattern_matcher)
 		using namespace pattern_matcher;
 
 		auto sym_matcher = match_is<Symbol>();
-		ASSERT_TRUE(sym_matcher(wrap(sym_expr)));
-		ASSERT_FALSE(sym_matcher(wrap(ast_expr)));
+		ASSERT_TRUE(sym_matcher(ref_wrap(sym_expr)));
+		ASSERT_FALSE(sym_matcher(ref_wrap(ast_expr)));
 
 		auto ast_matcher = match_ast(match_is<Lambda>(),
 		                             match_ast(match_is<Symbol>()));
@@ -67,11 +67,11 @@ TEST_F(TestHelpers, test_pattern_matcher)
 			 capture<Symbol>(),
 			 match_is<Symbol>());
 
-		auto first = matcher(wrap(matching_expr));
+		auto first = matcher(ref_wrap(matching_expr));
 		ASSERT_TRUE(first.is_match);
 		ASSERT_EQ("a", unwrap<Symbol>(first[0]).name);
 
-		ASSERT_FALSE(matcher(wrap(not_matching_expr)));
+		ASSERT_FALSE(matcher(ref_wrap(not_matching_expr)));
 	}
 }
 
@@ -104,11 +104,54 @@ TEST_F(TestHelpers, test_nestd_pattern_matcher)
 			 match_ast(capture<Symbol>(),
 			           capture<Fixnum>()));
 
-		auto first = matcher(wrap(matching_expr));
+		auto first = matcher(ref_wrap(matching_expr));
 		ASSERT_TRUE(first);
 		ASSERT_EQ("a", unwrap<Symbol>(first[0]).name);
 		ASSERT_EQ(3, unwrap<Fixnum>(first[1]).value);
 
-		ASSERT_FALSE(matcher(wrap(not_matching_expr)));
+		ASSERT_FALSE(matcher(ref_wrap(not_matching_expr)));
 	}
+}
+
+TEST_F(TestHelpers, test_NestAst)
+{
+	using namespace ast_hof;
+	Arena arena;
+	AstAllocator store = make_ast::ast_alloc(arena);
+	Ast expr;
+
+	{
+		NestAst nest(store);
+		store.push_back(wrap<Fixnum>(1));
+		{
+			NestAst inner(store);
+			store.push_back(wrap<Fixnum>(3));
+		}
+		store.push_back(wrap<Fixnum>(2));
+		expr = *nest.ast;
+	}
+
+	{
+		using namespace make_ast;
+		ASSERT_EQ(make(lift<Fixnum>(1),
+		               make(lift<Fixnum>(3)),
+		               lift<Fixnum>(2))(ast_alloc(arena)),
+		          expr);
+	}
+}
+
+TEST_F(TestHelpers, test_ast_hof_copy)
+{
+	Arena store;
+
+	Ast pre;
+	{
+		using namespace make_ast;
+		pre = make(sym("a"),
+		           sym("b"))(ast_alloc(store));
+	}
+
+	auto post = *ast_hof::copy(pre, make_ast::ast_alloc(store));
+
+	ASSERT_EQ(pre, post);
 }
