@@ -163,6 +163,79 @@ namespace atl
 	{ return is<T>(reinterpret_cast<Any const&>(value)); }
 
 
+	/* higher order functions for Asts */
+	namespace ast_hof
+	{
+		struct AstAllocator
+		{
+			AllocatorBase &allocator;
+			AstSubstrate &buffer;
+
+			AstAllocator(AllocatorBase &aa)
+				: allocator(aa), buffer(aa.sequence())
+			{}
+
+			Symbol* symbol(std::string const& name)
+			{ return allocator.symbol(name); }
+
+			AstAllocator& push_back(Any value)
+			{
+				buffer.push_back(value);
+				return *this;
+			}
+
+			AstAllocator& push_back(PassByValue value)
+			{
+				buffer.push_back(value.as_Any());
+				return *this;
+			}
+
+			MovableAstPointer nest_ast()
+			{ return push_nested_ast(buffer); }
+
+			size_t size()
+			{ return buffer.size(); }
+		};
+
+		struct NestAst
+		{
+			AstAllocator& store;
+			MovableAstPointer ast;
+
+			NestAst(AstAllocator& store_)
+				: store(store_), ast(store.nest_ast())
+			{}
+
+			~NestAst() { ast.end_ast(); }
+		};
+
+		/** Builds a new Ast in `store` by mapping `fn` over `ast`
+		 * @tparam Fn: -> Any Any
+		 * @param store: an AstAllocator
+		 * @param fn: the Fn to apply
+		 * @param ast: the ast to apply over
+		 * @return: A MovableAstPointer which will be updated if store
+		 *   is resized.
+		 */
+		template<class Fn>
+		MovableAstPointer map(Fn&& fn, Ast const& input, AstAllocator store)
+		{
+			NestAst nest(store);
+			for(auto& vv : input)
+				{ nest.store.push_back(fn(vv)); }
+			return nest.ast;
+		}
+
+		MovableAstPointer copy(Ast const& input, AstAllocator store)
+		{
+			NestAst nest(store);
+			for(auto& vv : input)
+				{ nest.store.push_back(vv); }
+			return nest.ast;
+		}
+	}
+
+
 	namespace make_ast
 	{
 		// Maintains one 'dynamic_seq` for use with the make_ast functions
