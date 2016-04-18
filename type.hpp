@@ -678,8 +678,13 @@ namespace atl
 	    primitive_type_names[tag<T>::value] = Name<T>::value;
 	}};
 
-    // once_flag init_types_flag;
-    void init_types() { mpl::for_each<TypesVec, wrap_t_arg< mpl::placeholders::_1> >( InitTypes() ); }
+    // once_flag init_types_flag; the GC will do this
+	static bool _type_rtti_init = false;
+    void init_types()
+    {
+	    if(!_type_rtti_init)
+		    { mpl::for_each<TypesVec, wrap_t_arg< mpl::placeholders::_1> >( InitTypes() ); }
+    }
 
     unsigned int type_tag(Any a) { return a._tag; }
 
