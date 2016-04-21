@@ -104,7 +104,7 @@ namespace atl
 #undef M
 
 
-    typedef mpl::vector28< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
+    typedef mpl::vector27< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
 
 	const static tag_t LAST_CONCRETE_TYPE = mpl::size<TypesVec>::value;
 

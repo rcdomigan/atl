@@ -78,11 +78,11 @@ namespace atl
 					}
 
 				case tag<Symbol>::value:
-					return out << "'" << unwrap<string>(a);
+					return out << "'" << unwrap<string>(any);
 				case tag<Parameter>::value:
-					return out << "#<Parameter " << unwrap<Parameter>(a).value << ">";
+					return out << "#<Parameter " << unwrap<Parameter>(any).value << ">";
 				case tag<ClosureParameter>::value:
-					return out << "#<ClosureParameter" << unwrap<ClosureParameter>(a).value << ">";
+					return out << "#<ClosureParameter" << unwrap<ClosureParameter>(any).value << ">";
 				case tag<Type>::value:
 					return out << "#{" << unwrap<Type>(any).value << "}";
 				case tag<Fixnum>::value:
