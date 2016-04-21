@@ -46,7 +46,7 @@ namespace atl
 			{
 				auto code = compile.pass_code_out();
 #ifdef DEBUGGING
-				compile.dbg();
+				code->dbg();
 				vm.run_debug(*code);
 #else
 				vm.run(*code);

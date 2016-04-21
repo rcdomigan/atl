@@ -155,7 +155,7 @@ namespace atl
 	{ return unwrap_PBV::Unwrap<T>::a(input); }
 
 	template<class T>
-	T unwrap(PassByValue const& input)
+	T const& unwrap(PassByValue const& input)
 	{ return unwrap_PBV::Unwrap<T>::a(input); }
 
 	template<class T>
@@ -259,12 +259,16 @@ namespace atl
 				{ space.push_back(wrap<T>(args ...)); };
 		}
 
+		/** Add a symbol value to the ast
+		 *
+		 * @param name: symbol's name
+		 * @return: an ast_composer
+		 */
 		ast_composer sym(std::string const& name)
 		{
 			return [name](AstAllocator heap)
 				{ heap.push_back(wrap(heap.symbol(name))); };
 		}
-
 
 		struct _Run
 		{
@@ -419,23 +423,23 @@ namespace atl
 	}
 
 
-	struct AstSubscriter
+	struct AstSubscripter
 	{
 		PassByValue value;
-		AstSubscriter(PassByValue const& in) : value(in) {}
-		AstSubscriter() = delete;
+		AstSubscripter(PassByValue const& in) : value(in) {}
+		AstSubscripter() = delete;
 
-		AstSubscriter operator[](off_t pos)
-		{ return AstSubscriter(pass_value(unwrap<Ast>(value)[pos])); }
+		AstSubscripter operator[](off_t pos)
+		{ return AstSubscripter(pass_value(unwrap<Ast>(value)[pos])); }
 	};
 
 	template<class T>
-	AstSubscriter subscripter(T&& ast)
-	{ return AstSubscriter(pass_value(ast)); }
+	AstSubscripter subscripter(T&& ast)
+	{ return AstSubscripter(pass_value(ast)); }
 
 	template<class T>
-	AstSubscriter subscripter(PassByValue const& value)
-	{ return AstSubscriter(value); }
+	AstSubscripter subscripter(PassByValue const& value)
+	{ return AstSubscripter(value); }
 
 
 	template<class T>

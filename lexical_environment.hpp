@@ -1,5 +1,5 @@
-#ifndef ATL_LEXICAL_ENVIRONMENT_HPP
-#define ATL_LEXICAL_ENVIRONMENT_HPP
+#ifndef ATL_NEW_LEXICAL_ENVIRONMENT_HPP
+#define ATL_NEW_LEXICAL_ENVIRONMENT_HPP
 /**
  * @file /home/ryan/programming/atl/environment.hpp
  * @author Ryan Domigan <ryan_domigan@sutdents@uml.edu>
@@ -7,118 +7,269 @@
  */
 
 #include <map>
+#include <vector>
+#include <cassert>
 
-#include <vm.hpp>
 #include <exception.hpp>
-#include <print.hpp>
+#include <type.hpp>
+#include <helpers.hpp>
+#include "./gc.hpp"
+#include "./print.hpp"
+
 
 namespace atl
 {
-	namespace lexical
+	/**
+	 * Map of toplevel definitions
+	 */
+	struct SymbolMap
 	{
-		struct Map
+		/* The value_type::second may have literals or things computable from literals at compile time. */
+		typedef std::pair<Symbol*, Any> value_type;
+		typedef std::map<std::string, value_type> Map;
+		typedef Map::iterator iterator;
+		typedef Map::const_iterator const_iterator;
+
+		struct all_iterator
 		{
-			typedef std::map<std::string, Any> Impl;
-			typedef Impl::iterator iterator;
-			Impl _local;
-			Map *_prev;
-			GC &_gc;
+			SymbolMap::iterator value;
+			typedef SymbolMap::Map::value_type value_type;
 
-			Map(Map *m) : _prev(m), _gc(m->_gc)  {}
-			Map(GC &gc) : _prev(nullptr), _gc(gc) {}
-			Map() = delete;
+			value_type& operator*() { return *value; }
+			SymbolMap::iterator operator->() { return value; }
 
-			void define(const std::string& name, Any const& value)
-			{ _local[name] = value; }
+			all_iterator(SymbolMap::iterator vv) : value(vv) {}
+			bool operator==(all_iterator const& other) const
+			{ return value == other.value; }
 
-			iterator find(const string& k)
-			{
-				Impl::iterator res = _local.find(k);
-				if(res == _local.end())
-					{
-						if(_prev == nullptr) return end();
-						if( (res = _prev->find(k)) == _prev->end() )
-							return _local.end();
-						return  res;
-					}
-				return res;
-			}
-
-			// Iterate over _this_ map (doesn't do encosing scope).
-			iterator end() { return _local.end(); }
-			iterator begin() { return _local.begin(); }
-
-			Any& value(const std::string& name) {
-				auto i = find(name);
-
-				if (i == end())
-					throw UnboundSymbolError(std::string("Unbound symbol: ").append(name));
-				else
-					return i->second;
-			}
-
-			Any& value(Symbol& sym) {
-				return value(sym.name);
-			}
-
-			void dbg();
+			bool operator!=(all_iterator const& other) const
+			{ return value != other.value; }
 		};
 
-		void Map::dbg()
+		Map _local;
+		SymbolMap *up;
+		size_t assigned_type;
+
+		SymbolMap(SymbolMap *up_) : up(up_) {
+			if(!up_)
+				{ assigned_type = 0; }
+			else
+				{ assigned_type = up_->assigned_type; }
+		}
+
+		SymbolMap(SymbolMap const&) = delete;
+		SymbolMap() = delete;
+
+		~SymbolMap() { if(up) { up->assigned_type = assigned_type; } }
+
+		void formal(Symbol& sym)
+		{
+			sym.type = wrap<Type>(++assigned_type);
+			auto rval = _local.emplace(sym.name, make_pair(&sym, wrap<Bound>(&sym)));
+			if(!rval.second)
+				{ throw RedefinitionError(std::string("Can't redefine ").append(sym.name)); }
+		}
+
+		all_iterator very_end()
+		{
+			if(up)
+				{ return up->very_end(); }
+			else
+				{ return _local.end(); }
+		}
+
+		all_iterator find(std::string const& k)
+		{
+			auto itr = _local.find(k);
+			if(itr == end())
+				{
+					if(up)
+						{ return up->find(k); }
+					else
+						{ return all_iterator(itr); }
+				}
+			return itr;
+		}
+
+		iterator end() { return _local.end(); }
+		iterator begin() { return _local.begin(); }
+
+		const_iterator end() const { return _local.end(); }
+		const_iterator begin() const { return _local.begin(); }
+
+
+		Any& value(const std::string& name)
+		{
+			auto i = find(name);
+
+			if (i == very_end())
+				throw UnboundSymbolError(std::string("Unbound symbol: ")
+				                         .append(name));
+			else
+				return i->second.second;
+		}
+
+		Symbol& symbol(std::string const& name)
+		{
+			auto vv = find(name);
+			if(vv == very_end())
+				{ throw UnboundSymbolError(std::string("Unbound symbol: ").append(name)); }
+			return *vv->second.first;
+		}
+
+		size_t count(std::string const& key)
+		{
+			if(find(key) != very_end())
+				{ return 1; }
+			return 0;
+		}
+
+		value_type& operator[](std::string const& key) { return _local[key]; }
+
+		void dbg()
 		{
 			for(auto& pair : _local)
 				{
-					std::cout << pair.first << " = (: " << printer::any(pair.second) <<  ")" << std::endl;
+					std::cout << pair.first
+					          << " = (: "
+					          << printer::any(pair.second.second)
+					          << ")"
+					          << std::endl;
 				}
 		}
-
-		/**
-		 * Nest a namespace.  On close, hoist any Undefined symbols
-		 * into the enclosing namespace for resolution and cleanup the
-		 * rest.
-		 */
-		struct MapRAII
-		{
-			Map map;
-			Map **top;
-			MapRAII(Map** top_) : map(*top_), top(top_)
-			{
-				*top = &map;
-			}
-			~MapRAII()
-			{
-				if(map._prev)
-					{
-						auto prev = map._prev;
-						for(auto& vv : map)
-							if(is<Undefined>(vv.second))
-								prev->_local.insert(vv);
-					}
-				*top = map._prev;
-			}
-		};
-	}
-
-	struct LexicalEnvironment
-	{
-		std::map<tag_t, void*> type_class_map;
-
-		GC& gc;
-		lexical::Map toplevel;
-
-		LexicalEnvironment(GC &_gc)
-			: gc(_gc), toplevel(_gc)
-		{ init_types(); }
-
-		LexicalEnvironment() = delete;
-
-		void define(const std::string& name, Any value) {
-			toplevel.define(name, value);
-		}
-
-		Any& operator[](std::string const& key)
-		{ return toplevel.value(key); }
 	};
+
+	typedef std::map<std::string, std::vector<Any*> > FreeSymbols;
+
+
+	/** Modify `ast` in place replacing body Symbols with Bounds
+	 * pointing to their respective formal or toplevel entry
+	 *
+	 * @param env:
+	 * @param factory:
+	 * @param free:
+	 * @param ast:
+	 * @return:
+	 */
+	void assign_free(SymbolMap& env,
+	                 AllocatorBase &factory,
+	                 FreeSymbols &free,
+	                 Ast ast)
+	{
+
+		// If symbol has a value defined in `env` set `item` to it,
+		// otherwise add the symbol to the free list.
+		auto handle_symbol = [&free, &env](Any& item)
+			{
+				auto& sym = unwrap<Symbol>(item);
+				auto found_def = env.find(sym.name);
+				if(found_def != env.very_end())
+					{ item = found_def->second.second; }
+				else
+					{
+						auto found_free = free.find(sym.name);
+						if(found_free != free.end())
+							{ found_free->second.push_back(&item); }
+						else
+							{ free.emplace(sym.name, std::vector<Any*>({&item})); }
+					}
+			};
+
+		auto head = pass_value(ast[0]);
+
+		switch(head._tag)
+			{
+			case tag<Ast>::value:
+				assign_free(env,
+				            factory,
+				            free,
+				            unwrap<Ast>(head));
+				break;
+
+			case tag<Define>::value:
+				{
+					if(!is<Symbol>(ast[1]))
+						{
+							throw WrongTypeError
+								(std::string
+								 ("define needs a symbol as its first arg; got a ")
+								 .append(type_name(ast[1]._tag)));
+						}
+
+					auto &sym = unwrap<Symbol>(ast[1]);
+					env.formal(sym);
+
+					auto found = free.find(sym.name);
+					if(found != free.end())
+						{
+							// back-patch
+							for(auto ptr : found->second)
+								{ *ptr = wrap<Bound>(&sym); }
+							free.erase(found);
+						}
+
+					auto value = ast[2];
+					switch (value._tag)
+						{
+						case tag<Symbol>::value:
+							handle_symbol(value);
+							break;
+
+						case tag<Ast>::value:
+						case tag<AstData>::value:
+							assign_free(env,
+							            factory,
+							            free,
+							            AstData_to_Ast(value));
+							break;
+						}
+					return;
+				}
+
+			case tag<Symbol>::value:
+				handle_symbol(ast[0]);
+				if(!is<Lambda>(ast[0]))
+					{ break; }
+
+			case tag<Lambda>::value:
+				{
+					SymbolMap inner_map({&env});
+
+					for(auto& item : unwrap_ast(ast[1]))
+						{
+							assert(is<Symbol>(item));
+							inner_map.formal(unwrap<Symbol>(item));
+						}
+
+					assign_free(inner_map,
+					            factory,
+					            free,
+					            unwrap_ast(ast[2]));
+				}
+				return;
+			}
+
+		// Handle the rest (if applicable)
+		if(ast.size() > 1)
+			{
+				for(auto& item : slice(ast, 1))
+					{
+						switch(item._tag)
+							{
+							case tag<Ast>::value:
+							case tag<AstData>::value:
+								assign_free(env,
+								            factory,
+								            free,
+								            AstData_to_Ast(item));
+								break;
+							case tag<Symbol>::value:
+								handle_symbol(item);
+								break;
+							}
+					}
+			}
+	}
 }
 
 #endif

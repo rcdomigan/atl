@@ -82,8 +82,8 @@ namespace atl
     struct is_pimpl : public std::false_type {};
 
 
-#define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(DeclareType)(Type)(Ast)(AstData)(Parameter)(ClosureParameter)(Undefined)
-#define ATL_PIMPL_SEQ (Slice)(String)(Symbol)(DefProcedure)(Procedure)(Macro)(Struct)(CxxFunctor)(CxxMacro)
+#define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(DeclareType)(Type)(Ast)(AstData)(Parameter)(ClosureParameter)(Bound)
+#define ATL_PIMPL_SEQ (Slice)(String)(Symbol)(DefProcedure)(Procedure)(Macro)(Undefined)(Struct)(CxxFunctor)(CxxMacro)
 #define ATL_TYPES_SEQ ATL_REINTERPERABLE_SEQ ATL_PIMPL_SEQ
 
 #define M(r, _, i, elem)						\
@@ -104,7 +104,9 @@ namespace atl
 #undef M
 
 
-    typedef mpl::vector26< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
+    typedef mpl::vector28< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
+
+	const static tag_t LAST_CONCRETE_TYPE = mpl::size<TypesVec>::value;
 
     template<class T>
     struct tag : public _Tag<typename std::remove_const<T>::type> {};
@@ -235,6 +237,11 @@ namespace atl
 	    std::string name;
 	    Any type;
 
+	    Symbol(const std::string& name_, Any const& type_)
+		    : name(name_),
+		      type(type_)
+	    {}
+
 	    Symbol(const std::string& name_)
 		    : name(name_),
 		      // type just needs to be unique, and using our address
@@ -245,6 +252,17 @@ namespace atl
 		      type(tag<Type>::value, this)
 	    {}
     };
+
+	struct Bound
+	{
+		tag_t _tag;
+		/* Refers to my formal or toplevel definition */
+		Symbol *value;
+
+		Bound(Symbol *vv)
+			: _tag(tag<Bound>::value), value(vv)
+		{}
+	};
 
 	namespace ast_helper
 	{
@@ -327,6 +345,18 @@ namespace atl
 
 		iterator end() { return iterator(flat_end()); }
 		const_iterator end() const { return const_iterator(flat_end()); }
+
+		Any& operator[](size_t n) {
+			auto itr = begin();
+			itr = itr + n;
+			return *itr;
+		}
+
+		Any const& operator[](size_t n) const {
+			auto itr = begin();
+			itr = itr + n;
+			return *itr;
+		}
 	};
 
 	struct Ast
@@ -446,10 +476,21 @@ namespace atl
 
 	struct Parameter
 	{
-		size_t offset, hops;
-		Parameter(size_t offset_, size_t hops_) : offset(offset_), hops(hops_) {}
+		tag_t _tag;
+		size_t value;  // offset of the argument
+
+		Parameter() : _tag(tag<Parameter>::value), value(0) {}
+		Parameter(size_t offset_) noexcept : _tag(tag<Parameter>::value), value(offset_) {}
 	};
 
+	struct ClosureParameter
+	{
+		tag_t _tag;
+		size_t value;  // offset of the argument
+
+		ClosureParameter() : _tag(tag<ClosureParameter>::value), value(0) {}
+		ClosureParameter(size_t offset_) noexcept : _tag(tag<ClosureParameter>::value), value(offset_) {}
+	};
 
     struct String {
 	std::string value;
@@ -533,7 +574,20 @@ namespace atl
     struct Type
     {
         tag_t _tag;
-	    tag_t value;
+        size_t value;
+
+        Type(size_t id_)
+            : _tag(tag<Type>::value), value(id_)
+        {}
+
+	    bool operator<(Type const& other) const
+	    { return value < other.value; }
+
+	    bool operator==(Type const& other) const
+	    { return value == other.value; }
+
+	    bool is_concrete()
+	    { return value < LAST_CONCRETE_TYPE; }
     };
 
 
