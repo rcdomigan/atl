@@ -63,44 +63,64 @@ namespace atl
 			}
 		}
 
-		std::ostream& PrintAny::print(std::ostream& out) const
+		std::ostream& print_atom(Any any, std::ostream& out)
 		{
+			using namespace std;
 			auto trim_addr = [](void *pntr)
 				{ return reinterpret_cast<long>(pntr) & (256 - 1); };
 
-			using namespace std;
-			switch(a._tag)
+			switch(any._tag)
 				{
 				case tag<Undefined>::value:
 					{
 						out << "#<Undefined ";
-						return out << ":" << hex << trim_addr(a.value) << ">";
+						return out << ":" << hex << trim_addr(any.value) << ">";
 					}
 
 				case tag<Symbol>::value:
 					return out << "'" << unwrap<string>(a);
 				case tag<Type>::value:
-					return out << "#{" << unwrap<Type>(a).value << "}";
+					return out << "#{" << unwrap<Type>(any).value << "}";
 				case tag<Fixnum>::value:
-					return out << value<Fixnum>(a);
+					return out << value<Fixnum>(any);
 				case tag<Bool>::value:
 					{
-						if(value<bool>(a))
+						if(value<bool>(any))
 							return out << "True";
 						else
 							return out << "False";
 					}
 				case tag<String>::value:
-					return out << '"' << *reinterpret_cast<string*>(a.value) << '"';
+					return out << '"' << *reinterpret_cast<string*>(any.value) << '"';
 				case tag<CxxFunctor>::value:
-					return out << unwrap<CxxFunctor>(a)._name;
+					return out << unwrap<CxxFunctor>(any)._name;
 				case tag<Pointer>::value:
 					{
-						if(a.value)
-							return out << "#<Pointer-" << hex << (reinterpret_cast<long>(a.value) & (256 - 1)) << ">";
+						if(any.value)
+							return out << "#<Pointer-" << hex << (reinterpret_cast<long>(any.value) & (256 - 1)) << ">";
 						else
 							return out << "#<Pointer-NULL>";
 					}
+				case tag<DefProcedure>::value:
+					{
+						out << "#<DefProcedure" << flush;
+						auto closure = unwrap<DefProcedure>(any).closure;
+						if(!closure.empty())
+							{
+								out << " (" << closure.size() << " free vars)";
+							}
+						return out << ">" << flush;;
+					}
+				default:
+					return out << "#<" << type_name(any._tag) << ">";
+				}
+		}
+
+		std::ostream& PrintAny::print(std::ostream& out) const
+		{
+			using namespace std;
+			switch(a._tag)
+				{
 				case tag<Ast>::value:
 					return out << range(make_range(unwrap<Ast>(a)));
 				case tag<AstData>::value:
@@ -118,7 +138,7 @@ namespace atl
 						return out << ">" << flush;;
 					}
 				default:
-					return out << "#<" << type_name(a._tag) << ">";
+					return print_atom(a, out);
 				}
 		}
 	}
@@ -159,6 +179,49 @@ namespace atl
 	}
 	void dbg_type(PassByValue const& value)
 	{ print_type(value, std::cout) << std::endl; }
+
+	std::ostream& print_with_type(PassByValue value, std::ostream& out)
+	{
+		auto print_sym = [&](Symbol& sym) -> std::ostream&
+			{
+				out << "['" << sym.name << ": ";
+				print_type(pass_value(sym.type), out);
+				return out << "]";
+			};
+
+		switch(value._tag)
+			{
+			case tag<Ast>::value:
+				{
+					auto ast = unwrap<Ast>(value);
+					out << "(";
+					if(!ast.empty())
+						{
+							print_with_type(ast[0], out);
+							for(auto& vv : slice(ast, 1))
+								{
+									out << ' ';
+									print_with_type(vv, out);
+								}
+						}
+					return out << ")";
+				}
+			case tag<Bound>::value:
+				{
+					cout << "[Bound";
+					print_sym(*unwrap<Bound>(value).value);
+					return cout << "]";
+				}
+			case tag<Symbol>::value:
+				{
+					return print_sym(unwrap<Symbol>(value));
+				}
+			default:
+				return printer::print_atom(value.as_Any(), out);
+			}
+	}
+	void dbg_with_type(PassByValue const& value)
+	{ print_with_type(value, std::cout) << std::endl; }
 }
 
 
