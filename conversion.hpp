@@ -137,14 +137,12 @@ namespace atl {
 	template<class T>
 	static inline Any wrap() { return Any(tag<T>::value, nullptr); }
 
-
 	template<class T>
-	Pointer make_pointer(T* value)
+	inline Any& ref_wrap(T& value)
 	{
-		static_assert(is_atl_type<T>::value,
-		              "Will only wrap non-pimpl types with Pointer.  "
-		              "A pimpl type may first be wrapped in an Any.");
-		return Pointer(reinterpret_cast<Any*>(value));
+		static_assert(is_reinterperable<T>::value,
+		              "A ref_wrap is a simple cast -- can only be done with reinterperable types");
+		return reinterpret_cast<Any&>(value);
 	}
 
 	namespace get_value
