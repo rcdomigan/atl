@@ -179,7 +179,7 @@ namespace atl
 
                 case tag<DefProcedure>::value:
                     {
-	                    Ast formals = unwrap_ast(ast[1]);
+	                    Slice formals = unwrap_slice(ast[1]);
 	                    auto size = formals.size();
 
 	                    _EnvScope local_env(&current_env);

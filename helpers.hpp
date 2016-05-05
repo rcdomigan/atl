@@ -118,7 +118,7 @@ namespace atl
 		 *   is resized.
 		 */
 		template<class Fn>
-		MovableAstPointer map(Fn&& fn, Ast const& input, AstAllocator store)
+		MovableAstPointer map(Fn&& fn, Slice const& input, AstAllocator store)
 		{
 			NestAst nest(store);
 			for(auto& vv : input)
@@ -126,14 +126,32 @@ namespace atl
 			return nest.ast;
 		}
 
-		MovableAstPointer copy(Ast const& input, AstAllocator store)
+		MovableAstPointer copy(Slice const& input, AstAllocator store)
 		{
 			NestAst nest(store);
 			for(auto& vv : input)
-				{ nest.store.push_back(vv); }
+				{
+					auto value = pass_value(vv);
+					if(is<Slice>(vv))
+						{
+							copy(value.slice,
+							     store);
+						}
+					else
+						{ nest.store.push_back(vv); }
+				}
 			return nest.ast;
 		}
 	}
+
+	void copy_into(PassByValue input, ast_hof::AstAllocator store)
+	{
+		if(is<Slice>(input))
+			{ ast_hof::copy(unwrap<Slice>(input), store); }
+		else
+			{ store.push_back(input); }
+	}
+
 
 
 	namespace make_ast
@@ -312,6 +330,32 @@ namespace atl
 				};
 		}
 	}
+
+	/* Pass through a Slice or wrap an ast or AstData */
+	Slice unwrap_slice(Any& input)
+	{
+		switch(input._tag)
+			{
+			case tag<AstData>::value:
+				{
+					auto& ast = explicit_unwrap<AstData>(input);
+					return Slice(ast.flat_begin(), ast.flat_end());
+				}
+			case tag<Ast>::value:
+				{
+					auto& ast = explicit_unwrap<Ast>(input);
+					return Slice(ast.flat_begin(), ast.flat_end());
+				}
+			case tag<Slice>::value:
+				{
+					return unwrap<Slice>(input);
+				}
+			default:
+				throw WrongTypeError
+					("unwrap_slice can only deal with Ast-ish objects!");
+			}
+	}
+
 
 	struct AstSubscripter
 	{

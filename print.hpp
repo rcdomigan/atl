@@ -168,7 +168,7 @@ namespace atl
 					out << "(";
 					if(!ast.empty())
 						{
-							print_type(ast[0], out);
+							print_type(pass_value(ast[0]), out);
 							for(auto& vv : slice(ast, 1))
 								{
 									out << ' ';
@@ -190,8 +190,8 @@ namespace atl
 	{
 		auto print_sym = [&](Symbol& sym) -> std::ostream&
 			{
-				out << "['" << sym.name << ": ";
-				print_type(pass_value(sym.type), out);
+				out << "['" << sym.name << ":";
+				print_type(pass_value(wrap(&sym.scheme)), out);
 				return out << "]";
 			};
 

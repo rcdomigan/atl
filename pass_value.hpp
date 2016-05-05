@@ -20,28 +20,30 @@ namespace atl
 		tag_t _tag;
 
 		Slice slice;
-		Any wrapped_slice;
-
-		Any* any;
+		Any any;
 
 		template<class Astish>
 		void _store_ast(Astish& input)
 		{
 			_tag = tag<Slice>::value;
 			slice = Slice(input);
-			wrapped_slice = wrap(&slice);
-			any = &wrapped_slice;
+			any = wrap(&slice);
 		}
 
 		void _store_slice(Slice const& input)
 		{
 			_tag = tag<Slice>::value;
 			slice = input;
-			wrapped_slice = wrap(&slice);
-			any = &wrapped_slice;
+			any = wrap(&slice);
 		}
 
-		PassByValue& _store_value(Any& input)
+		template<class Thing>
+		typename std::enable_if<std::is_same<
+			                        Any,
+			                        typename std::remove_const<Thing>::type
+			                        >::type::value
+		                        >::type
+		_store_value(Thing& input)
 		{
 			switch(input._tag)
 				{
@@ -57,29 +59,30 @@ namespace atl
 				default:
 					{
 						_tag = input._tag;
-						any = &input;
+						any = input;
 						break;
 					}
 				}
-			return *this;
 		}
 
-		/* PassByValue(tag_t tt, void* vv) */
-		/* 	: _tag(tt), */
-		/* 	  value(vv) */
-		/* {} */
-
-		PassByValue(Any& input)
+		explicit PassByValue(Any& input)
 		{ _store_value(input); }
 
-		PassByValue(Ast& input)
+		explicit PassByValue(Any const& input)
+		{ _store_value(input); }
+
+		explicit PassByValue(Ast& input)
 		{ _store_ast(input); }
 
-		PassByValue(AstData& input)
+		explicit PassByValue(AstData& input)
 		{ _store_ast(input); }
 
-		PassByValue(Slice const& input)
+		explicit PassByValue(Slice const& input)
 		{ _store_slice(input); }
+
+		explicit PassByValue(tag_t tag_, void* value_)
+			: PassByValue(Any(tag_, value_))
+		{}
 
 		PassByValue() = default;
 
@@ -90,7 +93,7 @@ namespace atl
 		}
 
 		bool operator==(PassByValue const& other) const
-		{ return _tag == other._tag && any == other.any; }
+		{ return any == other.any; }
 	};
 
 	PassByValue pass_value(Slice const& input)
@@ -99,10 +102,16 @@ namespace atl
 	PassByValue pass_value(Slice& input)
 	{ return PassByValue(input); }
 
+	PassByValue pass_value(Slice&& input)
+	{ return PassByValue(input); }
+
 	PassByValue pass_value(Any&& input)
 	{ return PassByValue(input); }
 
 	PassByValue pass_value(Any& input)
+	{ return PassByValue(input); }
+
+	PassByValue pass_value(Any const& input)
 	{ return PassByValue(input); }
 
 	PassByValue pass_value(Ast& input)
@@ -136,10 +145,10 @@ namespace atl
 			              "PassByValue uses a Slice for all Ast ranges.");
 
 			static inline constexpr T& a(atl::PassByValue& aa)
-			{ return explicit_unwrap<T>(*aa.any); }
+			{ return explicit_unwrap<T>(aa.any); }
 
 			static inline constexpr T const& a(atl::PassByValue const& aa)
-			{ return explicit_unwrap<T>(*aa.any); }
+			{ return explicit_unwrap<T>(aa.any); }
 		};
 
 		template<>
@@ -161,9 +170,16 @@ namespace atl
 	T const& unwrap(PassByValue const& input)
 	{ return unwrap_PBV::Unwrap<T>::a(input); }
 
+	Slice unwrap_slice(PassByValue const& input)
+	{ return input.slice; }
+
 	template<class T>
 	bool is(PassByValue const& value)
-	{ return is<T>(reinterpret_cast<Any const&>(value)); }
+	{
+		static_assert((tag<T>::value != tag<Ast>::value) && (tag<T>::value != tag<AstData>::value),
+		              "PassByValue coerces all Ast types to Slice!");
+		return is<T>(reinterpret_cast<Any const&>(value));
+	}
 }
 
 
