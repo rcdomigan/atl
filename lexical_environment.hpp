@@ -154,7 +154,7 @@ namespace atl
 	void assign_free(SymbolMap& env,
 	                 AllocatorBase &factory,
 	                 FreeSymbols &free,
-	                 Ast ast)
+	                 Slice ast)
 	{
 
 		// If symbol has a value defined in `env` set `item` to it,
@@ -179,11 +179,11 @@ namespace atl
 
 		switch(head._tag)
 			{
-			case tag<Ast>::value:
+			case tag<Slice>::value:
 				assign_free(env,
 				            factory,
 				            free,
-				            unwrap<Ast>(head));
+				            unwrap<Slice>(head));
 				break;
 
 			case tag<Define>::value:
@@ -208,19 +208,18 @@ namespace atl
 							free.erase(found);
 						}
 
-					auto value = ast[2];
+					auto value = pass_value(ast[2]);
 					switch (value._tag)
 						{
 						case tag<Symbol>::value:
-							handle_symbol(value);
+							handle_symbol(*value.any);
 							break;
 
-						case tag<Ast>::value:
-						case tag<AstData>::value:
+						case tag<Slice>::value:
 							assign_free(env,
 							            factory,
 							            free,
-							            AstData_to_Ast(value));
+							            value.slice);
 							break;
 						}
 					return;
@@ -235,7 +234,7 @@ namespace atl
 				{
 					SymbolMap inner_map({&env});
 
-					for(auto& item : unwrap_ast(ast[1]))
+					for(auto& item : pass_value(ast[1]).slice)
 						{
 							assert(is<Symbol>(item));
 							inner_map.formal(unwrap<Symbol>(item));
@@ -244,7 +243,7 @@ namespace atl
 					assign_free(inner_map,
 					            factory,
 					            free,
-					            unwrap_ast(ast[2]));
+					            pass_value(ast[2]).slice);
 				}
 				return;
 			}
@@ -252,19 +251,19 @@ namespace atl
 		// Handle the rest (if applicable)
 		if(ast.size() > 1)
 			{
-				for(auto& item : slice(ast, 1))
+				for(auto& raw_item : slice(ast, 1))
 					{
+						auto item = pass_value(raw_item);
 						switch(item._tag)
 							{
-							case tag<Ast>::value:
-							case tag<AstData>::value:
+							case tag<Slice>::value:
 								assign_free(env,
 								            factory,
 								            free,
-								            AstData_to_Ast(item));
+								            unwrap<Slice>(item));
 								break;
 							case tag<Symbol>::value:
-								handle_symbol(item);
+								handle_symbol(raw_item);
 								break;
 							}
 					}

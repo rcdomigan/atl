@@ -374,6 +374,8 @@ namespace atl
 		typedef ast_helper::IteratorBase<Any> iterator;
 		typedef ast_helper::IteratorBase<const Any> const_iterator;
 
+		typedef Any* flat_iterator;
+
 		friend std::ostream& operator<<(std::ostream& out, const iterator& itr) { return itr.print(out); }
 		friend std::ostream& operator<<(std::ostream& out, const const_iterator& itr) { return itr.print(out); }
 
@@ -388,6 +390,9 @@ namespace atl
 			itr = itr + n;
 			return *itr;
 		}
+
+		flat_iterator flat_begin() { return value->flat_begin(); }
+		flat_iterator flat_end() { return value->flat_end(); }
 
 		iterator begin() { return value->begin(); }
 		const_iterator begin() const { return const_cast<AstData const*>(value)->begin(); }
@@ -598,26 +603,34 @@ namespace atl
     /*********************/
     struct Slice
     {
-	    const Any *_begin, *_end;
+	    typedef typename Ast::iterator iterator;
+	    typedef typename Ast::const_iterator const_iterator;
 
-	    Slice() = delete;
-	    Slice(const Any *begin, const Any *end)
-		    : _begin(begin), _end(end) {}
+	    Any *_begin, *_end;
+
+	    Slice() : _begin(nullptr), _end(nullptr) {}
+	    Slice(Any *begin, Any *end)
+		    : _begin(begin), _end(end)
+	    {}
+
+	    Slice(Ast& ast)
+		    : _begin(ast.value->flat_begin()),
+		      _end(ast.value->flat_end())
+	    {}
+
+	    Slice(AstData& ast)
+		    : _begin(ast.flat_begin()),
+		      _end(ast.flat_end())
+	    {}
 
 	    template<class Itr>
 	    Slice(Itr begin, Itr end)
 		    : _begin(&*begin), _end(&*end) {}
 
-	    Slice(Ast& ast)
-		    : _begin(&*ast.begin()), _end(&*ast.end())
-	    {}
-
 	    Slice(const Slice&) = default;
 
-	    typedef typename Ast::const_iterator iterator;
-	    typedef typename Ast::const_iterator const_iterator;
-
-	    const Any& operator[](size_t n) const { return *(begin() + n); }
+	    Any& operator[](size_t n) { return *(begin() + n); }
+	    Any const& operator[](size_t n) const { return *(begin() + n); }
 
 	    iterator begin() { return iterator(_begin); }
 	    const_iterator begin() const { return const_iterator(_begin); }

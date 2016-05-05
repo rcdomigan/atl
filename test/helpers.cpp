@@ -1,15 +1,14 @@
 #include <gtest/gtest.h>
 
-#include <atl.hpp>
 #include <helpers.hpp>
+#include <conversion.hpp>
+#include <gc.hpp>
 
 #include <print.hpp>
 
 using namespace atl;
 
 struct TestHelpers : public ::testing::Test {
-	Atl atl;
-
     TestHelpers() {}
 };
 
@@ -75,7 +74,7 @@ TEST_F(TestHelpers, test_pattern_matcher)
 	}
 }
 
-TEST_F(TestHelpers, test_nestd_pattern_matcher)
+TEST_F(TestHelpers, test_nested_pattern_matcher)
 {
 	Arena arena;
 	Ast matching_expr, not_matching_expr;
@@ -155,3 +154,21 @@ TEST_F(TestHelpers, test_ast_hof_copy)
 
 	ASSERT_EQ(pre, post);
 }
+
+TEST_F(TestHelpers, test_pass_value)
+{
+	using namespace make_ast;
+	Arena store;
+
+	auto ast = make(lift<Fixnum>(1),
+	                make(lift<Fixnum>(2),
+	                     lift<Fixnum>(3)),
+	                lift<Fixnum>(4))(ast_alloc(store));
+	Slice slice(ast);
+
+	AstSubscripter sub(pass_value(slice));
+
+	ASSERT_EQ(3, unwrap<Fixnum>(sub[1][1].value).value);
+	ASSERT_EQ(4, unwrap<Fixnum>(sub[2].value).value);
+}
+

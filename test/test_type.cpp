@@ -43,3 +43,22 @@ TEST(TestType, test_empty_ast)
 	ASSERT_EQ(true, ast.empty());
 	ASSERT_EQ(0, ast.size());
 }
+
+
+TEST(TestType, test_Slice)
+{
+	vector<Any> space;
+	space.emplace_back(tag<AstData>::value, reinterpret_cast<void*>(3));
+
+	space.emplace_back(tag<Fixnum>::value, reinterpret_cast<void*>(1));
+	space.emplace_back(tag<Fixnum>::value, reinterpret_cast<void*>(2));
+	space.emplace_back(tag<Fixnum>::value, reinterpret_cast<void*>(3));
+
+	Ast ast(reinterpret_cast<AstData*>(&space.front()));
+
+	Slice slice(ast);
+
+	ASSERT_EQ(3, slice.size());
+	ASSERT_EQ(false, ast.empty());
+	ASSERT_EQ(3, reinterpret_cast<Fixnum&>(slice[2]).value);
+}

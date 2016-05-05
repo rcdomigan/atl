@@ -79,6 +79,8 @@ namespace atl
 
 				case tag<Symbol>::value:
 					return out << "'" << unwrap<string>(any);
+				case tag<Bound>::value:
+					return out << "#<Bound " << unwrap<Bound>(any).value->name << ">";
 				case tag<Parameter>::value:
 					return out << "#<Parameter " << unwrap<Parameter>(any).value << ">";
 				case tag<ClosureParameter>::value:
@@ -151,7 +153,7 @@ namespace atl
 	{ cout << printer::any(vv) << endl; }
 
 	void dbg_pbv(PassByValue value)
-	{ return dbg_any(value.as_Any()); }
+	{ return dbg_any(*value.any); }
 
 	void dbg_ast(Ast const& vv)
 	{ cout << printer::range(make_range(vv)) << endl; }
@@ -160,9 +162,9 @@ namespace atl
 	{
 		switch(value._tag)
 			{
-			case tag<Ast>::value:
+			case tag<Slice>::value:
 				{
-					auto ast = unwrap<Ast>(value);
+					auto ast = unwrap<Slice>(value);
 					out << "(";
 					if(!ast.empty())
 						{
@@ -170,7 +172,7 @@ namespace atl
 							for(auto& vv : slice(ast, 1))
 								{
 									out << ' ';
-									print_type(vv, out);
+									print_type(pass_value(vv), out);
 								}
 						}
 					return out << ")";
@@ -195,9 +197,9 @@ namespace atl
 
 		switch(value._tag)
 			{
-			case tag<Ast>::value:
+			case tag<Slice>::value:
 				{
-					auto ast = unwrap<Ast>(value);
+					auto ast = unwrap<Slice>(value);
 					out << "(";
 					if(!ast.empty())
 						{
@@ -221,7 +223,7 @@ namespace atl
 					return print_sym(unwrap<Symbol>(value));
 				}
 			default:
-				return printer::print_atom(value.as_Any(), out);
+				return printer::print_atom(*value.any, out);
 			}
 	}
 	void dbg_with_type(PassByValue const& value)

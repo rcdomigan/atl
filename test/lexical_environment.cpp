@@ -47,7 +47,7 @@ TEST_F(TestToplevelMap, test_assigning_bound_lambda)
 	assign_free(env,
 	            gc,
 	            free,
-	            expr);
+	            Slice(expr));
 
 	/* On the toplevel, only "c" should be free */
     ASSERT_EQ(1, free.size());
@@ -55,13 +55,13 @@ TEST_F(TestToplevelMap, test_assigning_bound_lambda)
     /* 'a' in the body should point to the 'a' formal */
     auto bound_a = subscripter(expr)[2][2][0].value;
     ASSERT_EQ(tag<Bound>::value, bound_a._tag);
-    ASSERT_EQ(reinterpret_cast<Symbol*>(subscripter(expr)[1][0].value.value),
+    ASSERT_EQ(reinterpret_cast<Symbol*>(subscripter(expr)[1][0].value.any->value),
               unwrap<Bound>(bound_a).value);
 
     /* and 'b' should point to its formal */
     auto bound_b = subscripter(expr)[2][2][1].value;
     ASSERT_EQ(tag<Bound>::value, bound_b._tag);
-    ASSERT_EQ(reinterpret_cast<Symbol*>(subscripter(expr)[2][1][0].value.value),
+    ASSERT_EQ(reinterpret_cast<Symbol*>(subscripter(expr)[2][1][0].value.any->value),
               unwrap<Bound>(bound_b).value);
 }
 
@@ -98,7 +98,7 @@ TEST_F(TestToplevelMap, test_toplevel_replacements)
 	ASSERT_EQ(tag<Bound>::value,
 	          subscripter(expr)[2][2][2].value._tag);
 	ASSERT_EQ(env[std::string("c")].first,
-	          subscripter(expr)[2][2][2].value.value);
+	          subscripter(expr)[2][2][2].value.any->value);
 
 	/* Check the types while I'm at it */
 	auto stype = [](AstSubscripter aa) { return unwrap<Type>(unwrap<Symbol>(aa.value).type).value; };

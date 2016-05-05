@@ -6,6 +6,8 @@
 #include "./gc.hpp"
 #include "./type.hpp"
 #include "./conversion.hpp"
+#include "./pass_value.hpp"
+
 
 namespace atl
 {
@@ -61,108 +63,6 @@ namespace atl
 	}
 
 
-	/// Work-alike wrapper for Any so which is safe to pass around by
-	/// value (ie wrap AstData with an Ast).
-	struct PassByValue
-	{
-		tag_t _tag;
-		void* value;
-
-		PassByValue& _store_value(Any& input)
-		{
-			if(is<AstData>(input))
-				{
-					_tag = tag<Ast>::value;
-					value = &input;
-				}
-			else
-				{
-					_tag = input._tag;
-					value = input.value;
-				}
-			return *this;
-		}
-
-		PassByValue(tag_t tt, void* vv)
-			: _tag(tt), value(vv)
-		{}
-
-		PassByValue(Any& input)
-		{ _store_value(input); }
-
-		PassByValue(Ast& input)
-		{
-			_tag = tag<Ast>::value;
-			value = input.value;
-		}
-
-		PassByValue(AstData& input)
-		{
-			_tag = tag<Ast>::value;
-			value = &input;
-		}
-
-		PassByValue() = default;
-
-		PassByValue& operator=(Any& input)
-		{
-			_store_value(input);
-			return *this;
-		}
-
-		Any& as_Any() { return *reinterpret_cast<Any*>(this); }
-		Any as_Any() const { return *reinterpret_cast<Any const*>(this); }
-	};
-
-	PassByValue pass_value(Any&& input)
-	{ return PassByValue(input); }
-
-	PassByValue pass_value(Any& input)
-	{ return PassByValue(input); }
-
-	template<class T>
-	PassByValue pass_value(T&& input)
-	{
-		typedef typename std::remove_reference<T>::type Type;
-		static_assert(!((tag<Type>::value == tag<AstData>::value)
-		                || (tag<Type>::value == tag<Any>::value)),
-		              "Use the overloads for AstData and Any");
-		return PassByValue(tag<Type>::value, wrap(input).value);
-	}
-
-	template<class T>
-	PassByValue pass_value()
-	{ return PassByValue(tag<T>::value, nullptr); }
-
-	namespace unwrap_PBV
-	{
-		template<class T>
-		struct Unwrap
-		{
-			static_assert(!std::is_same<AstData, T>::value,
-			              "PassByValue should not directly contain an AstData.");
-
-			static inline constexpr T& a(atl::PassByValue& aa)
-			{ return explicit_unwrap<T>(aa.as_Any()); }
-
-			static inline constexpr T const& a(atl::PassByValue const& aa)
-			{ return explicit_unwrap<T>(aa.as_Any()); }
-		};
-	}
-
-	template<class T>
-	T& unwrap(PassByValue& input)
-	{ return unwrap_PBV::Unwrap<T>::a(input); }
-
-	template<class T>
-	T const& unwrap(PassByValue const& input)
-	{ return unwrap_PBV::Unwrap<T>::a(input); }
-
-	template<class T>
-	bool is(PassByValue const& value)
-	{ return is<T>(reinterpret_cast<Any const&>(value)); }
-
-
 	/* higher order functions for Asts */
 	namespace ast_hof
 	{
@@ -186,7 +86,7 @@ namespace atl
 
 			AstAllocator& push_back(PassByValue value)
 			{
-				buffer.push_back(value.as_Any());
+				buffer.push_back(*value.any);
 				return *this;
 			}
 
@@ -413,16 +313,6 @@ namespace atl
 		}
 	}
 
-	/* Pass through an ast or wrap an AstData */
-	Ast unwrap_ast(Any& input)
-	{
-		if(is<AstData>(input))
-			return Ast(&explicit_unwrap<AstData>(input));
-		else
-			return explicit_unwrap<Ast>(input);
-	}
-
-
 	struct AstSubscripter
 	{
 		PassByValue value;
@@ -430,16 +320,16 @@ namespace atl
 		AstSubscripter() = delete;
 
 		AstSubscripter operator[](off_t pos)
-		{ return AstSubscripter(pass_value(unwrap<Ast>(value)[pos])); }
+		{ return AstSubscripter(pass_value(unwrap<Slice>(value)[pos])); }
 	};
+
+
+	AstSubscripter subscripter(PassByValue const& value)
+	{ return AstSubscripter(value); }
 
 	template<class T>
 	AstSubscripter subscripter(T&& ast)
 	{ return AstSubscripter(pass_value(ast)); }
-
-	template<class T>
-	AstSubscripter subscripter(PassByValue const& value)
-	{ return AstSubscripter(value); }
 
 
 	template<class T>

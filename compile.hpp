@@ -350,7 +350,7 @@ namespace atl
 	                                 (entry_point, 0, tag<Any>::value));
                             }
 
-                        current_env->define(sym.name, value.as_Any());
+                        current_env->define(sym.name, *value.any);
 
                         code.output->offset_table.set(sym.name,
                                                       entry_point);
