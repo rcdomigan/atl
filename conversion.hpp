@@ -99,9 +99,9 @@ namespace atl {
 		template<class T>
 		struct Any
 			: std::conditional< is_reinterperable<T>::value,
-			                    tmpl::Identity< Reinterpret<T> >,
+			                    Reinterpret<T>,
 			                    Pimpl<T>
-			                    >::type::type
+			                    >::type
 		{};
 	}
 
