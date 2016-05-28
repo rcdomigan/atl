@@ -61,10 +61,6 @@ namespace atl {
 	static inline T const& unwrap(Any const& input)
 	{ return unwrapping::Any<T>::a(input); }
 
-	// template<class T>
-	// static inline T const& unwrap(void const* input)
-	// { return unwrapping::Any<T>::a(*reinterpret_cast<Any const*>(input)); }
-
 
 	/*********************************/
 	/* __        __                  */
@@ -136,6 +132,11 @@ namespace atl {
 
 	template<class T>
 	static inline Any wrap() { return Any(tag<T>::value, nullptr); }
+
+	template<class T, class Arg>
+	static inline Any wrap(Arg arg) { return Any(tag<T>::value,
+	                                             reinterpret_cast<void*>(arg)); }
+
 
 	template<class T>
 	inline Any& ref_wrap(T& value)

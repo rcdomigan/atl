@@ -153,12 +153,12 @@ namespace atl
 	{ cout << printer::any(vv) << endl; }
 
 	void dbg_pbv(PassByValue value)
-	{ return dbg_any(*value.any); }
+	{ return dbg_any(value.any); }
 
 	void dbg_ast(Ast const& vv)
 	{ cout << printer::range(make_range(vv)) << endl; }
 
-	std::ostream& print_type(PassByValue const& value, std::ostream& out)
+	std::ostream& print_type(PassByValue value, std::ostream& out)
 	{
 		switch(value._tag)
 			{
@@ -178,11 +178,32 @@ namespace atl
 					return out << ")";
 				}
 			case tag<Type>::value:
-				{ return out << "#<Type: " << unwrap<Type>(value).value << ">"; }
+				{
+					auto& type = unwrap<Type>(value);
+					if(type.value == tag<FunctionConstructor>::value)
+						{ return out << "->"; }
+					else
+						{ return out << "#<Type: " << unwrap<Type>(value).value << ">"; }
+				}
+			case tag<Scheme>::value:
+				{
+					auto& scheme = unwrap<Scheme>(value);
+					out << "#<Scheme: ";
+					if(!scheme.quantified.empty())
+						{
+							out << "[" << *scheme.quantified.begin();
+							for(auto& item : make_range(++scheme.quantified.begin(),
+							                            scheme.quantified.end()))
+								{ out << " " << item; }
+							out << "] ";
+						}
+					return print_type(pass_value(scheme.type), out) << ">";
+				}
 			default:
-				return out << type_name(value._tag);
+				return out << "#<BAD TYPE: " << type_name(value._tag) << ">";
 			}
 	}
+
 	void dbg_type(PassByValue const& value)
 	{ print_type(value, std::cout) << std::endl; }
 
@@ -203,11 +224,11 @@ namespace atl
 					out << "(";
 					if(!ast.empty())
 						{
-							print_with_type(ast[0], out);
+							print_with_type(pass_value(ast[0]), out);
 							for(auto& vv : slice(ast, 1))
 								{
 									out << ' ';
-									print_with_type(vv, out);
+									print_with_type(pass_value(vv), out);
 								}
 						}
 					return out << ")";
@@ -223,9 +244,10 @@ namespace atl
 					return print_sym(unwrap<Symbol>(value));
 				}
 			default:
-				return printer::print_atom(*value.any, out);
+				return printer::print_atom(value.any, out);
 			}
 	}
+
 	void dbg_with_type(PassByValue const& value)
 	{ print_with_type(value, std::cout) << std::endl; }
 }

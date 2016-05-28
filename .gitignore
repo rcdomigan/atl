@@ -17,6 +17,7 @@ test/structs
 test/test
 test/test_type
 test/type_deduction
+test/type_inference
 test/utility
 test/vm
 TAGS

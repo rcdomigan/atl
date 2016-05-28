@@ -199,6 +199,9 @@ namespace atl
 		virtual AstSubstrate& sequence() = 0;
 		virtual Symbol* symbol(std::string const&) = 0;
 		virtual DefProcedure* def_procedure() = 0;
+		virtual Symbol* symbol(std::string const&, Scheme const& type) = 0;
+
+		virtual void free(Any any) = 0;
 	};
 
 
@@ -314,6 +317,11 @@ namespace atl
 
 		virtual DefProcedure* def_procedure() override
 		{ return make<DefProcedure>(); }
+
+		virtual Symbol* symbol(std::string const& name, Scheme const& type) override
+		{ return make<Symbol>(name, type); }
+
+		virtual void free(Any any) override { /* stub */ }
 	};
 
 	template< class T,	memory_pool::Pool<T> GC::*member >
@@ -356,8 +364,12 @@ namespace atl
 
 		virtual DefProcedure* def_procedure() override
 		{ return make<DefProcedure>(); }
-	};
 
+		virtual Symbol* symbol(std::string const& name, Scheme const& type) override
+		{ return make<Symbol>(name, type); }
+
+		virtual void free(Any any) override { /* stub */ }
+	};
 }
 
 #endif

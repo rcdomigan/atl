@@ -11,6 +11,7 @@
 
 #include "./testing_utils.hpp"
 
+#include "./helpers.cpp"
 #include "./utility.cpp"
 #include "./test_type.cpp"
 #include "./vm.cpp"
