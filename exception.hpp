@@ -39,6 +39,14 @@ namespace atl {
 	struct RedefinitionError : public std::runtime_error {
 		RedefinitionError(const std::string& what_arg) : std::runtime_error(what_arg) {}
 	};
+
+	struct CantUnify : public std::runtime_error {
+		CantUnify(const std::string& what_arg) : std::runtime_error(what_arg) {}
+	};
+
+	struct AlgorithmWFailed : public std::runtime_error {
+		AlgorithmWFailed(const std::string& what_arg) : std::runtime_error(what_arg) {}
+	};
 }
 
 #endif

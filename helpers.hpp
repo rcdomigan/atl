@@ -6,8 +6,8 @@
 #include "./gc.hpp"
 #include "./type.hpp"
 #include "./conversion.hpp"
+#include "./utility.hpp"
 #include "./pass_value.hpp"
-
 
 namespace atl
 {
@@ -62,9 +62,7 @@ namespace atl
 		R from_bytes(value_type input) { return Caster<R>::a(input); }
 	}
 
-
-	/* higher order functions for Asts */
-	namespace ast_hof
+	namespace make_ast
 	{
 		struct AstAllocator
 		{
@@ -86,7 +84,7 @@ namespace atl
 
 			AstAllocator& push_back(PassByValue value)
 			{
-				buffer.push_back(*value.any);
+				buffer.push_back(value.any);
 				return *this;
 			}
 
@@ -108,38 +106,6 @@ namespace atl
 
 			~NestAst() { ast.end_ast(); }
 		};
-
-		/** Builds a new Ast in `store` by mapping `fn` over `ast`
-		 * @tparam Fn: -> Any Any
-		 * @param store: an AstAllocator
-		 * @param fn: the Fn to apply
-		 * @param ast: the ast to apply over
-		 * @return: A MovableAstPointer which will be updated if store
-		 *   is resized.
-		 */
-		template<class Fn>
-		MovableAstPointer map(Fn&& fn, Ast const& input, AstAllocator store)
-		{
-			NestAst nest(store);
-			for(auto& vv : input)
-				{ nest.store.push_back(fn(vv)); }
-			return nest.ast;
-		}
-
-		MovableAstPointer copy(Ast const& input, AstAllocator store)
-		{
-			NestAst nest(store);
-			for(auto& vv : input)
-				{ nest.store.push_back(vv); }
-			return nest.ast;
-		}
-	}
-
-
-	namespace make_ast
-	{
-		// Maintains one 'dynamic_seq` for use with the make_ast functions
-		using ast_hof::AstAllocator;
 
 		AstAllocator ast_alloc(AllocatorBase& aa)
 		{ return AstAllocator(aa); }
@@ -186,7 +152,7 @@ namespace atl
 			auto tup = make_tuple(args...);
 			return [tup](AstAllocator space) -> Ast
 				{
-					ast_hof::NestAst nested(space);
+					NestAst nested(space);
 
 					_Run do_apply(space);
 					foreach_tuple(do_apply, tup);
@@ -194,15 +160,59 @@ namespace atl
 					return *nested.ast;
 				};
 		}
+	}
 
+	/* higher order functions for Asts */
+	namespace ast_hof
+	{
+		using make_ast::AstAllocator;
+		using make_ast::NestAst;
+
+		/** Builds a new Ast in `store` by mapping `fn` over `ast`
+		 * @tparam Fn: -> Any Any
+		 * @param store: an AstAllocator
+		 * @param fn: the Fn to apply
+		 * @param ast: the ast to apply over
+		 * @return: A MovableAstPointer which will be updated if store
+		 *   is resized.
+		 */
 		template<class Fn>
-		std::function<Ast (AstAllocator)>
-		map(Fn&& fn, Ast const& input)
+		MovableAstPointer map(Fn&& fn, Slice const& input, AstAllocator store)
 		{
-			return [fn, input](AstAllocator store) -> Ast
-				{ return ast_hof::map(fn, input, store); };
+			NestAst nest(store);
+			for(auto& vv : input)
+				{ nest.store.push_back(fn(vv)); }
+			return nest.ast;
+		}
+
+
+		template<class Astish>
+		MovableAstPointer copy(Astish const& input, AstAllocator store)
+		{
+			NestAst nest(store);
+			for(auto& vv : input)
+				{
+					auto value = pass_value(vv);
+					if(is<Slice>(value))
+						{
+							copy(value.slice,
+							     store);
+						}
+					else
+						{ nest.store.push_back(vv); }
+				}
+			return nest.ast;
 		}
 	}
+
+	void copy_into(PassByValue input, ast_hof::AstAllocator store)
+	{
+		if(is<Slice>(input))
+			{ ast_hof::copy(unwrap<Slice>(input), store); }
+		else
+			{ store.push_back(input); }
+	}
+
 
 	namespace pattern_matcher
 	{
@@ -313,6 +323,32 @@ namespace atl
 		}
 	}
 
+	/* Pass through a Slice or wrap an ast or AstData */
+	Slice unwrap_slice(Any& input)
+	{
+		switch(input._tag)
+			{
+			case tag<AstData>::value:
+				{
+					auto& ast = explicit_unwrap<AstData>(input);
+					return Slice(ast.flat_begin(), ast.flat_end());
+				}
+			case tag<Ast>::value:
+				{
+					auto& ast = explicit_unwrap<Ast>(input);
+					return Slice(ast.flat_begin(), ast.flat_end());
+				}
+			case tag<Slice>::value:
+				{
+					return unwrap<Slice>(input);
+				}
+			default:
+				throw WrongTypeError
+					("unwrap_slice can only deal with Ast-ish objects!");
+			}
+	}
+
+
 	struct AstSubscripter
 	{
 		PassByValue value;
@@ -339,6 +375,110 @@ namespace atl
 		static void a(Input&& in, Fn fn)
 		{ return fn(unwrap<T>(in)); };
 	};
+
+	Type typify(Type const& input)
+	{ return input; }
+
+	Type typify(Any const& input)
+	{
+		if(is<Type>(input)) { return unwrap<Type>(input); }
+		return Type(input._tag);
+	}
+
+	Type typify(PassByValue const& input)
+	{
+		if(is<Type>(input)) { return unwrap<Type>(input); }
+		return Type(input._tag);
+	}
+
+	template<class T>
+	Type typify(T const& input)
+	{
+		static_assert(is_atl_type<T>::value,
+		              "Can only typify atl types.");
+		return Type(input._tag);
+	}
+
+	template<class Tree>
+	typename std::enable_if<(std::is_same<Tree, Ast>::value
+	                         || std::is_same<Tree, Slice>::value),
+	                        bool>::type
+	operator!=(Tree const& aa_tree, Tree const& bb_tree)
+	{ return !(aa_tree == bb_tree); }
+
+	template<class Tree>
+	typename std::enable_if<(std::is_same<Tree, Ast>::value
+	                         || std::is_same<Tree, Slice>::value),
+	                        bool>::type
+	operator==(Tree const& aa_tree, Tree const& bb_tree)
+	{
+		if(aa_tree.flat_size() != bb_tree.flat_size())
+			{ return false; }
+
+		auto aa = aa_tree.begin(),
+			bb = bb_tree.begin();
+		while((aa != aa_tree.end()) && (bb != bb_tree.end()))
+			{
+				if(aa->_tag != bb->_tag)
+					{ return false; }
+
+				switch(aa->_tag)
+					{
+					case tag<AstData>::value:
+						{
+							if(Ast(const_cast<AstData*>(reinterpret_cast<AstData const*>(aa.value)))
+							   != Ast(const_cast<AstData*>(reinterpret_cast<AstData const*>(bb.value))))
+								{ return false; }
+							break;
+						}
+					case tag<Ast>::value:
+						{
+							if(reinterpret_cast<Ast const&>(aa)
+							   != reinterpret_cast<Ast const&>(bb))
+								{ return false; }
+							break;
+						}
+					case tag<Slice>::value:
+						{
+							if(*reinterpret_cast<Slice const*>(aa.value)
+							   != *reinterpret_cast<Slice const*>(bb.value))
+								{ return false; }
+							break;
+						}
+					case tag<Symbol>::value:
+						{
+							if(reinterpret_cast<Symbol*>(aa->value)->name
+							   != reinterpret_cast<Symbol*>(bb->value)->name)
+								{ return false; }
+							break;
+						}
+					default:
+						if(*bb != *aa)
+							{ return false; }
+					}
+
+				++bb;
+				++aa;
+			}
+
+		if((bb != bb_tree.end()) || (aa != aa_tree.end()))
+			{ return false; }
+		return true;
+	}
+
+	/* For Slices this means copying into an Ast, otherwise pass through the
+	   existing value.  */
+	Any de_slice(make_ast::AstAllocator store,
+	             PassByValue value)
+	{
+		if(is<Slice>(value))
+			{
+				return wrap(*ast_hof::copy(unwrap<Slice>(value),
+				                           store));
+			}
+		else
+			{ return value.any; }
+	}
 }
 
 #endif

@@ -9,7 +9,7 @@
 using namespace atl;
 
 struct TestHelpers : public ::testing::Test {
-    TestHelpers() {}
+	TestHelpers() { init_types(); }
 };
 
 TEST_F(TestHelpers, test_trivial_pattern_matcher)
@@ -139,6 +139,23 @@ TEST_F(TestHelpers, test_NestAst)
 	}
 }
 
+TEST_F(TestHelpers, test_hof_map)
+{
+	using namespace make_ast;
+	Arena store;
+	auto pre = make(lift<Fixnum>(1),
+	                lift<Fixnum>(2))(ast_alloc(store));
+
+	auto post = *ast_hof::map
+		([](Any const& vv)
+		 { return wrap<Fixnum>(unwrap<Fixnum>(vv).value + 2); },
+		 pre,
+		 ast_alloc(store));
+
+	ASSERT_EQ(post,
+	          make(lift<Fixnum>(3), lift<Fixnum>(4))(ast_alloc(store)));
+}
+
 TEST_F(TestHelpers, test_ast_hof_copy)
 {
 	Arena store;
@@ -151,6 +168,26 @@ TEST_F(TestHelpers, test_ast_hof_copy)
 	}
 
 	auto post = *ast_hof::copy(pre, make_ast::ast_alloc(store));
+
+	ASSERT_EQ(pre, post);
+}
+
+TEST_F(TestHelpers, test_ast_hof_nested_copy)
+{
+	Arena store;
+
+	Ast pre;
+	{
+		using namespace make_ast;
+		pre = make(sym("a"),
+		           sym("b"),
+		           make(sym("c"), sym("d")))(ast_alloc(store));
+	}
+
+	auto post = *ast_hof::copy(pre, make_ast::ast_alloc(store));
+
+	dbg_ast(pre);
+	dbg_ast(post);
 
 	ASSERT_EQ(pre, post);
 }

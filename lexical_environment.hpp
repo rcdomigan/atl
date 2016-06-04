@@ -52,7 +52,7 @@ namespace atl
 
 		SymbolMap(SymbolMap *up_) : up(up_) {
 			if(!up_)
-				{ assigned_type = 0; }
+				{ assigned_type = LAST_CONCRETE_TYPE; }
 			else
 				{ assigned_type = up_->assigned_type; }
 		}
@@ -64,7 +64,7 @@ namespace atl
 
 		void formal(Symbol& sym)
 		{
-			sym.type = wrap<Type>(++assigned_type);
+			sym.scheme.type = wrap<Type>(++assigned_type);
 			auto rval = _local.emplace(sym.name, make_pair(&sym, wrap<Bound>(&sym)));
 			if(!rval.second)
 				{ throw RedefinitionError(std::string("Can't redefine ").append(sym.name)); }
@@ -154,119 +154,78 @@ namespace atl
 	void assign_free(SymbolMap& env,
 	                 AllocatorBase &factory,
 	                 FreeSymbols &free,
-	                 Slice ast)
+	                 Any& value)
 	{
-
-		// If symbol has a value defined in `env` set `item` to it,
-		// otherwise add the symbol to the free list.
-		auto handle_symbol = [&free, &env](Any& item)
+		switch(value._tag)
 			{
-				auto& sym = unwrap<Symbol>(item);
-				auto found_def = env.find(sym.name);
-				if(found_def != env.very_end())
-					{ item = found_def->second.second; }
-				else
-					{
-						auto found_free = free.find(sym.name);
-						if(found_free != free.end())
-							{ found_free->second.push_back(&item); }
-						else
-							{ free.emplace(sym.name, std::vector<Any*>({&item})); }
-					}
-			};
-
-		auto head = pass_value(ast[0]);
-
-		switch(head._tag)
-			{
+			case tag<Ast>::value:
+			case tag<AstData>::value:
 			case tag<Slice>::value:
-				assign_free(env,
-				            factory,
-				            free,
-				            unwrap<Slice>(head));
-				break;
-
-			case tag<Define>::value:
 				{
-					if(!is<Symbol>(ast[1]))
+					auto ast = unwrap_slice(value);
+					auto head = pass_value(ast[0]);
+					switch(head._tag)
 						{
-							throw WrongTypeError
-								(std::string
-								 ("define needs a symbol as its first arg; got a ")
-								 .append(type_name(ast[1]._tag)));
-						}
+						case tag<Define>::value:
+							{
+								if(!is<Symbol>(ast[1]))
+									{
+										throw WrongTypeError
+											(std::string
+											 ("define needs a symbol as its first arg; got a ")
+											 .append(type_name(ast[1]._tag)));
+									}
 
-					auto &sym = unwrap<Symbol>(ast[1]);
-					env.formal(sym);
+								auto &sym = unwrap<Symbol>(ast[1]);
+								env.formal(sym);
 
-					auto found = free.find(sym.name);
-					if(found != free.end())
-						{
-							// back-patch
-							for(auto ptr : found->second)
-								{ *ptr = wrap<Bound>(&sym); }
-							free.erase(found);
-						}
+								auto found = free.find(sym.name);
+								if(found != free.end())
+									{
+										// back-patch
+										for(auto ptr : found->second)
+											{ *ptr = wrap<Bound>(&sym); }
+										free.erase(found);
+									}
+								assign_free(env, factory, free, ast[2]);
+								return;
+							}
 
-					auto value = pass_value(ast[2]);
-					switch (value._tag)
-						{
-						case tag<Symbol>::value:
-							handle_symbol(*value.any);
-							break;
+						case tag<Lambda>::value:
+							{
+								SymbolMap inner_map({&env});
 
-						case tag<Slice>::value:
-							assign_free(env,
-							            factory,
-							            free,
-							            value.slice);
-							break;
+								for(auto& item : unwrap_slice(ast[1]))
+									{
+										assert(is<Symbol>(item));
+										inner_map.formal(unwrap<Symbol>(item));
+									}
+
+								assign_free(inner_map, factory, free, ast[2]);
+							}
+							return;
+						default:
+							for(auto& item : ast)
+								{ assign_free(env, factory, free, item); }
 						}
 					return;
 				}
-
 			case tag<Symbol>::value:
-				handle_symbol(ast[0]);
-				if(!is<Lambda>(ast[0]))
-					{ break; }
-
-			case tag<Lambda>::value:
 				{
-					SymbolMap inner_map({&env});
-
-					for(auto& item : pass_value(ast[1]).slice)
+					auto& sym = unwrap<Symbol>(value);
+					auto found_def = env.find(sym.name);
+					if(found_def != env.very_end())
+						{ value = found_def->second.second; }
+					else
 						{
-							assert(is<Symbol>(item));
-							inner_map.formal(unwrap<Symbol>(item));
+							auto found_free = free.find(sym.name);
+							if(found_free != free.end())
+								{ found_free->second.push_back(&value); }
+							else
+								{ free.emplace(sym.name, std::vector<Any*>({&value})); }
 						}
-
-					assign_free(inner_map,
-					            factory,
-					            free,
-					            pass_value(ast[2]).slice);
+					return;
 				}
-				return;
-			}
-
-		// Handle the rest (if applicable)
-		if(ast.size() > 1)
-			{
-				for(auto& raw_item : slice(ast, 1))
-					{
-						auto item = pass_value(raw_item);
-						switch(item._tag)
-							{
-							case tag<Slice>::value:
-								assign_free(env,
-								            factory,
-								            free,
-								            unwrap<Slice>(item));
-								break;
-							case tag<Symbol>::value:
-								handle_symbol(raw_item);
-								break;
-							}
-					}
 			}
 	}
 }

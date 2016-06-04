@@ -50,7 +50,7 @@ namespace atl {
 	static inline T& unwrap(Any& input)
 	{
 		// If you checked the tag and know something is an Ast or
-		// AstData, use explicit_unwrap. Otherwise use unwrap_ast
+		// AstData, use explicit_unwrap. Otherwise use unwrap_slice
 		// (which does the dispatching for you).
 		static_assert(!(std::is_same<Ast, T>::value || std::is_same<AstData, T>::value),
 		              "Ast and Ast data types requires special handling");
@@ -60,10 +60,6 @@ namespace atl {
 	template<class T>
 	static inline T const& unwrap(Any const& input)
 	{ return unwrapping::Any<T>::a(input); }
-
-	// template<class T>
-	// static inline T const& unwrap(void const* input)
-	// { return unwrapping::Any<T>::a(*reinterpret_cast<Any const*>(input)); }
 
 
 	/*********************************/
@@ -136,6 +132,11 @@ namespace atl {
 
 	template<class T>
 	static inline Any wrap() { return Any(tag<T>::value, nullptr); }
+
+	template<class T, class Arg>
+	static inline Any wrap(Arg arg) { return Any(tag<T>::value,
+	                                             reinterpret_cast<void*>(arg)); }
+
 
 	template<class T>
 	inline Any& ref_wrap(T& value)

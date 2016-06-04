@@ -8,6 +8,7 @@
 
 #include <vector>
 #include <set>
+#include <unordered_set>
 #include <unordered_map>
 #include <type_traits>
 #include <string>
@@ -82,8 +83,8 @@ namespace atl
     struct is_pimpl : public std::false_type {};
 
 
-#define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(DeclareType)(Type)(Ast)(AstData)(Parameter)(ClosureParameter)(Bound)
-#define ATL_PIMPL_SEQ (Slice)(String)(Symbol)(DefProcedure)(Procedure)(Macro)(Undefined)(Struct)(CxxFunctor)(CxxMacro)
+#define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(DeclareType)(Type)(Ast)(AstData)(Parameter)(ClosureParameter)(Bound)(Undefined)(FunctionConstructor)
+#define ATL_PIMPL_SEQ (Slice)(String)(Symbol)(DefProcedure)(Procedure)(Macro)(Struct)(CxxFunctor)(CxxMacro)(Scheme)
 #define ATL_TYPES_SEQ ATL_REINTERPERABLE_SEQ ATL_PIMPL_SEQ
 
 #define M(r, _, i, elem)						\
@@ -104,7 +105,7 @@ namespace atl
 #undef M
 
 
-    typedef mpl::vector27< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
+    typedef mpl::vector29< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
 
 	const static tag_t LAST_CONCRETE_TYPE = mpl::size<TypesVec>::value;
 
@@ -133,9 +134,10 @@ namespace atl
 		{ return (value < other.value) && (_tag < other._tag); }
 	};
 
-    bool operator==(const Any& aa, const Any& bb) {
-	return (aa._tag == bb._tag) && (aa.value == bb.value);
-    }
+    bool operator==(const Any& aa, const Any& bb)
+    { return (aa._tag == bb._tag) && (aa.value == bb.value); }
+
+    bool operator!=(const Any& aa, const Any& bb) { return !(aa == bb); }
 
     /**
      * A null-valued Any with the tag type of T
@@ -198,6 +200,13 @@ namespace atl
         DeclareType() : _tag(tag<DeclareType>::value) {}
     };
 
+    struct FunctionConstructor
+    {
+        tag_t _tag;
+        long value;
+        FunctionConstructor() : _tag(tag<FunctionConstructor>::value) {}
+    };
+
 
     /*************************/
     /*  ____              _  */
@@ -232,24 +241,42 @@ namespace atl
 	/** | _|_|  ||  |_  **/
 	/**           pimpl **/
 	/*********************/
+	struct Type // OK, type isn't a pimpl
+    {
+	    typedef tag_t value_type;
+
+        tag_t _tag;
+	    tag_t value;
+
+	    Type(tag_t value_) : _tag(tag<Type>::value), value(value_) {}
+	    bool operator<(Type const& other) const { return value < other.value; }
+	    bool operator==(Type const& other) const { return value == other.value; }
+    };
+
+	struct Scheme
+	{
+		typedef std::unordered_set<Type::value_type> Quantified;
+		Quantified quantified;
+		Any type;
+
+		Scheme() : type(tag<Undefined>::value, nullptr) {}
+
+		Scheme(Quantified const& bound_, Any const& type_)
+			: quantified(bound_), type(type_)
+		{}
+	};
+
     struct Symbol
     {
 	    std::string name;
-	    Any type;
+	    Scheme scheme;
 
-	    Symbol(const std::string& name_, Any const& type_)
-		    : name(name_),
-		      type(type_)
+	    Symbol(std::string const& name_)
+		    : name(name_)
 	    {}
 
-	    Symbol(const std::string& name_)
-		    : name(name_),
-		      // type just needs to be unique, and using our address
-		      // seems like the simplest way to get a unique id.  I'll
-		      // just have to make sure I'm not using any pointer
-		      // based types before I things... This is probably a bad
-		      // idea.
-		      type(tag<Type>::value, this)
+	    Symbol(std::string const& name_, Scheme const& type_)
+		    : name(name_), scheme(type_)
 	    {}
     };
 
@@ -375,6 +402,7 @@ namespace atl
 		typedef ast_helper::IteratorBase<const Any> const_iterator;
 
 		typedef Any* flat_iterator;
+		typedef Any const* const_flat_iterator;
 
 		friend std::ostream& operator<<(std::ostream& out, const iterator& itr) { return itr.print(out); }
 		friend std::ostream& operator<<(std::ostream& out, const const_iterator& itr) { return itr.print(out); }
@@ -407,57 +435,6 @@ namespace atl
 
 		size_t size() const { return end() - begin(); }
 		bool empty() const { return value->value == 0; }
-
-		bool operator==(Ast const& other_ast) const
-		{
-			if(flat_size() != other_ast.flat_size())
-				{ return false; }
-
-			auto other = other_ast.begin(), self = begin();
-			while((other != other_ast.end()) && (self != other_ast.end()))
-				{
-					if(other->_tag != self->_tag)
-						{ return false; }
-
-					switch(self->_tag)
-						{
-						case tag<AstData>::value:
-							{
-								if(Ast(const_cast<AstData*>(reinterpret_cast<AstData const*>(self.value)))
-								   != Ast(const_cast<AstData*>(reinterpret_cast<AstData const*>(other.value))))
-									{ return false; }
-								break;
-							}
-						case tag<Ast>::value:
-							{
-								if(*reinterpret_cast<Ast const*>(self.value)
-								   != *reinterpret_cast<Ast const*>(other.value))
-									{ return false; }
-								break;
-							}
-						case tag<Symbol>::value:
-							{
-								if(reinterpret_cast<Symbol*>(self->value)->name
-								   != reinterpret_cast<Symbol*>(other->value)->name)
-									{ return false; }
-								break;
-							}
-						default:
-							if(other->value != self->value)
-								{ return false; }
-						}
-
-					++other;
-					++self;
-				}
-
-			if((other != other_ast.end()) || (self != end()))
-				{ return false; }
-			return true;
-		}
-
-		bool operator!=(Ast const& other) const
-		{ return !(other == *this); }
 
 		bool operator<(Ast const& other) const
 		{ return value < other.value; }
@@ -496,6 +473,7 @@ namespace atl
 		ClosureParameter() : _tag(tag<ClosureParameter>::value), value(0) {}
 		ClosureParameter(size_t offset_) noexcept : _tag(tag<ClosureParameter>::value), value(offset_) {}
 	};
+
 
     struct String {
 	std::string value;
@@ -576,25 +554,6 @@ namespace atl
         {}
     };
 
-    struct Type
-    {
-        tag_t _tag;
-        size_t value;
-
-        Type(size_t id_)
-            : _tag(tag<Type>::value), value(id_)
-        {}
-
-	    bool operator<(Type const& other) const
-	    { return value < other.value; }
-
-	    bool operator==(Type const& other) const
-	    { return value == other.value; }
-
-	    bool is_concrete()
-	    { return value < LAST_CONCRETE_TYPE; }
-    };
-
 
     /*********************/
     /**  _    Other     **/
@@ -606,28 +565,42 @@ namespace atl
 	    typedef typename Ast::iterator iterator;
 	    typedef typename Ast::const_iterator const_iterator;
 
+	    typedef typename Ast::flat_iterator flat_iterator;
+	    typedef typename Ast::const_flat_iterator const_flat_iterator;
+
+
 	    Any *_begin, *_end;
 
 	    Slice() : _begin(nullptr), _end(nullptr) {}
-	    Slice(Any *begin, Any *end)
+	    explicit Slice(Any *begin, Any *end)
 		    : _begin(begin), _end(end)
 	    {}
 
-	    Slice(Ast& ast)
+	    explicit Slice(Ast const& ast)
 		    : _begin(ast.value->flat_begin()),
 		      _end(ast.value->flat_end())
 	    {}
 
-	    Slice(AstData& ast)
+	    explicit Slice(AstData& ast)
 		    : _begin(ast.flat_begin()),
 		      _end(ast.flat_end())
 	    {}
 
+	    /* Ug.  Maybe Slice should be read-only.  Not changing that today though. */
+	    explicit Slice(AstData const& ast)
+		    : _begin(const_cast<AstData::flat_iterator>(ast.flat_begin())),
+		      _end(const_cast<AstData::flat_iterator>(ast.flat_end()))
+	    {}
+
 	    template<class Itr>
-	    Slice(Itr begin, Itr end)
+	    explicit Slice(Itr begin, Itr end)
 		    : _begin(&*begin), _end(&*end) {}
 
-	    Slice(const Slice&) = default;
+	    template<class Range>
+	    explicit Slice(Range&& range)
+		    : _begin(&*range.begin()), _end(&*range.end()) {}
+
+	    Slice(Slice const&) = default;
 
 	    Any& operator[](size_t n) { return *(begin() + n); }
 	    Any const& operator[](size_t n) const { return *(begin() + n); }
@@ -640,6 +613,16 @@ namespace atl
 
 	    size_t size() const { return end() - begin(); }
 	    bool empty() const { return _begin == _end; }
+
+	    flat_iterator flat_begin() { return _begin; }
+	    flat_iterator flat_end() { return _end; }
+
+	    const_flat_iterator flat_begin() const { return _begin; }
+	    const_flat_iterator flat_end() const { return _end; }
+
+	    size_t flat_size() const { return flat_end() - flat_begin(); }
+
+	    Slice slice(size_t off) { return Slice(_begin + off, _end); }
     };
 
 
@@ -678,8 +661,13 @@ namespace atl
 	    primitive_type_names[tag<T>::value] = Name<T>::value;
 	}};
 
-    // once_flag init_types_flag;
-    void init_types() { mpl::for_each<TypesVec, wrap_t_arg< mpl::placeholders::_1> >( InitTypes() ); }
+    // once_flag init_types_flag; the GC will do this
+	static bool _type_rtti_init = false;
+    void init_types()
+    {
+	    if(!_type_rtti_init)
+		    { mpl::for_each<TypesVec, wrap_t_arg< mpl::placeholders::_1> >( InitTypes() ); }
+    }
 
     unsigned int type_tag(Any a) { return a._tag; }
 
