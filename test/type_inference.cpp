@@ -477,8 +477,6 @@ TEST_F(Inference, test_application)
 
     auto wrapped = wrap(e1);
     apply_substitution(store, gamma, We1.subs, wrapped);
-    dbg_with_type(pass_value(wrapped));
-
 
     /* first possible free type is not used in final inference */
     auto new_types = LAST_CONCRETE_TYPE + 1;
@@ -542,10 +540,6 @@ TEST_F(Inference, test_apply_defined)
 
     apply_substitution(store, gamma, We1.subs, wrapped);
 
-    dbg_with_type(pass_value(wrapped));
-    dbg_type(pass_value(We1.type));
-
-
     // Now see if we can apply the newly defined "id"
     auto e2 = make(sym("id"), sym("y"))(aalloc());
     auto We2 = W(store, new_types, gamma, pass_value(e2));
@@ -568,4 +562,102 @@ TEST_F(Inference, test_apply_defined)
     ASSERT_EQ(unwrap<Type>(We2.type).value,
               unwrap<Type>(unwrap<Symbol>(e2[1]).scheme.type).value);
 
+}
+
+
+typedef std::map<std::string, Type> SeenShapeMap;
+
+
+bool _shape_check(SeenShapeMap& map, Slice target, Slice got)
+{
+	if(target.size() != got.size())
+		{ return false; }
+
+	for(auto vv : zip(target, got))
+		{
+			auto aa = pass_value(*get<0>(vv)),
+				bb = pass_value(*get<1>(vv));
+
+			switch(aa._tag)
+				{
+				case tag<Slice>::value:
+					if(!is<Slice>(bb)) { return false; }
+
+					if(!_shape_check(map, aa.slice, bb.slice))
+						{ return false; }
+					break;
+
+				case tag<Symbol>::value:
+					{
+						if(!is<Type>(bb)) { return false; }
+
+						auto sym = unwrap<Symbol>(aa);
+						auto type = unwrap<Type>(bb);
+
+						auto itr = map.find(sym.name);
+						if(itr != map.end() && itr->second != type)
+							{ return false; }
+						else
+							{ map.emplace(make_pair(sym.name, type)); }
+						break;
+					}
+				}
+		}
+	return true;
+}
+
+
+bool shape_check(Ast target, Ast got)
+{
+	SeenShapeMap map;
+	return _shape_check(map, Slice(target), Slice(got));
+}
+
+
+TEST_F(Inference, test_nested_application)
+{
+    using namespace make_ast;
+    using namespace inference;
+
+    auto e1 = mk(lift<Lambda>(),
+                 mk("x", "y", "z"),
+                 mk("x", mk("y", "z")))
+	    (aalloc());
+
+    auto We1 = W(store, new_types, gamma, pass_value(e1));
+
+    ASSERT_TRUE
+	    (shape_check
+	     (mk("->",
+	         mk("->", "a", "b"), // x
+	         mk("->", "c", "a"), // y
+	         "c", // z
+	         "b")
+	      (aalloc()),
+	      explicit_unwrap<Ast>(We1.type)))
+	    << "\n" << printer::any(We1.type);
+}
+
+TEST_F(Inference, test_multi_arg_application)
+{
+    using namespace make_ast;
+    using namespace inference;
+
+    auto e1 = make(lift<Lambda>(),
+                   make(sym("x"), sym("y"), sym("z")),
+                   make(sym("x"), sym("y"), sym("z")))(aalloc());
+    auto We1 = W(store, new_types, gamma, pass_value(e1));
+
+    auto wrapped = wrap(e1);
+
+    ASSERT_TRUE
+	    (shape_check
+	     (mk("->",
+	         mk("->", "a", mk("->", "b", "c")),
+	         "a",
+	         "b",
+	         "c")
+	      (aalloc()),
+	      explicit_unwrap<Ast>(We1.type)))
+	    << "\n" << printer::any(We1.type);
 }

@@ -160,6 +160,44 @@ namespace atl
 					return *nested.ast;
 				};
 		}
+
+		/* _Run which automatically wraps a number and assumes a bare string is a sym. */
+		struct _SRun
+		{
+			AstAllocator space;
+			_SRun(AstAllocator ss) : space(ss) {}
+
+			void operator()(std::string const& ss)
+			{ space.push_back(wrap(space.symbol(ss))); }
+
+			void operator()(char const* ss)
+			{ space.push_back(wrap(space.symbol(std::string(ss)))); }
+
+			void operator()(long ss)
+			{ space.push_back(wrap<Fixnum>(ss)); }
+
+			void operator()(int ss)
+			{ space.push_back(wrap<Fixnum>(ss)); }
+
+			template<class Fn>
+			void operator()(Fn &fn) { fn(space); }
+		};
+
+		template<class ... Args>
+		std::function<Ast (AstAllocator)>
+		mk(Args ... args)
+		{
+			auto tup = make_tuple(args...);
+			return [tup](AstAllocator space) -> Ast
+				{
+					NestAst nested(space);
+
+					_SRun do_apply(space);
+					foreach_tuple(do_apply, tup);
+
+					return *nested.ast;
+				};
+		}
 	}
 
 	/* higher order functions for Asts */

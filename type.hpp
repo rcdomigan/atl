@@ -251,6 +251,7 @@ namespace atl
 	    Type(tag_t value_) : _tag(tag<Type>::value), value(value_) {}
 	    bool operator<(Type const& other) const { return value < other.value; }
 	    bool operator==(Type const& other) const { return value == other.value; }
+	    bool operator!=(Type const& other) const { return value != other.value; }
     };
 
 	struct Scheme
