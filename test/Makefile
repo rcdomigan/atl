@@ -1,5 +1,5 @@
 COMMON_FLAGS=  -pipe -I../ -std=c++11 -ggdb -Wall
-GTEST_LINK=-lgtest -lgtest_main
+GTEST_LINK=-lgtest -lgtest_main -pthread
 CXXFLAGS=$(CFLAGS) $(COMMON_FLAGS)
 
 CXX=g++ $(CXXFLAGS)
