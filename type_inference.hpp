@@ -418,17 +418,10 @@ namespace atl
 				    }
 			    case tag<Slice>::value:
 				    {
-
 					    auto ast = unwrap<Slice>(expr);
 
 					    if(is<Lambda>(ast[0]))
 						    {
-							    // TODO: is this equivalent to
-							    // evaluating one format at a time?
-							    // in something like (\ x . (\ y . (x
-							    // y))), the substitutions for y would
-							    // be applied to the expression before
-							    // the subs for x are determined.
 							    using namespace make_ast;
 							    auto& formals = ast[1];
 							    Scheme::Quantified quantified;
@@ -502,9 +495,10 @@ namespace atl
 					    else
 						    {
 							    using namespace make_ast;
+							    if(ast.size() < 2)
+								    { throw AlgorithmWFailed("Applying function to zero arguments"); }
+
 							    auto e1 = W(store,  new_types, gamma, pass_value(ast[0]));
-
-
 
 							    for(auto& item : gamma)
 								    {
@@ -513,23 +507,29 @@ namespace atl
 									    item.second.type = substitute_type(store, e1.subs, pass_value(item.second.type));
 								    }
 
-							    auto e2 = W(store, new_types, gamma, pass_value(ast[1]));
+							    for(auto& arg : slice(ast, 1))
+								    {
+									    WResult e2 = W(store, new_types, gamma, pass_value(arg));
 
-							    auto beta = Type(++new_types);
-							    auto V = most_general_unification
-								    (store,
-								     pass_value(substitute_type(store, e2.subs, pass_value(e1.type))),
-								     pass_value
-								     (make(lift<Type>(tag<FunctionConstructor>::value),
-								           lift(e2.type),
-								           lift<Type>(beta.value))(ast_alloc(store))));
+									    auto beta = Type(++new_types);
+									    auto V = most_general_unification
+										    (store,
+										     pass_value(substitute_type(store, e2.subs, pass_value(e1.type))),
+										     pass_value
+										     (make(lift<Type>(tag<FunctionConstructor>::value),
+										           lift(e2.type),
+										           lift<Type>(beta.value))(ast_alloc(store))));
 
-							    auto subbed_beta = substitute_type(store, V, pass_value(beta));
+									    auto subbed_beta = substitute_type(store, V, pass_value(beta));
 
-							    compose_subs(store, V, e2.subs);
-							    compose_subs(store, V, e1.subs);
+									    compose_subs(store, V, e2.subs);
+									    compose_subs(store, V, e1.subs);
 
-							    return WResult(V, subbed_beta);
+									    e1.subs = V;
+									    e1.type = subbed_beta;
+								    }
+
+							    return e1;
 						    }
 				    }
 
