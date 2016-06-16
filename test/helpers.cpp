@@ -139,21 +139,47 @@ TEST_F(TestHelpers, test_NestAst)
 	}
 }
 
+TEST_F(TestHelpers, test_make_ast_mk)
+{
+	using namespace make_ast;
+	Arena store;
+
+	auto ast = make(lift<Fixnum>(1),
+	                make(lift<Fixnum>(2),
+	                     lift<Fixnum>(3)),
+	                lift<Fixnum>(4))(ast_alloc(store));
+
+	ASSERT_EQ(ast,
+	          mk(1, mk(2, 3), 4)(ast_alloc(store)));
+}
+
+TEST_F(TestHelpers, test_make_ast_mk_sym)
+{
+	using namespace make_ast;
+	Arena store;
+
+	auto ast = make(sym("a"),
+	                make(sym("b"),
+	                     sym("c")),
+	                sym("d"))(ast_alloc(store));
+
+	ASSERT_EQ(ast,
+	          mk("a", mk("b", "c"), "d")(ast_alloc(store)));
+}
+
 TEST_F(TestHelpers, test_hof_map)
 {
 	using namespace make_ast;
 	Arena store;
-	auto pre = make(lift<Fixnum>(1),
-	                lift<Fixnum>(2))(ast_alloc(store));
+	auto ss = [&]() { return ast_alloc(store); };
+	auto pre = mk(1, 2)(ss());
 
 	auto post = *ast_hof::map
-		([](Any const& vv)
-		 { return wrap<Fixnum>(unwrap<Fixnum>(vv).value + 2); },
-		 pre,
+		([](Any const& vv) { return wrap<Fixnum>(unwrap<Fixnum>(vv).value + 2); },
+		 Slice(pre),
 		 ast_alloc(store));
 
-	ASSERT_EQ(post,
-	          make(lift<Fixnum>(3), lift<Fixnum>(4))(ast_alloc(store)));
+	ASSERT_EQ(post, mk(3, 4)(ss()));
 }
 
 TEST_F(TestHelpers, test_ast_hof_copy)
@@ -179,9 +205,9 @@ TEST_F(TestHelpers, test_ast_hof_nested_copy)
 	Ast pre;
 	{
 		using namespace make_ast;
-		pre = make(sym("a"),
-		           sym("b"),
-		           make(sym("c"), sym("d")))(ast_alloc(store));
+		pre = mk("a",
+		         "b",
+		         mk("c", "d"))(ast_alloc(store));
 	}
 
 	auto post = *ast_hof::copy(pre, make_ast::ast_alloc(store));
@@ -196,11 +222,9 @@ TEST_F(TestHelpers, test_pass_value)
 {
 	using namespace make_ast;
 	Arena store;
+	auto ss = [&]() { return ast_alloc(store); };
 
-	auto ast = make(lift<Fixnum>(1),
-	                make(lift<Fixnum>(2),
-	                     lift<Fixnum>(3)),
-	                lift<Fixnum>(4))(ast_alloc(store));
+	auto ast = mk(1, mk(2, 3), 4)(ss());
 	Slice slice(ast);
 
 	AstSubscripter sub(pass_value(slice));
@@ -208,4 +232,3 @@ TEST_F(TestHelpers, test_pass_value)
 	ASSERT_EQ(3, unwrap<Fixnum>(sub[1][1].value).value);
 	ASSERT_EQ(4, unwrap<Fixnum>(sub[2].value).value);
 }
-
