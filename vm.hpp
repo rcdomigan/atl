@@ -34,7 +34,7 @@ namespace atl
 		typedef uintptr_t* iterator;
 		static const size_t stack_size = 100;
 
-		Code::Backer const* code;	// just the byte code
+		CodeBacker const* code;	// just the byte code
 
 		vm_stack::Offset pc;
 		iterator top;           // 1 past last value
@@ -51,6 +51,7 @@ namespace atl
 		void push() { *(top++) = (*code)[pc + 1]; pc += 2; }
 		void pop() { top--; ++pc; }
 
+		/** [arg1]...[argn][arity][pointer to std::function] */
 		template<class Fn>
 		void call_cxx_function()
 		{
@@ -68,6 +69,14 @@ namespace atl
 
 		void std_function() { call_cxx_function<CxxFunctor::value_type*>(); }
 
+		/**
+		 * Pre call:
+		 *   [][alternate-instruction][predicate]
+		 *                                       ^- top
+		 * Post call:
+		 *   []
+		 *     ^- top
+		 */
 		void if_()
 		{
 			top -= 2;
@@ -209,7 +218,7 @@ namespace atl
 			top = call_stack + 2;
 		}
 
-		bool step(Code::Backer const& code)
+		bool step(CodeBacker const& code)
 		{
 			switch(code[pc])
 				{
@@ -256,11 +265,18 @@ namespace atl
 
 			for(unsigned int i = 0; ; ++i) {
 				std::cout << "====================\n"
-				          << "= " << vm_codes::name((*code)[pc]) << "\n"
 				          << "= call stack: " << call_stack << " pc: " << pc << "\n"
-				          << "====================" << std::endl;
-				print_stack();
+				          << "= " << vm_codes::name((*code)[pc]);
+
+				if((*code)[pc] == vm_codes::Tag<vm_codes::push>::value)
+					{ std::cout << " " << (*code)[pc + 1]; }
+
+				std::cout << "\n====================" << std::endl;
+
 				if(step(*code)) break;
+
+				print_stack();
+
 				if(i > max_steps)
 					throw BadPCodeInstruction("Too many steps in debug evaluation");
 			}
@@ -298,9 +314,8 @@ namespace atl
 	void TinyVM::print_stack()
 	{
 		using namespace std;
-
-		for(auto vv : pointer_range(*this))
-			cout << " " << vv << ": @" << *vv << endl;
+		for(auto itr = end() - 1; itr >= begin(); --itr)
+			{ cout << " " << itr << ": @" << *itr << endl; }
 	}
 }
 

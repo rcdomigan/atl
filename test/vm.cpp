@@ -15,11 +15,11 @@ using namespace atl;
 
 struct VmTest : public ::testing::Test
 {
-	Code code;
-	TinyVM vm;
+	Code code_store;
     AssembleCode assemble;
+	TinyVM vm;
 
-    VmTest() : assemble(&code) {}
+	VmTest() : assemble(&code_store) {}
 };
 
 TEST_F(VmTest, TestCxxFn2)
@@ -32,7 +32,7 @@ TEST_F(VmTest, TestCxxFn2)
         .std_function(&fns.wadd->fn, 2)
         .finish();
 
-    run_code(vm, assemble);
+    run_code(vm, code_store);
 
     ASSERT_EQ(vm.stack[0], 5);
 }
@@ -53,7 +53,7 @@ TEST_F(VmTest, TestSimpleCxxStdFunction)
         .std_function(&unwrap<CxxFunctor>(fn).fn, 1)
         .finish();
 
-    run_code(vm, assemble);
+    run_code(vm, code_store);
 
     ASSERT_EQ(vm.stack[0], 9);
 }
@@ -75,7 +75,7 @@ TEST_F(VmTest, TestCxxStdFunction)
         .std_function(&shimmed_function->fn, 1)
         .finish();
 
-    run_code(vm, assemble);
+    run_code(vm, code_store);
     ASSERT_EQ(vm.stack[0], 9);
 
     multiple = 4;
@@ -84,7 +84,7 @@ TEST_F(VmTest, TestCxxStdFunction)
         .std_function(&shimmed_function->fn, 1)
         .finish();
 
-    run_code(vm, assemble);
+    run_code(vm, code_store);
     ASSERT_EQ(12, vm.result());
 }
 
@@ -106,7 +106,7 @@ TEST_F(VmTest, TestIfTrue)
     assemble[end_of_alt] = assemble.pos_end();
     assemble.finish();
 
-    run_code(vm, assemble);
+    run_code(vm, code_store);
 
     ASSERT_EQ(vm.stack[0], 5);
 }
@@ -129,7 +129,7 @@ TEST_F(VmTest, TestIfFalse)
     assemble[end_of_alt] = assemble.pos_end();
     assemble.finish();
 
-    run_code(vm, assemble);
+    run_code(vm, code_store);
 
     ASSERT_EQ(vm.stack[0], 9);
 }
@@ -155,30 +155,11 @@ TEST_F(VmTest, TestArguments)
 	.constant(2) // # args
 	.return_();
 
-    run_code(vm, assemble);
+    run_code(vm, code_store);
 
     ASSERT_EQ(vm.stack[0], 2);
 }
 
-TEST_F(VmTest, SymToFunction)
-{
-    GC gc;
-    ToplevelMap env(gc);
-    TrivialFunctions fns;
-
-    env.define("add2", wrap(fns.wadd));
-
-    auto fn = env.toplevel.value("add2");
-
-    assemble.constant(1)
-        .constant(2)
-        .std_function(&unwrap<CxxFunctor>(fn).fn, 2)
-        .finish();
-
-    run_code(vm, assemble);
-
-    ASSERT_EQ(vm.stack[0], 3);
-}
 
 TEST_F(VmTest, SMoveN)
 {
@@ -202,7 +183,7 @@ TEST_F(VmTest, SMoveN)
         .constant(0)
         .call_procedure(enter_setup);
 
-    run_code(vm, assemble);
+    run_code(vm, code_store);
 
     for(int i = 0; i < 4; ++i)
         ASSERT_EQ(vm.stack[i], i + 1);
@@ -228,7 +209,35 @@ TEST_F(VmTest, test_bound_non_locals)
 		.std_function(&fns.wadd->fn, 2)
 		.return_(0);
 
-	run_code(vm, assemble);
+	run_code(vm, code_store);
 
 	ASSERT_EQ(8, vm.stack[0]);
+}
+
+
+/* Test that the over-writing instructions with WrapCodeIter */
+TEST_F(VmTest, test_over_writing)
+{
+	auto fns = TrivialFunctions();
+	assemble
+		.constant(2)
+		.constant(3);
+
+	auto pos = assemble.pos_end();
+
+	assemble
+		.nop()
+		.nop()
+		.nop()
+		.nop()
+		.nop()
+		.finish();
+
+	WrapCodeIter over_writer(code_store.begin() + pos);
+
+	AssembleCode(&over_writer).std_function(&fns.wadd->fn, 2);
+
+	run_code(vm, code_store);
+	ASSERT_EQ(5, vm.stack[0]);
+
 }

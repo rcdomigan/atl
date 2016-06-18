@@ -19,13 +19,13 @@ namespace atl {
 	namespace unwrapping {
 		template<class T>
 		struct Pimpl {
-			static_assert(type_mapping::unwrappable_type<T>::value, "Cannot unwrap Any to type T");
+			static_assert(type_mapping::unwrappable_type<T>::value, "T is not an unwrappable_type");
 			static inline constexpr T& a(atl::Any& aa) {return *reinterpret_cast<T*>(aa.value);}
 			static inline constexpr T const& a(atl::Any const& aa) {return *reinterpret_cast<T*>(aa.value);}};
 
 		template<class T>
 		struct Reinterpret {
-			static_assert(type_mapping::unwrappable_type<T>::value, "Cannot unwrap Any to type T");
+			static_assert(type_mapping::unwrappable_type<T>::value, "T is not an unwrappable_type");
 			static inline constexpr T& a(atl::Any& aa) {return reinterpret_cast<T&>(aa);}
 			static inline constexpr T const& a(atl::Any const& aa) {return reinterpret_cast<T const&>(aa);}};
 
