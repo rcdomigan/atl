@@ -648,8 +648,6 @@ TEST_F(Inference, test_multi_arg_application)
                    make(sym("x"), sym("y"), sym("z")))(aalloc());
     auto We1 = W(store, new_types, gamma, pass_value(e1));
 
-    auto wrapped = wrap(e1);
-
     ASSERT_TRUE
 	    (shape_check
 	     (mk("->",
@@ -660,4 +658,23 @@ TEST_F(Inference, test_multi_arg_application)
 	      (aalloc()),
 	      explicit_unwrap<Ast>(We1.type)))
 	    << "\n" << printer::any(We1.type);
+}
+
+TEST_F(Inference, test_recursive_fn)
+{
+    using namespace make_ast;
+    using namespace inference;
+
+    auto rec = mk(lift<Define>(),
+                  "rec", mk(lift<Lambda>(),
+                            mk("x"),
+                            mk("rec", "x")))
+	    (aalloc());
+    auto Wrec = W(store, new_types, gamma, pass_value(rec));
+
+    ASSERT_TRUE
+	    (shape_check
+	     (mk("->", "a", "b")(aalloc()),
+	      explicit_unwrap<Ast>(unwrap<Scheme>(Wrec.type).type)))
+	    << "\n" << printer::any(Wrec.type);
 }
