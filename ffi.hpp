@@ -57,7 +57,9 @@ namespace atl {
 				static Ast parameter_types(Alloc& gc)
 				{
 					using namespace make_ast;
-					return make(lift<Sig>()..., lift<R>())
+					return make(lift<Type>(tag<FunctionConstructor>::value),
+					            lift<Type>(tag<Sig>::value)...,
+					            lift<Type>(tag<R>::value))
 						(ast_alloc(gc));
 				}
 			};

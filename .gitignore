@@ -6,6 +6,7 @@ test-zipper
 test/abstract_type
 test/atl
 test/compile
+test/ffi
 test/gc
 test/helpers
 test/lexical_environment
@@ -16,7 +17,6 @@ test/primitive
 test/structs
 test/test
 test/test_type
-test/type_deduction
 test/type_inference
 test/utility
 test/vm
