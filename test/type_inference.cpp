@@ -7,10 +7,6 @@
 
 #include <gtest/gtest.h>
 
-#include <iostream>
-#include <unordered_map>
-#include <unordered_set>
-
 #include <lexical_environment.hpp>
 #include <type_inference.hpp>
 

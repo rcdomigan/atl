@@ -5,8 +5,6 @@
  */
 
 #include <vm.hpp>
-#include <primitive_callable.hpp>
-#include <lexical_environment.hpp>
 #include "./testing_utils.hpp"
 
 #include <gtest/gtest.h>

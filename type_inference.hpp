@@ -11,9 +11,7 @@
 #include "./helpers.hpp"
 
 #include <unordered_map>
-#include <initializer_list>
 #include <vector>
-#include <stdexcept>
 #include <functional>
 
 namespace atl

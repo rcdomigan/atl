@@ -11,10 +11,6 @@
 #include <limits>
 #include <iostream>
 
-#include "./type.hpp"
-#include "./conversion.hpp"
-#include "./type_testing.hpp"
-
 namespace atl {
     template<class Int>
     void print_binary(Int num)

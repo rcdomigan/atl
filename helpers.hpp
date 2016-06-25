@@ -8,6 +8,7 @@
 #include "./conversion.hpp"
 #include "./utility.hpp"
 #include "./pass_value.hpp"
+#include "./type_testing.hpp"
 
 namespace atl
 {

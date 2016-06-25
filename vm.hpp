@@ -19,7 +19,6 @@
 #include <boost/preprocessor/stringize.hpp>
 
 #include "./type.hpp"
-#include "./gc.hpp"
 #include "./utility.hpp"
 #include "./exception.hpp"
 

@@ -6,9 +6,7 @@
  * Created on May 19, 2015
  */
 
-#include <gc.hpp>
 #include <ffi.hpp>
-#include "../compile.hpp"
 
 
 long add2(long a, long b) { return a + b; }

@@ -12,10 +12,6 @@
 #include <boost/mpl/push_back.hpp>
 #include <boost/mpl/at.hpp>
 
-#include "./type.hpp"
-#include "./type_traits.hpp"
-#include "./conversion.hpp"
-#include "./gc.hpp"
 #include "./helpers.hpp"
 #include "./utility.hpp"
 
