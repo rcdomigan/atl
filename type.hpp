@@ -242,56 +242,9 @@ namespace atl
 	/** | _|_|  ||  |_  **/
 	/**           pimpl **/
 	/*********************/
-	struct Type // OK, type isn't a pimpl
     {
-	    typedef tag_t value_type;
 
-        tag_t _tag;
-	    tag_t value;
-
-	    Type(tag_t value_) : _tag(tag<Type>::value), value(value_) {}
-	    bool operator<(Type const& other) const { return value < other.value; }
-	    bool operator==(Type const& other) const { return value == other.value; }
-	    bool operator!=(Type const& other) const { return value != other.value; }
     };
-
-	struct Scheme
-	{
-		typedef std::unordered_set<Type::value_type> Quantified;
-		Quantified quantified;
-		Any type;
-
-		Scheme() : type(tag<Undefined>::value, nullptr) {}
-
-		Scheme(Quantified const& bound_, Any const& type_)
-			: quantified(bound_), type(type_)
-		{}
-	};
-
-    struct Symbol
-    {
-	    std::string name;
-	    Scheme scheme;
-
-	    Symbol(std::string const& name_)
-		    : name(name_)
-	    {}
-
-	    Symbol(std::string const& name_, Scheme const& type_)
-		    : name(name_), scheme(type_)
-	    {}
-    };
-
-	struct Bound
-	{
-		tag_t _tag;
-		/* Refers to my formal or toplevel definition */
-		Symbol *value;
-
-		Bound(Symbol *vv)
-			: _tag(tag<Bound>::value), value(vv)
-		{}
-	};
 
 	namespace ast_helper
 	{
@@ -457,15 +410,76 @@ namespace atl
 	// Any.
 	Ast AstData_to_Ast(Any &input)
 	{ return Ast(&reinterpret_cast<AstData&>(input)); }
+	struct Type // OK, type isn't a pimpl
+    {
+	    typedef tag_t value_type;
 
+        tag_t _tag;
+	    tag_t value;
 
+	    Type(tag_t value_) : _tag(tag<Type>::value), value(value_) {}
+	    bool operator<(Type const& other) const { return value < other.value; }
+	    bool operator==(Type const& other) const { return value == other.value; }
+	    bool operator!=(Type const& other) const { return value != other.value; }
+    };
+
+	struct Scheme
 	{
+		typedef std::unordered_set<Type::value_type> Quantified;
+		Quantified quantified;
+		Any type;
 
+		Scheme() : type(tag<Undefined>::value, nullptr) {}
+
+		Scheme(Quantified const& bound_, Any const& type_)
+			: quantified(bound_), type(type_)
+		{}
 	};
 
+    struct Symbol
+    {
+	    enum Subtype {variable, constant};
+	    Subtype subtype;
+
+	    std::string name;
+	    Scheme scheme;
+
+	    Any value;
+
+	    Symbol(std::string const& name_)
+		    : subtype(Subtype::variable)
+		    , name(name_)
+		    , value(tag<Undefined>::value)
+	    {}
+
+	    Symbol(std::string const& name_, Scheme const& type_)
+		    : subtype(Subtype::variable)
+		    , name(name_)
+		    , scheme(type_)
+		    , value(tag<Undefined>::value)
+	    {}
+    };
+
+	struct Bound
 	{
+		/* Refers to my formal or toplevel definition */
+		Symbol *sym;
 
+		enum Subtype {is_local, is_closure};
+		Subtype subtype;
+		size_t offset;
 
+		LambdaMetadata *closure;
+
+		Bound(Symbol *vv
+		      , Subtype subtype_
+		      , size_t offset_)
+			: sym(vv)
+			, subtype(Subtype::is_local)
+			, offset(offset_)
+			, closure(nullptr)
+		{}
+	};
 
     struct String {
 	std::string value;
