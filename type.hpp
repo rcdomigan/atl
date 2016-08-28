@@ -83,7 +83,7 @@ namespace atl
     struct is_pimpl : public std::false_type {};
 
 
-#define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(DeclareType)(Type)(Ast)(AstData)(Parameter)(ClosureParameter)(Bound)(Undefined)(FunctionConstructor)
+#define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(DeclareType)(Type)(Ast)(AstData)(Bound)(Undefined)(FunctionConstructor)
 #define ATL_PIMPL_SEQ (Slice)(String)(Symbol)(DefProcedure)(Procedure)(Macro)(Struct)(CxxFunctor)(CxxMacro)(Scheme)
 #define ATL_TYPES_SEQ ATL_REINTERPERABLE_SEQ ATL_PIMPL_SEQ
 
@@ -459,23 +459,12 @@ namespace atl
 	{ return Ast(&reinterpret_cast<AstData&>(input)); }
 
 
-	struct Parameter
 	{
-		tag_t _tag;
-		size_t value;  // offset of the argument
 
-		Parameter() : _tag(tag<Parameter>::value), value(0) {}
-		Parameter(size_t offset_) noexcept : _tag(tag<Parameter>::value), value(offset_) {}
 	};
 
-	struct ClosureParameter
 	{
-		tag_t _tag;
-		size_t value;  // offset of the argument
 
-		ClosureParameter() : _tag(tag<ClosureParameter>::value), value(0) {}
-		ClosureParameter(size_t offset_) noexcept : _tag(tag<ClosureParameter>::value), value(offset_) {}
-	};
 
 
     struct String {
@@ -492,20 +481,6 @@ namespace atl
 
     template<> struct
     tag<std::string*> : public tag<String> {};
-
-
-    struct DefProcedure
-    {
-	    typedef std::set<std::string> Closure;
-	    Closure closure;
-
-        size_t tail_params;
-        tag_t return_type;
-
-	    DefProcedure(size_t padding=0, tag_t rtype=0)
-		    : tail_params(padding), return_type(rtype)
-        {}
-    };
 
     /* Macro and Procedure have the same data layout, but distinct tags */
     struct Procedure
