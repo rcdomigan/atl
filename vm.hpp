@@ -30,7 +30,7 @@ namespace atl
 	struct TinyVM
 	{
 		typedef uintptr_t value_type;
-		typedef uintptr_t* iterator;
+		typedef value_type* iterator;
 		static const size_t stack_size = 100;
 
 		CodeBacker const* code;	// just the byte code
@@ -49,6 +49,8 @@ namespace atl
 
 		void push() { *(top++) = (*code)[pc + 1]; pc += 2; }
 		void pop() { top--; ++pc; }
+
+		inline iterator args_begin() { return call_stack - 1; }
 
 		/** [arg1]...[argn][arity][pointer to std::function] */
 		template<class Fn>
@@ -139,7 +141,7 @@ namespace atl
 		void argument()
 		{
 			--top;
-			*top = *(call_stack - *top);
+			*top = *(args_begin() - *top);
 			++top; ++pc;
 		}
 
