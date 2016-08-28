@@ -30,12 +30,11 @@ TEST_F(TestHelpers, test_trivial_pattern_matcher)
 	{
 		using namespace pattern_matcher;
 
-		auto sym_matcher = match_is<Symbol>();
+		auto sym_matcher = a<Symbol>();
 		ASSERT_TRUE(sym_matcher(ref_wrap(sym_expr)));
 		ASSERT_FALSE(sym_matcher(ref_wrap(ast_expr)));
 
-		auto ast_matcher = match_ast(match_is<Lambda>(),
-		                             match_ast(match_is<Symbol>()));
+		auto ast_matcher = ast(a<Lambda>(), ast(a<Symbol>()));
 		ASSERT_TRUE(ast_matcher(ast_expr).is_match);
 	}
 }
@@ -61,10 +60,9 @@ TEST_F(TestHelpers, test_pattern_matcher)
 	{
 		using namespace pattern_matcher;
 
-		auto matcher = match_ast
-			(match_is<Lambda>(),
-			 capture<Symbol>(),
-			 match_is<Symbol>());
+		auto matcher = ast(a<Lambda>(),
+		                   a<Symbol>(),
+		                   a<Symbol>());
 
 		auto first = matcher(ref_wrap(matching_expr));
 		ASSERT_TRUE(first.is_match);
@@ -97,11 +95,11 @@ TEST_F(TestHelpers, test_nested_pattern_matcher)
 	{
 		using namespace pattern_matcher;
 
-		auto matcher = match_ast
-			(match_is<Lambda>(),
+		auto matcher = ast
+			(a<Lambda>(),
 			 whatever(),
-			 match_ast(capture<Symbol>(),
-			           capture<Fixnum>()));
+			 ast(capture<Symbol>(),
+			     capture<Fixnum>()));
 
 		auto first = matcher(ref_wrap(matching_expr));
 		ASSERT_TRUE(first);
@@ -231,4 +229,56 @@ TEST_F(TestHelpers, test_pass_value)
 
 	ASSERT_EQ(3, unwrap<Fixnum>(sub[1][1].value).value);
 	ASSERT_EQ(4, unwrap<Fixnum>(sub[2].value).value);
+}
+
+TEST_F(TestHelpers, test_fn_type)
+{
+	using namespace fn_type;
+	using make_ast::ast_alloc;
+
+	Arena store;
+
+	auto ast_store = ast_alloc(store);
+	auto type = fn(tt<Bool>(), 1, 1)(ast_store);
+
+	std::cout << printer::print(type) << std::endl;
+}
+
+TEST_F(TestHelpers, test_fn_type_thunk)
+{
+	using namespace fn_type;
+	using make_ast::ast_alloc;
+
+	Arena store;
+
+	auto ast_store = ast_alloc(store);
+	auto type = fn(tag<Fixnum>::value)(ast_store);
+
+	{
+		using namespace pattern_match;
+		ASSERT_TRUE
+			(match(fnt(tt<Fixnum>()),
+			       wrap(type)))
+			<< printer::print(type) << std::endl;
+	}
+}
+
+TEST_F(TestHelpers, test_unwrap_slice)
+{
+	using namespace make_ast;
+	Arena arena;
+
+	auto expr = mk("define",
+	               "main",
+	               mk(wrap<Lambda>(),
+	                  mk(),
+	                  mk("my-add3", 2, 3, 7)))
+		(ast_alloc(arena));
+
+	auto& value = expr[2];
+	auto slice = unwrap_slice(value);
+
+	ASSERT_EQ(tag<Lambda>::value, slice[0]._tag);
+	ASSERT_EQ(tag<AstData>::value, slice[1]._tag);
+	ASSERT_EQ(tag<AstData>::value, slice[2]._tag);
 }

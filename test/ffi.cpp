@@ -26,39 +26,73 @@ struct TypeBasics
 
 	TypeBasics() { init_types(); }
 	make_ast::AstAllocator new_ast() { return make_ast::ast_alloc(store); }
+
+	// function constructor type
+	Any fn() { return wrap<Type>(tag<FunctionConstructor>::value); }
+
+	template<class T>
+	Any type() { return wrap<Type>(tag<T>::value); }
 };
 
 
-namespace cxx_wrappers
-{
-    long foo(bool a) { return 1; }
-    bool bar(long a, long b) { return true; }
-}
-
-
-TEST_F(TypeBasics, CxxFunctions)
+TEST_F(TypeBasics, test_uniary_cxx_functions)
 {
 	using namespace make_ast;
 
-    typedef WrapStdFunction<long (bool)> wfoo;
+	typedef WrapStdFunction<long (bool)> uniary;
 
-    auto a_types = wfoo::parameter_types(store);
+	ASSERT_EQ(1, uniary::arity());
 
-    ASSERT_EQ(a_types,
-              mk(lift<Type>(tag<FunctionConstructor>::value),
-                 lift<Type>(tag<Bool>::value),
-                 lift<Type>(tag<Fixnum>::value))(new_ast()));
+	auto uniary_types = uniary::parameter_types(store);
 
-    typedef WrapStdFunction<bool (long, long)> wbar;
-    auto b_types = wbar::parameter_types(store);
+	ASSERT_EQ(tag<Ast>::value, uniary_types._tag);
+	ASSERT_EQ(mk(fn(), type<Bool>(), type<Fixnum>())(new_ast())
 
-    ASSERT_EQ(b_types,
-              mk(lift<Type>(tag<FunctionConstructor>::value),
-                 lift<Type>(tag<Fixnum>::value),
-                 lift<Type>(tag<Fixnum>::value),
-                 lift<Type>(tag<Bool>::value))
-              (new_ast()));
+	          , uniary_types);
+}
 
-    ASSERT_EQ(wfoo::arity(), 1);
-    ASSERT_EQ(wbar::arity(), 2);
+TEST_F(TypeBasics, test_binary_cxx_functions)
+{
+	using namespace make_ast;
+
+	typedef WrapStdFunction<bool (long, long)> binary;
+
+	ASSERT_EQ(2, binary::arity());
+
+	auto binary_types = binary::parameter_types(store);
+
+	ASSERT_EQ(tag<Ast>::value, binary_types._tag);
+	ASSERT_EQ(mk(fn(),
+	             lift<Type>(tag<Fixnum>::value),
+	             mk(fn(),
+	                lift<Type>(tag<Fixnum>::value),
+	                lift<Type>(tag<Bool>::value)))
+	          (new_ast())
+
+	          , binary_types);
+}
+
+TEST_F(TypeBasics, test_trinary_cxx_functions)
+{
+	using namespace make_ast;
+
+	typedef WrapStdFunction<bool (long, bool, long)> triple;
+
+	ASSERT_EQ(3, triple::arity());
+
+	auto triple_types = triple::parameter_types(store);
+
+	ASSERT_EQ(tag<Ast>::value, triple_types._tag);
+
+	ASSERT_EQ(mk(fn(),
+	             lift<Type>(tag<Fixnum>::value),
+	             mk(fn(),
+	                lift<Type>(tag<Bool>::value),
+	                mk(fn(),
+	                   lift<Type>(tag<Fixnum>::value),
+	                   lift<Type>(tag<Bool>::value))))
+	          (new_ast())
+
+	          , triple_types);
+
 }

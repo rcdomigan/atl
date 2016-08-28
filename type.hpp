@@ -524,18 +524,21 @@ namespace atl
 
     struct CxxFunctor
     {
-	    const std::string _name;
+	    const std::string name;
 
 	    typedef std::function<void (vm_stack::iterator begin, vm_stack::iterator end)> Fn;
 	    typedef Fn value_type;
 	    mutable value_type fn;
 
-	    Ast types;
+	    // A function signature (-> a (-> b c)), or (-> a) for a thunk
+	    Ast type;
+	    size_t arity;
 
 	    CxxFunctor(const Fn& fn
 	               , const std::string& name
-	               , Ast const& tt)
-		    : _name(name), fn(fn), types(tt)
+	               , Ast const& tt
+	               , size_t arity_)
+		    : name(name), fn(fn), type(tt), arity(arity_)
 	    {}
     };
 

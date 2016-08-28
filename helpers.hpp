@@ -387,11 +387,149 @@ namespace atl
 			}
 	}
 
+	namespace fn_type
+	{
+		using make_ast::AstAllocator;
+		using make_ast::NestAst;
+		using make_ast::ast_alloc;
+		using make_ast::ast_composer;
+
+		/** Make a function declartion like (-> a (-> b c)) from arguments like (a b c).
+		 */
+
+		struct FnBuilder
+		{
+			AstAllocator space;
+			std::vector<NestAst> nesting;
+
+			bool is_last;
+
+			FnBuilder(AstAllocator ss)
+				: space(ss)
+				, is_last(false)
+			{}
+
+			void _push_back(Any const& tt)
+			{
+				switch(tt._tag)
+					{
+					case tag<Slice>::value:
+					case tag<Ast>::value:
+					case tag<AstData>::value:
+						{
+							// assume it's a nested function:
+							ast_hof::copy(pass_value(tt).slice,
+							              space);
+							break;
+						}
+					default:
+						space.push_back(tt);
+					}
+			}
+
+			void _nest()
+			{
+				nesting.emplace_back(space);
+				space.push_back(wrap<Type>(tag<FunctionConstructor>::value));
+			}
+
+			void last_arg(Any const& type)
+			{ _push_back(type); }
+
+			void other_arg(Any const& type)
+			{
+				_nest();
+				_push_back(type);
+			}
+
+			void arg_type(Any type)
+			{
+				if(is_last)
+					{ last_arg(type); }
+				else
+					{ other_arg(type); }
+			}
+
+			/* Note: this is useful for the "shape_check" used in testing, but won't produce a proper type. */
+			void operator()(std::string const& ss)
+			{ arg_type(wrap(space.symbol(ss))); }
+
+			void operator()(long ss)
+			{ arg_type(wrap<Type>(ss)); }
+
+			void operator()(unsigned long ss)
+			{ arg_type(wrap<Type>(ss)); }
+
+			void operator()(int ss)
+			{ arg_type(wrap<Type>(ss)); }
+
+			void operator()(Any const& value) { arg_type(value); }
+
+			void operator()(ast_composer const& fn)
+			{
+				if(!is_last)
+					{ _nest(); }
+
+				fn(space);
+			}
+
+			Ast root() { return Ast(&reinterpret_cast<AstData&>(space.buffer.root())); }
+		};
+
+		template<typename Tuple,
+		         size_t size = std::tuple_size<Tuple>::value>
+		struct _DispatchRunner
+		{
+			static Ast a(Tuple const& tup, AstAllocator& space)
+			{
+				FnBuilder runner(space);
+
+				ForeachTuple<Tuple, 0, std::tuple_size<Tuple>::value - 2>::apply(runner, tup);
+
+				runner(std::get<std::tuple_size<Tuple>::value - 2>(tup));
+
+				runner.is_last = true;
+				runner(std::get<std::tuple_size<Tuple>::value - 1>(tup));
+
+				return runner.root();
+			}
+		};
+
+		// thunk:
+		template<class Tuple>
+		struct _DispatchRunner<Tuple, 1>
+		{
+			static Ast a(Tuple const& tup, AstAllocator& space)
+			{
+				FnBuilder runner(space);
+				runner(get<0>(tup));
+				return runner.root();
+			}
+		};
+
+		template<class ... Args>
+		std::function<Ast (make_ast::AstAllocator)>
+		fn(Args ... args)
+		{
+			typedef std::tuple<Args...> Tuple;
+
+			auto tup = Tuple(std::forward<Args>(args)...);
+
+			return [tup](AstAllocator space) -> Ast
+				{
+					static_assert(std::tuple_size<Tuple>::value > 0,
+					              "Some arguments required");
+					return _DispatchRunner<Tuple>::a(tup, space);
+				};
+		}
+	}
+
 
 	struct AstSubscripter
 	{
 		PassByValue value;
 		AstSubscripter(PassByValue const& in) : value(in) {}
+		AstSubscripter(Ast& value_) : value(pass_value(value_)) {}
 		AstSubscripter() = delete;
 
 		AstSubscripter operator[](off_t pos)

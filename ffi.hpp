@@ -43,20 +43,18 @@ namespace atl {
 
 		struct Metadata
 		{
-			template<class R, class ... Sig>
+			template<class R, class ... Rest>
 			struct apply
 			{
 				static constexpr size_t arity()
-				{ return sizeof...(Sig); }
+				{ return sizeof...(Rest); }
+
 
 				template<class Alloc>
 				static Ast parameter_types(Alloc& gc)
 				{
-					using namespace make_ast;
-					return make(lift<Type>(tag<FunctionConstructor>::value),
-					            lift<Type>(tag<Sig>::value)...,
-					            lift<Type>(tag<R>::value))
-						(ast_alloc(gc));
+					using namespace fn_type;
+					return fn_type::fn(GuessTag<Rest>::value..., GuessTag<R>::value)(ast_alloc(gc));
 				}
 			};
 		};
@@ -94,7 +92,8 @@ namespace atl {
 						 return call_packed(fn, vv, tmpl::BuildIndicies<WrapStdFunction::arity()> {});
 					 }
 					 , name
-					 , WrapStdFunction::parameter_types(gc) );
+					 , WrapStdFunction::parameter_types(gc)
+					 , WrapStdFunction::arity());
 			}
 
 			template<class Alloc>
