@@ -13,6 +13,7 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <cassert>
 
 #include <boost/preprocessor/seq/enum.hpp>
 #include <boost/preprocessor/seq/for_each.hpp>
@@ -150,9 +151,13 @@ namespace atl
 	struct WrapCodeForAssembler
 	{
 		typedef CodeBacker::iterator iterator;
+
+		OffsetTable offset_table;
+
 		virtual void push_back(uintptr_t cc)=0;
-		virtual size_t size()=0;
+		virtual size_t size() const=0;
 		virtual iterator begin()=0;
+		virtual iterator end()=0;
 	};
 
 
@@ -164,40 +169,36 @@ namespace atl
 		typedef typename CodeBacker::const_iterator const_iterator;
 
 
-		OffsetTable offset_table;
 		CodeBacker code;
 
 		Code() = default;
 		Code(size_t initial_size) : code(initial_size) {}
-
-		/** Takes code and prepares it for appending. Strip off terminating
-		 * 'finish' instructions, strip that off during and add it back
-		 * when the code is passed back out with return_code.
-		 *
-		 * @param input: Pointer to the code we're modifying
-		 */
-		void take_code(Code const& input)
-		{
-			offset_table = input.offset_table;
-			code = input.code;
-			if(!code.empty() && code.back() == vm_codes::values::finish)
-				code.pop_back();
-		}
 
 		bool has_main() const { return offset_table.table.count("main") != 0; }
 		size_t main_entry_point() const
 		{ return offset_table.table.at("__call-main__"); }
 
 		virtual iterator begin() override { return code.begin(); }
-		iterator end() { return code.end(); }
+		virtual iterator end() override { return code.end(); }
+
+		const_iterator begin() const { return code.begin(); }
+		const_iterator end() const { return code.end(); }
 
 		virtual void push_back(uintptr_t cc) override
 		{ code.push_back(cc); }
 
-		virtual size_t size() override { return code.size(); }
+		virtual size_t size() const override { return code.size(); }
+
+		void pop_back() { code.pop_back(); }
 
 		void dbg() const;
 		void print(std::ostream &) const;
+
+		bool operator==(Code const& other) const
+		{ return code == other.code; }
+
+		bool operator==(Code& other)
+		{ return code == other.code; }
 	};
 
 	void Code::print(std::ostream &out) const
@@ -244,33 +245,47 @@ namespace atl
 	{ print(std::cout); }
 
 
-	struct WrapCodeIter
+	struct WrapCodeItr
 		: public WrapCodeForAssembler
 	{
 		typedef WrapCodeForAssembler::iterator iterator;
-		iterator _begin, itr;
+		iterator _begin, _end, itr;
 
-		WrapCodeIter(iterator begin_) : _begin(begin_), itr(begin_) {}
+		WrapCodeItr(iterator begin_, iterator end_)
+			: _begin(begin_)
+			, _end(end_)
+			, itr(begin_)
+		{}
+
+		WrapCodeItr(WrapCodeForAssembler& other)
+			: WrapCodeItr(other.begin(), other.end())
+		{}
+
+		void set_position(size_t offset)
+		{ itr = _begin + offset; }
 
 		virtual void push_back(uintptr_t cc) override
 		{
+			assert(itr < _end);
 			*itr = cc;
 			++itr;
 		}
 
-		virtual size_t size() override { return itr - _begin; }
+		virtual size_t size() const override { return itr - _begin; }
+
 		virtual iterator begin() override { return _begin; }
+		virtual iterator end() override { return _end; }
 	};
 
-	struct AssembleCode
+ 	struct AssembleCode
 	{
 		typedef uintptr_t value_type;
 		typedef Code::const_iterator const_iterator;
 
-		WrapCodeForAssembler *output;
+		WrapCodeForAssembler *code;
 
 		AssembleCode() = default;
-		AssembleCode(WrapCodeForAssembler *output_) : output(output_) {}
+		AssembleCode(WrapCodeForAssembler *code_) : code(code_) {}
 
 #define M(r, data, instruction) AssembleCode& instruction() {             \
 			_push_back(vm_codes::Tag<vm_codes::instruction>::value); \
@@ -279,7 +294,13 @@ namespace atl
 		BOOST_PP_SEQ_FOR_EACH(M, _, ATL_ASSEMBLER_NORMAL_BYTE_CODES)
 #undef M
 
-		void _push_back(uintptr_t cc) { output->push_back(cc); }
+		void _push_back(uintptr_t cc) { code->push_back(cc); }
+
+		AssembleCode& patch(pcode::Offset offset, pcode::value_type value)
+		{
+			*(code->begin() + offset) = value;
+			return *this;
+		}
 
 		AssembleCode& constant(uintptr_t cc)
 		{
@@ -296,8 +317,8 @@ namespace atl
 			return pointer(aa.value);
 		}
 
-		pcode::Offset pos_last() { return output->size() - 1;}
-		pcode::Offset pos_end() { return output->size(); }
+		pcode::Offset pos_last() { return code->size() - 1;}
+		pcode::Offset pos_end() { return code->size(); }
 
 
 		// Takes the offset to the body
@@ -313,12 +334,14 @@ namespace atl
 			return call_closure();
 		}
 
+		/* The `offset`th element from the end.  Last element is 0. */
 		AssembleCode& closure_argument(size_t offset)
 		{
 			constant(offset);
 			return closure_argument();
 		}
 
+		/* Counts back from the function. Offset 0 is the first argument. */
 		AssembleCode& argument(uintptr_t offset)
 		{
 			constant(offset);
@@ -352,17 +375,29 @@ namespace atl
 			return std_function();
 		}
 
-		/* We don't yet know the value of a symbol so chuck enough data in that we can backpatch later */
-		AssembleCode& pad_for_backpatch()
+		value_type& operator[](off_t pos) { return *(code->begin() + pos); }
+
+		/* Add a label to the current pos_last. */
+		AssembleCode& add_label(std::string const& name)
 		{
-			// For now it'll be a push and a call.
-			nop();
-			nop();
-			nop();
+			code->offset_table.set(name, pos_end());
 			return *this;
 		}
 
-		value_type& operator[](off_t pos) { return *(output->begin() + pos); }
+		/* Insert the current pos_last + `offset` at the location indicated by `name`. */
+		AssembleCode& constant_patch_label(std::string const& name)
+		{
+			patch(code->offset_table[name] + 1,
+			      pos_end());
+			return *this;
+		}
+
+		// implementation requires the compiler
+		virtual AssembleCode& needs_patching(Symbol&)
+		{ throw WrongTypeError("Basic AssembleCode can't patch"); }
+
+		virtual AssembleCode& patch(Symbol&)
+		{ throw WrongTypeError("Basic AssembleCode can't patch"); }
 	};
 }
 

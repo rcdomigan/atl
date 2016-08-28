@@ -5,6 +5,7 @@
  */
 
 #include <vm.hpp>
+#include "./trivial_functions.hpp"
 #include "./testing_utils.hpp"
 
 #include <gtest/gtest.h>
@@ -16,6 +17,7 @@ struct VmTest : public ::testing::Test
 	Code code_store;
     AssembleCode assemble;
 	TinyVM vm;
+	TrivialFunctions fns;
 
 	VmTest() : assemble(&code_store) {}
 };
@@ -23,7 +25,6 @@ struct VmTest : public ::testing::Test
 TEST_F(VmTest, TestCxxFn2)
 {
     using namespace atl;
-    auto fns = TrivialFunctions();
 
     assemble.constant(2)
         .constant(3)
@@ -33,6 +34,54 @@ TEST_F(VmTest, TestCxxFn2)
     run_code(vm, code_store);
 
     ASSERT_EQ(vm.stack[0], 5);
+}
+
+TEST_F(VmTest, test_over_write_constant)
+{
+	assemble.constant(2);
+
+	auto patch = assemble.pos_end();
+
+	assemble
+        .constant(3)
+        .std_function(&fns.wadd->fn, 2)
+        .finish();
+
+    WrapCodeItr overwrite_code(*assemble.code);
+    AssembleCode overwrite(&overwrite_code);
+
+    overwrite_code.set_position(patch);
+
+    overwrite.constant(4);
+
+    run_code(vm, code_store);
+
+    ASSERT_EQ(vm.stack[0], 6);
+}
+
+TEST_F(VmTest, test_over_write_function)
+{
+
+	assemble
+        .constant(3)
+		.constant(2);
+
+	auto patch = assemble.pos_end();
+
+	assemble
+        .std_function(&fns.wadd->fn, 2)
+        .finish();
+
+    WrapCodeItr overwrite_code(*assemble.code);
+    AssembleCode overwrite(&overwrite_code);
+
+    overwrite_code.set_position(patch);
+
+    overwrite.std_function(&fns.wsub->fn, 2);
+
+    run_code(vm, code_store);
+
+    ASSERT_EQ(vm.stack[0], 1);
 }
 
 TEST_F(VmTest, TestSimpleCxxStdFunction)
@@ -132,34 +181,32 @@ TEST_F(VmTest, TestIfFalse)
     ASSERT_EQ(vm.stack[0], 9);
 }
 
-TEST_F(VmTest, TestArguments)
+TEST_F(VmTest, test_simple_function)
 {
-    TrivialFunctions fns;
+	//  ((\ (a b) (sub a b)) 5 3)
+	assemble.constant(5)
+		.constant(3)
+		.add_label("function")
+		.call_procedure(0)
+		.finish()
+		.constant_patch_label("function")
+		.argument(1)
+		.argument(0)
+		.std_function(&fns.wsub->fn,
+		              2)
+		.constant(2) // # args
+		.return_();
 
-    assemble.constant(5)
-	.constant(3)
-	.pointer(nullptr);
-    auto procedure_address = assemble.pos_last();
+	run_code(vm, code_store);
 
-    assemble.call_procedure()
-	.finish();
-
-    assemble[procedure_address] = assemble.pos_end();
-
-    assemble.argument(2)
-	.argument(1)
-	.std_function(&fns.wsub->fn,
-                      2)
-	.constant(2) // # args
-	.return_();
-
-    run_code(vm, code_store);
-
-    ASSERT_EQ(vm.stack[0], 2);
+	ASSERT_EQ(vm.stack[0], 2);
 }
 
-
-TEST_F(VmTest, SMoveN)
+/* The way a tail call works (ATM) is to place the call's arguments on
+ * the top of the stack, then move them down the stack to over-write
+ * its caller's stack.
+ */
+TEST_F(VmTest, test_move_n)
 {
     assemble.pointer(nullptr);
     auto after_defs = assemble.pos_last(); // skip over function definitions
@@ -190,8 +237,6 @@ TEST_F(VmTest, SMoveN)
 /** Try accessing parameters from a closure. */
 TEST_F(VmTest, test_bound_non_locals)
 {
-    auto fns = TrivialFunctions();
-
 	Closure my_closure;
 	my_closure.body = 0;
 	my_closure.values = {3, 5};
@@ -210,32 +255,4 @@ TEST_F(VmTest, test_bound_non_locals)
 	run_code(vm, code_store);
 
 	ASSERT_EQ(8, vm.stack[0]);
-}
-
-
-/* Test that the over-writing instructions with WrapCodeIter */
-TEST_F(VmTest, test_over_writing)
-{
-	auto fns = TrivialFunctions();
-	assemble
-		.constant(2)
-		.constant(3);
-
-	auto pos = assemble.pos_end();
-
-	assemble
-		.nop()
-		.nop()
-		.nop()
-		.nop()
-		.nop()
-		.finish();
-
-	WrapCodeIter over_writer(code_store.begin() + pos);
-
-	AssembleCode(&over_writer).std_function(&fns.wadd->fn, 2);
-
-	run_code(vm, code_store);
-	ASSERT_EQ(5, vm.stack[0]);
-
 }
