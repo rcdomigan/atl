@@ -215,11 +215,12 @@ namespace atl
     /* | |_) | (_) | (_) | | */
     /* |____/ \___/ \___/|_| */
     /*************************/
-    struct Bool {
-	tag_t _tag;
-	long value;
-	Bool() : _tag(tag<Bool>::value), value(false) {}
-        Bool(bool vv) : _tag(tag<Bool>::value), value(vv) {}
+    struct Bool
+    {
+	    tag_t _tag;
+	    long value;
+	    Bool() : _tag(tag<Bool>::value), value(false) {}
+	    Bool(bool vv) : _tag(tag<Bool>::value), value(vv) {}
     };
     template<>
     struct tag<bool> : public tag<Bool> {};
@@ -414,7 +415,8 @@ namespace atl
 			return *itr;
 		}
 
-		const Any& operator[](size_t n) const {
+		Any const& operator[](size_t n) const
+		{
 			auto itr = begin();
 			itr = itr + n;
 			return *itr;
@@ -675,11 +677,12 @@ namespace atl
 
     unsigned int type_tag(Any a) { return a._tag; }
 
-    const char* type_name(unsigned int t) {
-	if (t > BOOST_PP_SEQ_SIZE(ATL_TYPES_SEQ))
-	    return "TYPE_TAG_OUT_OF_RANGE";
-	return primitive_type_names[t];
-    }
+	const char* type_name(unsigned int t)
+	{
+		if (t > BOOST_PP_SEQ_SIZE(ATL_TYPES_SEQ))
+			{ return "TYPE_TAG_OUT_OF_RANGE"; }
+		return primitive_type_names[t];
+	}
     const char* type_name(Any a) { return type_name( type_tag(a)); }
 }
 
