@@ -10,7 +10,7 @@ IWYU=iwyu -std=c++11 $(CLANG_INCLUDE)
 CXX=g++ $(CXXFLAGS) $(GCC_INCLUDE)
 #CXX=clang $(CXXFLAGS) -lc++ -stdlib=libc++ $(CLANG_INCLUDE)
 
-%: %.cpp ../*.hpp ./*.hpp
+%: %.cpp ../*.hpp ../helpers/*.hpp ./*.hpp
 	$(CXX) $< $(GTEST_LINK) -o $@
 
 iwyu-%:

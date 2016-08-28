@@ -252,116 +252,6 @@ namespace atl
 			{ store.push_back(input); }
 	}
 
-
-	namespace pattern_matcher
-	{
-		struct Match
-		{
-			bool is_match;
-			typedef std::vector<Any*> Matches;
-			Matches matches;
-
-			Any& operator[](off_t pos) { return *matches[pos]; }
-			operator bool() { return is_match; }
-
-			Match(bool is_match_, Matches&& matches_)
-				: is_match(is_match_), matches(matches_)
-			{}
-
-			Match(bool is_match_)
-				: is_match(is_match_)
-			{}
-
-			Match(Match && other)
-				: is_match(other.is_match), matches(std::move(other.matches))
-			{}
-		};
-
-		typedef std::function<Match (Any&)> Matcher;
-
-		template<class T>
-		Matcher capture()
-		{
-			return [](Any& expr) -> Match
-				{
-					if(is<T>(expr))
-						{ return Match(true, Match::Matches({&expr})); }
-					else
-						{ return Match(false); }
-				};
-		}
-
-		Matcher capture_whatever()
-		{
-			return [](Any& expr) -> Match
-				{
-					return Match(true, Match::Matches({&expr}));
-				};
-		}
-
-		template<class T>
-		Matcher match_is()
-		{
-			return [](Any& expr) -> Match
-				{ return Match(is<T>(expr)); };
-		}
-
-		Matcher whatever()
-		{
-			return [](Any& expr) -> Match
-				{ return Match(true); };
-		}
-
-		template<class ... Args>
-		Matcher match_ast(Args ... args)
-		{
-			auto tup = make_tuple(args...);
-			return [tup](Any& expr) -> Match
-				{
-					AstData* ast;
-
-					switch(expr._tag)
-						{
-						case tag<AstData>::value:
-							ast = &explicit_unwrap<AstData>(expr);
-							break;
-						case tag<Ast>::value:
-							ast = explicit_unwrap<Ast>(expr).value;
-							break;
-						default:
-							return Match(false);
-						}
-
-					Match match(true);
-					auto itr = ast->begin();
-
-					auto accume = [&](Matcher const& fn) -> bool
-						{
-							if(itr == ast->end())
-								{ return false; }
-
-							auto inner_result = fn(*itr);
-							if(inner_result.is_match)
-								{
-									++itr;
-									match.matches.insert(match.matches.end(),
-									                     inner_result.matches.begin(),
-									                     inner_result.matches.end());
-									return true;
-								}
-							else
-								{ return false; }
-						};
-
-					match.is_match = and_tuple(accume, tup);
-					if(itr != ast->end())
-						{ return Match(false); }
-					else
-						{ return match; }
-				};
-		}
-	}
-
 	/* Pass through a Slice or wrap an ast or AstData */
 	Slice unwrap_slice(Any& input)
 	{
@@ -387,12 +277,25 @@ namespace atl
 			}
 	}
 
+	namespace make_type
+	{
+		/** Make a Type with T's tag.  Not much to it, but used in a bunch of tests.
+		 * @tparam T: the type whose tag to use
+		 * @return: a wraped Type
+		 */
+		template<class T>
+		Any tt() { return wrap<Type>(tag<T>::value); }
+	}
+
+
+
 	namespace fn_type
 	{
 		using make_ast::AstAllocator;
 		using make_ast::NestAst;
 		using make_ast::ast_alloc;
 		using make_ast::ast_composer;
+		using make_type::tt;
 
 		/** Make a function declartion like (-> a (-> b c)) from arguments like (a b c).
 		 */

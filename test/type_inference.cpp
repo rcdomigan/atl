@@ -9,6 +9,7 @@
 
 #include <lexical_environment.hpp>
 #include <type_inference.hpp>
+#include <helpers/pattern_match.hpp>
 
 using namespace atl;
 
@@ -453,37 +454,38 @@ TEST_F(Inference, test_multi_arg_lambda)
 
     auto We1 = W(store, new_types, gamma, pass_value(e1));
 
-    auto type = explicit_unwrap<Ast>(We1.type);
-    ASSERT_EQ(type[0], wrap<Type>(tag<FunctionConstructor>::value));
-    ASSERT_EQ(type[1], type[3]);
-    ASSERT_NE(type[1], type[2]);
+    {
+	    using namespace pattern_match;
+	    ASSERT_TRUE
+		    (match(fnt("a", "b", "a"),
+		           We1.type))
+		    << printer::with_type(e1);
+    }
 }
+
+{
+
+
+
 
 TEST_F(Inference, test_application)
 {
     using namespace make_ast;
     using namespace inference;
 
-    auto fcc = []() { return lift<Type>(tag<FunctionConstructor>::value); };
-
-    auto e1 = make(lift<Lambda>(),
-                   make(sym("x"), sym("y")),
-                   make(sym("x"), sym("y")))(aalloc());
+    auto e1 = mk(wrap<Lambda>(),
+                 mk("x", "y"),
+                 mk("x", "y"))(aalloc());
     auto We1 = W(store, new_types, gamma, pass_value(e1));
 
-    auto wrapped = wrap(e1);
-    apply_substitution(store, gamma, We1.subs, wrapped);
-
-    /* first possible free type is not used in final inference */
-    auto new_types = LAST_CONCRETE_TYPE + 1;
-
-    auto a = ++new_types;
-    auto b = ++new_types;
-
-    ASSERT_EQ(make(fcc(),
-                   make(fcc(), lift<Type>(a), lift<Type>(b)),
-                   lift<Type>(a), lift<Type>(b))(aalloc()),
-              explicit_unwrap<Ast>(We1.type));
+    /* Check the body: */
+    {
+	    using namespace pattern_match;
+	    ASSERT_TRUE
+		    (match(fnt(fnt("a", "b"), fnt("a", "b")),
+		           We1.type))
+		    << printer::with_type(We1.type);
+    }
 }
 
 TEST_F(Inference, test_define)
@@ -560,56 +562,6 @@ TEST_F(Inference, test_apply_defined)
 
 }
 
-
-typedef std::map<std::string, Type> SeenShapeMap;
-
-
-bool _shape_check(SeenShapeMap& map, Slice target, Slice got)
-{
-	if(target.size() != got.size())
-		{ return false; }
-
-	for(auto vv : zip(target, got))
-		{
-			auto aa = pass_value(*get<0>(vv)),
-				bb = pass_value(*get<1>(vv));
-
-			switch(aa._tag)
-				{
-				case tag<Slice>::value:
-					if(!is<Slice>(bb)) { return false; }
-
-					if(!_shape_check(map, aa.slice, bb.slice))
-						{ return false; }
-					break;
-
-				case tag<Symbol>::value:
-					{
-						if(!is<Type>(bb)) { return false; }
-
-						auto sym = unwrap<Symbol>(aa);
-						auto type = unwrap<Type>(bb);
-
-						auto itr = map.find(sym.name);
-						if(itr != map.end() && itr->second != type)
-							{ return false; }
-						else
-							{ map.emplace(make_pair(sym.name, type)); }
-						break;
-					}
-				}
-		}
-	return true;
-}
-
-
-bool shape_check(Ast target, Ast got)
-{
-	SeenShapeMap map;
-	return _shape_check(map, Slice(target), Slice(got));
-}
-
-
 TEST_F(Inference, test_nested_application)
 {
     using namespace make_ast;
@@ -622,16 +574,13 @@ TEST_F(Inference, test_nested_application)
 
     auto We1 = W(store, new_types, gamma, pass_value(e1));
 
-    ASSERT_TRUE
-	    (shape_check
-	     (mk("->",
-	         mk("->", "a", "b"), // x
-	         mk("->", "c", "a"), // y
-	         "c", // z
-	         "b")
-	      (aalloc()),
-	      explicit_unwrap<Ast>(We1.type)))
-	    << "\n" << printer::any(We1.type);
+    {
+	    using namespace pattern_match;
+	    ASSERT_TRUE
+		    (match(fnt(fnt("a", "b"), fnt(fnt("c", "a"), fnt("c", "b"))),
+		           We1.type))
+		    << "\n" << printer::print(We1.type);
+    }
 }
 
 TEST_F(Inference, test_multi_arg_application)
@@ -644,16 +593,46 @@ TEST_F(Inference, test_multi_arg_application)
                    make(sym("x"), sym("y"), sym("z")))(aalloc());
     auto We1 = W(store, new_types, gamma, pass_value(e1));
 
-    ASSERT_TRUE
-	    (shape_check
-	     (mk("->",
-	         mk("->", "a", mk("->", "b", "c")),
-	         "a",
-	         "b",
-	         "c")
-	      (aalloc()),
-	      explicit_unwrap<Ast>(We1.type)))
-	    << "\n" << printer::any(We1.type);
+    {
+	    using namespace pattern_match;
+	    ASSERT_TRUE
+		    (match(fnt(fnt("a", "b", "c"), "a", "b", "c"),
+		           We1.type))
+		    << "\n" << printer::print(We1.type);
+    }
+    auto wrapped = wrap(e1);
+    apply_substitution(store, gamma, We1.subs, wrapped);
+
+    // z should be a non-function type
+    {
+	    auto z = AstSubscripter(e1)[1][2].value.any;
+	    ASSERT_EQ(tag<Symbol>::value, z._tag);
+	    ASSERT_EQ(tag<Type>::value,
+	              unwrap<Symbol>(z).scheme.type._tag)
+		    << "Got " << type_name(unwrap<Symbol>(z).scheme.type._tag) << std::endl;
+    }
+
+    // y should also be a non-function (as I keep forgetting: x
+    // _applied_ to y to produces a function)
+    {
+	    auto y = AstSubscripter(e1)[1][1].value.any;
+	    ASSERT_EQ(tag<Symbol>::value, y._tag);
+	    ASSERT_EQ(tag<Type>::value,
+	              unwrap<Symbol>(y).scheme.type._tag)
+		    << "Got " << type_name(unwrap<Symbol>(y).scheme.type._tag) << std::endl;
+
+    }
+
+    {
+	    using namespace pattern_match;
+	    auto x = AstSubscripter(e1)[1][0].value.any;
+	    ASSERT_EQ(tag<Symbol>::value, x._tag);
+	    ASSERT_TRUE
+		    (match(fnt("a", "b", "c"),
+		           unwrap<Symbol>(x).scheme.type))
+		    << "\n" << printer::print(unwrap<Symbol>(x).scheme.type);
+    }
+
 }
 
 TEST_F(Inference, test_recursive_fn)
@@ -667,10 +646,13 @@ TEST_F(Inference, test_recursive_fn)
                             mk("rec", "x")))
 	    (aalloc());
     auto Wrec = W(store, new_types, gamma, pass_value(rec));
+    {
+	    using namespace pattern_match;
+	    ASSERT_TRUE
+		    (match(fnt("a", "b"),
+		           unwrap<Scheme>(Wrec.type).type))
+		    << "\n" << printer::print(Wrec.type);
+    }
+}
 
-    ASSERT_TRUE
-	    (shape_check
-	     (mk("->", "a", "b")(aalloc()),
-	      explicit_unwrap<Ast>(unwrap<Scheme>(Wrec.type).type)))
-	    << "\n" << printer::any(Wrec.type);
 }

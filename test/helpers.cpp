@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <helpers/pattern_match.hpp>
 #include <helpers.hpp>
 #include <conversion.hpp>
 #include <gc.hpp>
@@ -12,101 +13,41 @@ struct TestHelpers : public ::testing::Test {
 	TestHelpers() { init_types(); }
 };
 
-TEST_F(TestHelpers, test_trivial_pattern_matcher)
+TEST_F(TestHelpers, test_trivial_pattern_match)
 {
 	Arena arena;
-	Any sym_expr, ast_expr;
+	Any ast_expr;
 	{
 		using namespace make_ast;
-		sym_expr = arena.amake<Symbol>("foo");
-
 		ast_expr = wrap
-			(make
-			 (lift<Lambda>(),
-			  make(sym("a")))
+			(mk(wrap<Lambda>(), mk("a"))
 			 (ast_alloc(arena)));
 	}
 
 	{
-		using namespace pattern_matcher;
+		using namespace pattern_match;
 
-		auto sym_matcher = a<Symbol>();
-		ASSERT_TRUE(sym_matcher(ref_wrap(sym_expr)));
-		ASSERT_FALSE(sym_matcher(ref_wrap(ast_expr)));
-
-		auto ast_matcher = ast(a<Lambda>(), ast(a<Symbol>()));
-		ASSERT_TRUE(ast_matcher(ast_expr).is_match);
+		ASSERT_TRUE(match(ast(tag<Lambda>::value, ast(tag<Symbol>::value)), ast_expr));
+		ASSERT_FALSE(match(ast(tag<Lambda>::value, ast(tag<Lambda>::value)), ast_expr));
+		ASSERT_FALSE(match(ast(tag<Lambda>::value), ast_expr));
+		ASSERT_FALSE(match(ast(tag<Lambda>::value, ast(tag<Symbol>::value, tag<Symbol>::value)), ast_expr));
 	}
 }
 
-TEST_F(TestHelpers, test_pattern_matcher)
+TEST_F(TestHelpers, test_pattern_match_empty_ast)
 {
 	Arena arena;
-	Ast matching_expr, not_matching_expr;
+	Any ast_expr;
 	{
 		using namespace make_ast;
-		matching_expr = make
-			(lift<Lambda>(),
-			 sym("a"),
-			 sym("a"))
-			(ast_alloc(arena));
-
-		not_matching_expr = make
-			(sym("Lambda"),
-			 sym("a"))
-			(ast_alloc(arena));
+		ast_expr = wrap(mk()(ast_alloc(arena)));
 	}
 
 	{
-		using namespace pattern_matcher;
+		using namespace pattern_match;
 
-		auto matcher = ast(a<Lambda>(),
-		                   a<Symbol>(),
-		                   a<Symbol>());
-
-		auto first = matcher(ref_wrap(matching_expr));
-		ASSERT_TRUE(first.is_match);
-		ASSERT_EQ("a", unwrap<Symbol>(first[0]).name);
-
-		ASSERT_FALSE(matcher(ref_wrap(not_matching_expr)));
-	}
-}
-
-TEST_F(TestHelpers, test_nested_pattern_matcher)
-{
-	Arena arena;
-	Ast matching_expr, not_matching_expr;
-	{
-		using namespace make_ast;
-		matching_expr = make
-			(lift<Lambda>(),
-			 sym("a"),
-			 make(sym("a"),
-			      lift<Fixnum>(3)))
-			(ast_alloc(arena));
-
-		not_matching_expr = make
-			(sym("Lambda"),
-			 sym("a"),
-			 make(sym("a")))
-			(ast_alloc(arena));
-	}
-
-	{
-		using namespace pattern_matcher;
-
-		auto matcher = ast
-			(a<Lambda>(),
-			 whatever(),
-			 ast(capture<Symbol>(),
-			     capture<Fixnum>()));
-
-		auto first = matcher(ref_wrap(matching_expr));
-		ASSERT_TRUE(first);
-		ASSERT_EQ("a", unwrap<Symbol>(first[0]).name);
-		ASSERT_EQ(3, unwrap<Fixnum>(first[1]).value);
-
-		ASSERT_FALSE(matcher(ref_wrap(not_matching_expr)));
+		ASSERT_TRUE(match(ast(), ast_expr));
+		ASSERT_FALSE(match(ast("foo"), ast_expr));
 	}
 }
 
@@ -130,9 +71,7 @@ TEST_F(TestHelpers, test_NestAst)
 
 	{
 		using namespace make_ast;
-		ASSERT_EQ(make(lift<Fixnum>(1),
-		               make(lift<Fixnum>(3)),
-		               lift<Fixnum>(2))(ast_alloc(arena)),
+		ASSERT_EQ(mk(1, mk(3), 2)(ast_alloc(arena)),
 		          expr);
 	}
 }
@@ -141,11 +80,20 @@ TEST_F(TestHelpers, test_make_ast_mk)
 {
 	using namespace make_ast;
 	Arena store;
+	Ast ast;
 
-	auto ast = make(lift<Fixnum>(1),
-	                make(lift<Fixnum>(2),
-	                     lift<Fixnum>(3)),
-	                lift<Fixnum>(4))(ast_alloc(store));
+	{
+		auto backer = ast_alloc(store);
+		NestAst nest(backer);
+		backer.push_back(wrap<Fixnum>(1));
+		{
+			NestAst inner(backer);
+			backer.push_back(wrap<Fixnum>(2));
+			backer.push_back(wrap<Fixnum>(3));
+		}
+		backer.push_back(wrap<Fixnum>(4));
+		ast = *nest.ast;
+	}
 
 	ASSERT_EQ(ast,
 	          mk(1, mk(2, 3), 4)(ast_alloc(store)));
@@ -155,11 +103,20 @@ TEST_F(TestHelpers, test_make_ast_mk_sym)
 {
 	using namespace make_ast;
 	Arena store;
+	Ast ast;
 
-	auto ast = make(sym("a"),
-	                make(sym("b"),
-	                     sym("c")),
-	                sym("d"))(ast_alloc(store));
+	{
+		auto backer = ast_alloc(store);
+		NestAst nest(backer);
+		backer.push_back(wrap(store.symbol("a")));
+		{
+			NestAst inner(backer);
+			backer.push_back(wrap(store.symbol("b")));
+			backer.push_back(wrap(store.symbol("c")));
+		}
+		backer.push_back(wrap(store.symbol("d")));
+		ast = *nest.ast;
+	}
 
 	ASSERT_EQ(ast,
 	          mk("a", mk("b", "c"), "d")(ast_alloc(store)));
@@ -187,8 +144,7 @@ TEST_F(TestHelpers, test_ast_hof_copy)
 	Ast pre;
 	{
 		using namespace make_ast;
-		pre = make(sym("a"),
-		           sym("b"))(ast_alloc(store));
+		pre = mk("a", "b")(ast_alloc(store));
 	}
 
 	auto post = *ast_hof::copy(pre, make_ast::ast_alloc(store));
@@ -209,9 +165,6 @@ TEST_F(TestHelpers, test_ast_hof_nested_copy)
 	}
 
 	auto post = *ast_hof::copy(pre, make_ast::ast_alloc(store));
-
-	dbg_ast(pre);
-	dbg_ast(post);
 
 	ASSERT_EQ(pre, post);
 }
@@ -239,9 +192,35 @@ TEST_F(TestHelpers, test_fn_type)
 	Arena store;
 
 	auto ast_store = ast_alloc(store);
-	auto type = fn(tt<Bool>(), 1, 1)(ast_store);
+	auto type = fn(tt<Bool>(), tag<Any>::value, tag<Any>::value)(ast_store);
 
-	std::cout << printer::print(type) << std::endl;
+	{
+		using namespace pattern_match;
+		ASSERT_TRUE
+			(match(fnt(tt<Bool>(), fnt(tt<Any>(), tt<Any>())),
+			       wrap(type)))
+			<< printer::print(type) << std::endl;
+	}
+}
+
+TEST_F(TestHelpers, test_nested_fn_type)
+{
+	using namespace fn_type;
+	using make_ast::ast_alloc;
+
+	Arena store;
+
+	auto ast_store = ast_alloc(store);
+	auto type = fn(fn(tag<Any>::value, tag<Fixnum>::value), tag<Symbol>::value, tag<Symbol>::value)(ast_store);
+
+	{
+		using namespace pattern_match;
+		ASSERT_TRUE
+			(match(fnt(fnt(tt<Any>(), tt<Fixnum>()),
+			           fnt(tt<Symbol>(), tt<Symbol>())),
+			       wrap(type)))
+			<< printer::print(type) << std::endl;
+	}
 }
 
 TEST_F(TestHelpers, test_fn_type_thunk)
