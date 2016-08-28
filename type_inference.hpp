@@ -75,14 +75,12 @@ namespace atl
 
 	    void dbg_subs(SubstituteMap const& subs)
 	    {
+		    using namespace printer;
 		    for(auto& item : subs)
 			    {
-				    std::cout << item.first.value << " ";
-				    if(is<Type>(item.second))
-					    { std::cout << reinterpret_cast<size_t>(item.second.value) << std::endl; }
-				    else
-					    { dbg_type(pass_value(Any(item.second))); }
+				    std::cout << print(item.first) << ": " << print(item.second) << "\n";
 			    }
+		    std::cout << std::flush;
 	    }
 
 	    /** Perform type substitution on the Type part of a Scheme.
