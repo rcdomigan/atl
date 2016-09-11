@@ -496,7 +496,7 @@ TEST_F(Inference, test_define)
     ASSERT_EQ(1, scheme.quantified.size());
 
     ASSERT_TRUE(is<Type>(scheme.type));
-    ASSERT_EQ(1, scheme.quantified.count(unwrap<Type>(scheme.type).value));
+    ASSERT_EQ(1, scheme.quantified.count(unwrap<Type>(scheme.type).value()));
 }
 
 TEST_F(Inference, test_apply_defined)
@@ -518,9 +518,9 @@ TEST_F(Inference, test_apply_defined)
 
     ASSERT_TRUE(is<Ast>(id_scheme.type));
     ASSERT_EQ(*id_scheme.quantified.begin(),
-              unwrap<Type>(explicit_unwrap<Ast>(id_scheme.type)[1]).value);
+              unwrap<Type>(explicit_unwrap<Ast>(id_scheme.type)[1]).value());
     ASSERT_EQ(*id_scheme.quantified.begin(),
-              unwrap<Type>(explicit_unwrap<Ast>(id_scheme.type)[2]).value);
+              unwrap<Type>(explicit_unwrap<Ast>(id_scheme.type)[2]).value());
 
     ASSERT_TRUE(We1.subs.empty());
 
@@ -533,20 +533,20 @@ TEST_F(Inference, test_apply_defined)
     ASSERT_EQ(2, We2.subs.size());
     ASSERT_TRUE(is<Type>(We2.type));
 
-    ASSERT_NE(unwrap<Type>(We2.type).value,
+    ASSERT_NE(unwrap<Type>(We2.type).value(),
               *id_scheme.quantified.begin());
 
     ASSERT_TRUE(is<Symbol>(e2[1]));
     ASSERT_TRUE(is<Type>(unwrap<Symbol>(e2[1]).scheme.type));
 
-    ASSERT_NE(unwrap<Type>(We2.type).value,
-              unwrap<Type>(unwrap<Symbol>(e2[1]).scheme.type).value);
+    ASSERT_NE(unwrap<Type>(We2.type).value(),
+              unwrap<Type>(unwrap<Symbol>(e2[1]).scheme.type).value());
 
     auto wrapped2 = wrap(e2);
     apply_substitution(store, gamma, We2.subs, wrapped2);
 
-    ASSERT_EQ(unwrap<Type>(We2.type).value,
-              unwrap<Type>(unwrap<Symbol>(e2[1]).scheme.type).value);
+    ASSERT_EQ(unwrap<Type>(We2.type).value(),
+              unwrap<Type>(unwrap<Symbol>(e2[1]).scheme.type).value());
 
 }
 

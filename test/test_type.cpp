@@ -9,6 +9,8 @@
 
 #include "../type.hpp"
 
+#include <boost/mpl/next_prior.hpp>
+
 #include <iostream>
 #include <vector>
 
@@ -84,4 +86,15 @@ TEST(TestType, test_scheme_is_function)
 
 	space[1].value = reinterpret_cast<void*>(tag<FunctionConstructor>::value);
 	ASSERT_FALSE(scheme.is_function());
+}
+
+TEST(TestType, test_Type)
+{
+	typedef mpl::deref<mpl::prior<typename mpl::end<TypesVec>::type>::type>::type LastType;
+
+	auto captured = Type(tag<LastType>::value);
+
+	ASSERT_TRUE(captured.is_rigid());
+	ASSERT_EQ(tag<LastType>::value, captured.value());
+	ASSERT_NE(tag<LastType>::value, captured._value);
 }

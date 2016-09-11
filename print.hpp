@@ -20,16 +20,16 @@ namespace atl
 		std::ostream& _print_type_atom(Any value, std::ostream& out)
 		{
 			auto& type = unwrap<Type>(value);
-			if(type.value == tag<FunctionConstructor>::value)
+			if(type.value() == tag<FunctionConstructor>::value)
 				{ return out << "->"; }
 			else
 				{
 					out << "#<Type: ";
 
-					if(type.value > BOOST_PP_SEQ_SIZE(ATL_TYPES_SEQ))
-						{ out << type.value; }
+					if(type.value() > BOOST_PP_SEQ_SIZE(ATL_TYPES_SEQ))
+						{ out << type.value(); }
 					else
-						{ out << type_name(type.value); }
+						{ out << type_name(type.value()); }
 
 					return out << ">";
 				}

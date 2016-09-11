@@ -452,14 +452,25 @@ namespace atl
 	struct Type // OK, type isn't a pimpl
     {
 	    typedef tag_t value_type;
+	    static const tag_t RIGID_TYPE_MASK = 1;
 
         tag_t _tag;
-	    tag_t value;
+	    tag_t _value;
 
-	    Type(tag_t value_) : _tag(tag<Type>::value), value(value_) {}
-	    bool operator<(Type const& other) const { return value < other.value; }
-	    bool operator==(Type const& other) const { return value == other.value; }
-	    bool operator!=(Type const& other) const { return value != other.value; }
+	    Type(tag_t value_, bool rigid=false)
+		    : _tag(tag<Type>::value)
+		    , _value(value_ << 1)
+	    {
+		    if(rigid || (value_ < LAST_CONCRETE_TYPE))
+			    { _value |= RIGID_TYPE_MASK; }
+	    }
+
+	    tag_t value() const { return _value >> 1; }
+	    bool is_rigid() const { return _value & RIGID_TYPE_MASK; }
+
+	    bool operator<(Type const& other) const { return _value < other._value; }
+	    bool operator==(Type const& other) const { return _value == other._value; }
+	    bool operator!=(Type const& other) const { return _value != other._value; }
     };
 
 	struct Scheme

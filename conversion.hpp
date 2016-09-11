@@ -81,6 +81,10 @@ namespace atl {
 			{ return Any(aa._tag, (void*)aa.value); }
 		};
 
+		template<>
+		struct Reinterpret<Type>
+		{ static inline constexpr Any a(Type const& aa) { return Any(aa._tag, (void*)aa._value); } };
+
 		template<class T>
 		struct Pimpl
 		{
@@ -134,8 +138,7 @@ namespace atl {
 	static inline Any wrap() { return Any(tag<T>::value, nullptr); }
 
 	template<class T, class Arg>
-	static inline Any wrap(Arg arg) { return Any(tag<T>::value,
-	                                             reinterpret_cast<void*>(arg)); }
+	static inline Any wrap(Arg arg) { return wrap(T(arg)); }
 
 
 	template<class T>
