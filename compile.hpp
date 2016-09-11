@@ -37,6 +37,80 @@ namespace atl
 		{ *current_environment = enclosing; }
 	};
 
+	 /* Simple compilation I'm sharing between the backpatcher and the compiler. */
+	void compile_atom(PatchingAssembler& assemble, Any input)
+	{
+		switch(input._tag)
+			{
+			case tag<Fixnum>::value:
+				assemble.constant(value<Fixnum>(input));
+				break;
+
+			case tag<Bool>::value:
+				assemble.constant(value<Bool>(input));
+				break;
+
+			case tag<Pointer>::value:
+				assemble.pointer(value<Pointer>(input));
+				break;
+
+			case tag<String>::value:
+				assemble.pointer(&value<String>(input));
+				break;
+
+			case tag<CxxFunctor>::value:
+				{
+					auto& fn = unwrap<CxxFunctor>(input);
+					assemble.std_function(&fn.fn, fn.arity);
+					break;
+				}
+			case tag<CallLambda>::value:
+				{
+					auto func = unwrap<CallLambda>(input);
+					assemble.call_procedure(func.value->body_address);
+					break;
+				}
+			case tag<Bound>::value:
+				{
+					auto& bound = unwrap<Bound>(input);
+					auto& sym = *bound.sym;
+
+		            if(is<Undefined>(sym.value))
+			            {
+				            assemble.needs_patching(sym);
+				            return;
+			            }
+
+		            switch(sym.subtype)
+			            {
+			            case Symbol::Subtype::constant:
+				            compile_atom(assemble, sym.value);
+				            return;
+
+			            case Symbol::Subtype::variable:
+				            {
+					            switch(bound.subtype)
+						            {
+						            case Bound::Subtype::is_local:
+							            assemble.argument(bound.offset);
+							            return;
+
+						            case Bound::Subtype::is_closure:
+							            assemble.closure_argument(bound.offset);
+							            return;
+						            }
+				            }
+			            }
+				}
+			default:
+				{
+					throw std::string("Illegal syntax or something; got ")
+						.append(type_name(input._tag))
+						.append(" where value was required.");
+				}
+			}
+	}
+
     struct Compile
     {
         typedef AssembleCode::const_iterator iterator;
