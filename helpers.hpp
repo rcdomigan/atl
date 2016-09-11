@@ -401,6 +401,38 @@ namespace atl
 	{ return AstSubscripter(pass_value(ast)); }
 
 
+	struct RefSubscripter
+	{
+		Any *value;
+		RefSubscripter(Any& value_) : value(&value_) {}
+		RefSubscripter(Ast& value_) : value(reinterpret_cast<Any*>(&value_)) {}
+
+		RefSubscripter() = delete;
+
+		RefSubscripter operator[](off_t pos)
+		{
+			switch(value->_tag)
+				{
+				case tag<Ast>::value:
+					return RefSubscripter(explicit_unwrap<Ast>(*value)[pos]);
+
+				case tag<AstData>::value:
+					return RefSubscripter(explicit_unwrap<AstData>(*value)[pos]);
+
+				case tag<Slice>::value:
+					return RefSubscripter(unwrap<Slice>(*value)[pos]);
+
+				default:
+					throw WrongTypeError("Can't subscript given type");
+				}
+		}
+
+		template<class T>
+		T& a()
+		{ return unwrap<T>(*value); }
+	};
+
+
 	template<class T>
 	struct Unwrapped
 	{
