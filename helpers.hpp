@@ -477,11 +477,9 @@ namespace atl
 	                        bool>::type
 	operator==(Tree const& aa_tree, Tree const& bb_tree)
 	{
-		if(aa_tree.flat_size() != bb_tree.flat_size())
-			{ return false; }
-
 		auto aa = aa_tree.begin(),
 			bb = bb_tree.begin();
+
 		while((aa != aa_tree.end()) && (bb != bb_tree.end()))
 			{
 				if(aa->_tag != bb->_tag)
