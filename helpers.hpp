@@ -113,55 +113,6 @@ namespace atl
 
 		typedef std::function<void (AstAllocator)> ast_composer;
 
-		ast_composer lift(Any tt)
-		{
-			return [tt](AstAllocator space)
-				{ space.push_back(tt); };
-		}
-
-		template<class T, class ... Args>
-		ast_composer lift(Args ... args)
-		{
-			return [args ...](AstAllocator space)
-				{ space.push_back(wrap<T>(args ...)); };
-		}
-
-		/** Add a symbol value to the ast
-		 *
-		 * @param name: symbol's name
-		 * @return: an ast_composer
-		 */
-		ast_composer sym(std::string const& name)
-		{
-			return [name](AstAllocator heap)
-				{ heap.push_back(wrap(heap.symbol(name))); };
-		}
-
-		struct _Run
-		{
-			AstAllocator space;
-			_Run(AstAllocator ss) : space(ss) {}
-
-			template<class Fn>
-			void operator()(Fn &fn) { fn(space); }
-		};
-
-		template<class ... Args>
-		std::function<Ast (AstAllocator)>
-		make(Args ... args)
-		{
-			auto tup = make_tuple(args...);
-			return [tup](AstAllocator space) -> Ast
-				{
-					NestAst nested(space);
-
-					_Run do_apply(space);
-					foreach_tuple(do_apply, tup);
-
-					return *nested.ast;
-				};
-		}
-
 		/* _Run which automatically wraps a number and assumes a bare string is a sym. */
 		struct _SRun
 		{
@@ -179,6 +130,8 @@ namespace atl
 
 			void operator()(int ss)
 			{ space.push_back(wrap<Fixnum>(ss)); }
+
+			void operator()(Any const& value) { space.push_back(value); }
 
 			template<class Fn>
 			void operator()(Fn &fn) { fn(space); }

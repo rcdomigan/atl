@@ -13,6 +13,23 @@ struct TestHelpers : public ::testing::Test {
 	TestHelpers() { init_types(); }
 };
 
+TEST_F(TestHelpers, test_nested_mk)
+{
+	using namespace make_ast;
+	Arena arena;
+
+	auto ast = mk(mk(1, mk(), 1))
+		(ast_alloc(arena));
+
+	ASSERT_EQ(tag<AstData>::value, ast[0]._tag);
+
+	ASSERT_EQ(tag<Fixnum>::value,
+	          explicit_unwrap<AstData>(ast[0])[0]._tag);
+
+	ASSERT_EQ(tag<AstData>::value,
+	          explicit_unwrap<AstData>(ast[0])[1]._tag);
+}
+
 TEST_F(TestHelpers, test_trivial_pattern_match)
 {
 	Arena arena;

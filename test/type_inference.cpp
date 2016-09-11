@@ -9,6 +9,7 @@
 
 #include <lexical_environment.hpp>
 #include <type_inference.hpp>
+#include <ffi.hpp>
 #include <helpers/pattern_match.hpp>
 
 using namespace atl;
@@ -30,7 +31,7 @@ TEST_F(TestSubstitution, test_nop_type_substitution)
 
     subst[Type(1)] = wrap<Type>(3);
 
-    auto make_expr = make(lift<Type>(4), lift<Type>(5));
+    auto make_expr = mk(wrap<Type>(4), wrap<Type>(5));
 
     auto pre = make_expr(ast_alloc(arena));
     auto post = inference::substitute_type(ast_alloc(arena),
@@ -51,15 +52,15 @@ TEST_F(TestSubstitution, test_type_substitution)
     auto expr = inference::substitute_type
 	    (ast_alloc(arena),
 	     subst,
-	     pass_value(make
-	                (lift<Type>(1),
-	                 make(lift<Type>(1)),
-	                 lift<Type>(2))
+	     pass_value(mk
+	                (wrap<Type>(1),
+	                 mk(wrap<Type>(1)),
+	                 wrap<Type>(2))
 	                (ast_alloc(arena))));
 
-    auto expect = make(lift<Type>(3),
-                       make(lift<Type>(3)),
-                       lift<Type>(2))(ast_alloc(arena));
+    auto expect = mk(wrap<Type>(3),
+                       mk(wrap<Type>(3)),
+                       wrap<Type>(2))(ast_alloc(arena));
 
     ASSERT_EQ(expect, explicit_unwrap<Ast>(expr));
 }
@@ -71,12 +72,12 @@ TEST_F(TestSubstitution, test_type_substitution_p8)
 	Arena arena;
 
 	auto type = [](char cc)
-		{ return lift<Type>(cc + LAST_CONCRETE_TYPE); };
+		{ return wrap<Type>(cc + LAST_CONCRETE_TYPE); };
 
 
     inference::SubstituteMap subs;
     subs[Type('x' + LAST_CONCRETE_TYPE)] = wrap<Type>('a' + LAST_CONCRETE_TYPE);
-    subs[Type('y' + LAST_CONCRETE_TYPE)] = wrap(make(type('b'), type('a'))(ast_alloc(arena)));
+    subs[Type('y' + LAST_CONCRETE_TYPE)] = wrap(mk(type('b'), type('a'))(ast_alloc(arena)));
 
     auto do_sub = [&](Ast& ast) -> Ast
 	    {
@@ -86,14 +87,14 @@ TEST_F(TestSubstitution, test_type_substitution_p8)
 		                                           PassByValue(ast)).value));
 	    };
 
-    auto first = make(type('x'),
-                      make(type('b'),
+    auto first = mk(type('x'),
+                      mk(type('b'),
                            type('x')))(ast_alloc(arena));
 
-    auto second = make(type('a'),
+    auto second = mk(type('a'),
                        type('y'))(ast_alloc(arena));
 
-    auto expect = make(type('a'), make(type('b'), type('a')))(ast_alloc(arena));
+    auto expect = mk(type('a'), mk(type('b'), type('a')))(ast_alloc(arena));
 
     ASSERT_EQ(expect, do_sub(first));
     ASSERT_EQ(expect, do_sub(second));
@@ -105,30 +106,30 @@ TEST_F(TestSubstitution, example_p9_assuming_mgu)
     using namespace inference;
     Arena arena;
 
-	auto type = [&](char cc) { return lift<Type>(cc); };
+	auto type = [&](char cc) { return wrap<Type>(cc); };
 
-	auto zero = lift<Type>(0); //[&] () { return type(0); }
+	auto zero = wrap<Type>(0);
     auto aalloc = [&](){ return ast_alloc(arena); };
 
-    auto left = make(type(1), type(2), type(3))(aalloc()),
-	    right = make(make(type(2), type(2)),
-	                 make(type(3), type(3)),
-	                 make(type(0), type(0)))(aalloc());
+    auto left = mk(type(1), type(2), type(3))(aalloc()),
+	    right = mk(mk(type(2), type(2)),
+	                 mk(type(3), type(3)),
+	                 mk(type(0), type(0)))(aalloc());
 
     SubstituteMap subs
 	    ({
 		    make_pair
 			    (Type(1),
-			     wrap(make(make(make(zero, zero), make(zero, zero)),
-			               make(make(zero, zero), make(zero, zero)))(aalloc()))),
+			     wrap(mk(mk(mk(zero, zero), mk(zero, zero)),
+			               mk(mk(zero, zero), mk(zero, zero)))(aalloc()))),
 
 			    make_pair
 			    (Type(2),
-			     wrap(make(make(zero, zero), make(zero, zero))(aalloc()))),
+			     wrap(mk(mk(zero, zero), mk(zero, zero))(aalloc()))),
 
 			    make_pair
 			    (Type(3),
-			     wrap(make(zero, zero)(aalloc())))
+			     wrap(mk(zero, zero)(aalloc())))
 			    });
 
     auto sub_left = substitute_type(aalloc(), subs, pass_value(left)),
@@ -147,11 +148,11 @@ TEST_F(TestSubstitution, test_substitution_composition)
 
 	{
 		SubstituteMap left({{Type(2), wrap<Type>(0)}}),
-			right({{Type(1), wrap(make(lift<Type>(2), lift<Type>(3))(ast_alloc(arena)))}});
+			right({{Type(1), wrap(mk(wrap<Type>(2), wrap<Type>(3))(ast_alloc(arena)))}});
 		compose_subs(arena, left, right);
 
 		ASSERT_EQ(2, left.size());
-		ASSERT_EQ(make(lift<Type>(0), lift<Type>(3))(ast_alloc(arena)),
+		ASSERT_EQ(mk(wrap<Type>(0), wrap<Type>(3))(ast_alloc(arena)),
 		          explicit_unwrap<Ast>(left[Type(1)]));
 	}
 }
@@ -169,8 +170,7 @@ struct Unification
 	{ init_types(); }
 
 	make_ast::AstAllocator aalloc() { return make_ast::ast_alloc(store); }
-	make_ast::ast_composer type(size_t tt)
-	{ return make_ast::lift<Type>(tt); }
+	Any type(size_t tt) { return wrap<Type>(tt); }
 };
 
 TEST_F(Unification, rule_1)
@@ -195,14 +195,12 @@ TEST_F(Unification, rule_2a)
     auto subst = inference::most_general_unification
 	    (store,
 	     pass_value<Type>(0),
-	     pass_value(make(lift<Type>(1),
-	                     lift<Type>(2))
-	                (ast_alloc(store))));
+	     pass_value(mk(type(1),type(2))(ast_alloc(store))));
 
     ASSERT_EQ(subst.size(), 1);
     ASSERT_EQ(tag<Ast>::value, subst[Type(0)]._tag);
     ASSERT_EQ(explicit_unwrap<Ast>(subst[Type(0)]),
-              make(lift<Type>(1), lift<Type>(2))(ast_alloc(store)));
+              mk(wrap<Type>(1), wrap<Type>(2))(ast_alloc(store)));
 }
 
 TEST_F(Unification, rule_2aa)
@@ -213,12 +211,12 @@ TEST_F(Unification, rule_2aa)
     auto subst = inference::most_general_unification
 	    (store,
 	     pass_value<Type>(0),
-	     pass_value(make(type(1), type(2))(ast_alloc(store))));
+	     pass_value(mk(type(1), type(2))(ast_alloc(store))));
 
     ASSERT_EQ(subst.size(), 1);
     ASSERT_EQ(tag<Ast>::value, subst[Type(0)]._tag);
     ASSERT_EQ(explicit_unwrap<Ast>(subst[Type(0)]),
-              make(type(1), type(2))(ast_alloc(store)));
+              mk(type(1), type(2))(ast_alloc(store)));
 }
 
 TEST_F(Unification, rule_2b)
@@ -227,13 +225,13 @@ TEST_F(Unification, rule_2b)
     //rule (iib)
     auto subst = inference::most_general_unification
 	    (store,
-	     pass_value(make(type(0), type(1))(ast_alloc(store))),
+	     pass_value(mk(type(0), type(1))(ast_alloc(store))),
 	     pass_value<Type>(2));
 
     ASSERT_EQ(subst.size(), 1);
     ASSERT_EQ(tag<Ast>::value, subst[Type(2)]._tag);
     ASSERT_EQ(explicit_unwrap<Ast>(subst[Type(2)]),
-              make(type(0), type(1))(ast_alloc(store)));
+              mk(type(0), type(1))(ast_alloc(store)));
 }
 
 TEST_F(Unification, rule_3)
@@ -252,8 +250,8 @@ TEST_F(Unification,  rule_4)
 
     auto subst = inference::most_general_unification
 		(store,
-		 pass_value(make(type(0), type(1))(aalloc())),
-		 pass_value(make(type(2), type(3))(aalloc())));
+		 pass_value(mk(type(0), type(1))(aalloc())),
+		 pass_value(mk(type(2), type(3))(aalloc())));
 
     ASSERT_EQ(subst.size(), 2);
     ASSERT_EQ(subst[Type(2)], wrap<Type>(0));
@@ -267,8 +265,8 @@ TEST_F(Unification, example_p8)
 
     enum { A=0, B=1, X=10, Y=11 };
 
-    auto left = make(type(A), type(Y))(aalloc()),
-	    right = make(type(X), make(type(B), type(X)))(aalloc());
+    auto left = mk(type(A), type(Y))(aalloc()),
+	    right = mk(type(X), mk(type(B), type(X)))(aalloc());
 
     auto subs = inference::most_general_unification
 	    (store, pass_value(left), pass_value(right));
@@ -285,10 +283,10 @@ TEST_F(Unification, example_p9)
     using namespace make_ast;
     using namespace inference;
 
-    auto left = make(type(1), type(2), type(3))(aalloc()),
-	    right = make(make(type(2), type(2)),
-	                 make(type(3), type(3)),
-	                 make(type(0), type(0)))(aalloc());
+    auto left = mk(type(1), type(2), type(3))(aalloc()),
+	    right = mk(mk(type(2), type(2)),
+	                 mk(type(3), type(3)),
+	                 mk(type(0), type(0)))(aalloc());
 
     auto subs = most_general_unification(store, pass_value(left), pass_value(right));
 
@@ -321,15 +319,15 @@ TEST_F(SpecializeAndGeneralize, instantiate)
 		ff = new_types + 2;
 
 	Scheme scheme(Scheme::Quantified{aa, bb},
-	              wrap(make(lift<Type>(cc),
-	                        make(lift<Type>(aa),
-	                             lift<Type>(bb)),
-	                        lift<Type>(dd))(ast_alloc(store))));
+	              wrap(mk(wrap<Type>(cc),
+	                        mk(wrap<Type>(aa),
+	                             wrap<Type>(bb)),
+	                        wrap<Type>(dd))(ast_alloc(store))));
 
-	auto expected = make(lift<Type>(cc),
-	                     make(lift<Type>(ee),
-	                          lift<Type>(ff)),
-	                     lift<Type>(dd))(ast_alloc(store));
+	auto expected = mk(wrap<Type>(cc),
+	                     mk(wrap<Type>(ee),
+	                          wrap<Type>(ff)),
+	                     wrap<Type>(dd))(ast_alloc(store));
 	Scheme::Quantified expected_subs{ee, ff};
 
 	auto instantiated = instantiate(store, new_types, scheme);
@@ -358,15 +356,15 @@ TEST_F(SpecializeAndGeneralize, generalize)
 		ff = new_types + 2;
 
 	Scheme scheme(Scheme::Quantified{aa, bb},
-	              wrap(make(lift<Type>(cc),
-	                        make(lift<Type>(aa),
-	                             lift<Type>(bb)),
-	                        lift<Type>(dd))(ast_alloc(store))));
+	              wrap(mk(wrap<Type>(cc),
+	                        mk(wrap<Type>(aa),
+	                             wrap<Type>(bb)),
+	                        wrap<Type>(dd))(ast_alloc(store))));
 
-	auto expected = make(lift<Type>(cc),
-	                     make(lift<Type>(ee),
-	                          lift<Type>(ff)),
-	                     lift<Type>(dd))(ast_alloc(store));
+	auto expected = mk(wrap<Type>(cc),
+	                     mk(wrap<Type>(ee),
+	                          wrap<Type>(ff)),
+	                     wrap<Type>(dd))(ast_alloc(store));
 	Scheme::Quantified expected_subs{ee, ff};
 
 	auto instantiated = instantiate(store, new_types, scheme);
@@ -422,13 +420,9 @@ TEST_F(Inference, test_lambda)
     using namespace inference;
     using namespace make_ast;
 
-    auto e1 = make(lift<Lambda>(),
-                   make(sym("a")),
-                   sym("a"))(aalloc());
-    auto wrapped = wrap(e1);
-
-    FreeSymbols _free;
-    assign_free(symbols, store, _free, wrapped);
+    auto e1 = mk(wrap<Lambda>(),
+                   mk("a"),
+                   "a")(aalloc());
 
     auto We1 = W(store, new_types, gamma, pass_value(e1));
 
@@ -444,13 +438,9 @@ TEST_F(Inference, test_multi_arg_lambda)
     using namespace inference;
     using namespace make_ast;
 
-    auto e1 = make(lift<Lambda>(),
-                   make(sym("a"), sym("b")),
-                   sym("a"))(aalloc());
-    auto wrapped = wrap(e1);
-
-    FreeSymbols _free;
-    assign_free(symbols, store, _free, wrapped);
+    auto e1 = mk(wrap<Lambda>(),
+                   mk("a", "b"),
+                   "a")(aalloc());
 
     auto We1 = W(store, new_types, gamma, pass_value(e1));
 
@@ -493,7 +483,7 @@ TEST_F(Inference, test_define)
     using namespace make_ast;
     using namespace inference;
 
-    auto e1 = make(lift<Define>(), sym("a"), sym("b"))(aalloc());
+    auto e1 = mk(wrap<Define>(), "a", "b")(aalloc());
     auto wrapped = wrap(e1);
 
     auto We1 = W(store, new_types, gamma, pass_value(e1));
@@ -515,10 +505,8 @@ TEST_F(Inference, test_apply_defined)
     using namespace inference;
 
     // id function
-    auto e1 = make(lift<Define>(), sym("id"),
-                   make(lift<Lambda>(),
-                        make(sym("x")),
-                        sym("x")))(aalloc());
+    auto e1 = mk(wrap<Define>(), "id",
+                   mk(wrap<Lambda>(), mk("x"), "x"))(aalloc());
     auto wrapped = wrap(e1);
 
     auto We1 = W(store, new_types, gamma, pass_value(e1));
@@ -539,7 +527,7 @@ TEST_F(Inference, test_apply_defined)
     apply_substitution(store, gamma, We1.subs, wrapped);
 
     // Now see if we can apply the newly defined "id"
-    auto e2 = make(sym("id"), sym("y"))(aalloc());
+    auto e2 = mk("id", "y")(aalloc());
     auto We2 = W(store, new_types, gamma, pass_value(e2));
 
     ASSERT_EQ(2, We2.subs.size());
@@ -567,7 +555,7 @@ TEST_F(Inference, test_nested_application)
     using namespace make_ast;
     using namespace inference;
 
-    auto e1 = mk(lift<Lambda>(),
+    auto e1 = mk(wrap<Lambda>(),
                  mk("x", "y", "z"),
                  mk("x", mk("y", "z")))
 	    (aalloc());
@@ -588,9 +576,11 @@ TEST_F(Inference, test_multi_arg_application)
     using namespace make_ast;
     using namespace inference;
 
-    auto e1 = make(lift<Lambda>(),
-                   make(sym("x"), sym("y"), sym("z")),
-                   make(sym("x"), sym("y"), sym("z")))(aalloc());
+    auto e1 = mk(wrap<Lambda>(),
+                 mk("x", "y", "z"),
+                 mk("x", "y", "z"))
+	    (aalloc());
+
     auto We1 = W(store, new_types, gamma, pass_value(e1));
 
     {
@@ -640,8 +630,8 @@ TEST_F(Inference, test_recursive_fn)
     using namespace make_ast;
     using namespace inference;
 
-    auto rec = mk(lift<Define>(),
-                  "rec", mk(lift<Lambda>(),
+    auto rec = mk(wrap<Define>(),
+                  "rec", mk(wrap<Lambda>(),
                             mk("x"),
                             mk("rec", "x")))
 	    (aalloc());
