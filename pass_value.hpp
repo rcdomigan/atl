@@ -170,9 +170,6 @@ namespace atl
 	T const& unwrap(PassByValue const& input)
 	{ return unwrap_PBV::Unwrap<T>::a(input); }
 
-	Slice unwrap_slice(PassByValue const& input)
-	{ return input.slice; }
-
 	template<class T>
 	bool is(PassByValue const& value)
 	{
