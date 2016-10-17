@@ -161,6 +161,68 @@ namespace atl
 	};
 
 
+	struct CodePrinter
+	{
+		typedef CodeBacker::iterator iterator;
+		typedef CodeBacker::value_type value_type;
+
+		WrapCodeForAssembler& code;
+
+		int pushing;
+		size_t pos;
+		value_type vv;
+
+		CodePrinter(WrapCodeForAssembler& code_)
+			: code(code_)
+			, pushing(0)
+			, pos(0)
+		{}
+
+		std::ostream& line(std::ostream &out)
+		{
+			auto vname = vm_codes::name_or_null(vv);
+
+			out << " " << pos << ": ";
+
+			if(pushing)
+				{
+					--pushing;
+					out << "@" << vv;
+				}
+			else
+				{
+					if(vv == vm_codes::Tag<vm_codes::push>::value)
+						++pushing;
+					out << vname;
+				}
+
+			auto sym_names = code.offset_table.symbols_at(pos);
+			if(!sym_names.empty())
+				{
+					out << "\t\t# " << sym_names.begin()->second;
+					for(auto name : make_range(++sym_names.begin(), sym_names.end()))
+						out << ", " << name.second;
+				}
+			return out;
+		}
+
+		void print(std::ostream &out)
+		{
+			pos = 0;
+			pushing = 0;
+
+			for(auto& vv_ : code)
+				{
+					vv = vv_;
+					line(out) << std::endl;
+					++pos;
+				}
+		}
+
+		void dbg() { print(std::cout); }
+	};
+
+
 	struct Code
 		: public WrapCodeForAssembler
 	{
@@ -191,58 +253,12 @@ namespace atl
 
 		void pop_back() { code.pop_back(); }
 
-		void dbg() const;
-		void print(std::ostream &) const;
-
 		bool operator==(Code const& other) const
 		{ return code == other.code; }
 
 		bool operator==(Code& other)
 		{ return code == other.code; }
 	};
-
-	void Code::print(std::ostream &out) const
-	{
-		int pushing = 0;
-		size_t pos = 0;
-
-		for(auto& vv : code)
-			{
-				auto vname = vm_codes::name_or_null(vv);
-
-				out << " " << pos << ": ";
-
-				if(pushing)
-					{
-						--pushing;
-						out << "@" << vv;
-					}
-				else
-					{
-						if(vv == vm_codes::Tag<vm_codes::push>::value)
-							++pushing;
-						out << vname;
-					}
-
-				auto sym_names = offset_table.symbols_at(pos);
-				if(!sym_names.empty())
-					{
-						out << "\t\t# " << sym_names.begin()->second;
-						for(auto name : make_range(++sym_names.begin(), sym_names.end()))
-							out << ", " << name.second;
-					}
-
-
-				out << std::endl;
-
-
-				++pos;
-			}
-		out << "<--- done printing code --->" << std::endl;
-	}
-
-	void Code::dbg() const
-	{ print(std::cout); }
 
 
 	struct WrapCodeItr
@@ -398,7 +414,16 @@ namespace atl
 
 		virtual AssembleCode& patch(Symbol&)
 		{ throw WrongTypeError("Basic AssembleCode can't patch"); }
+
+		void dbg();
 	};
+
+	// define out here to avoid inlining
+	void AssembleCode::dbg()
+	{
+		CodePrinter printer(*code);
+		printer.dbg();
+	}
 }
 
 // Set the flag to compile this as an app that just prints the byte

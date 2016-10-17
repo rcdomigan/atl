@@ -17,7 +17,8 @@ void run_code(atl::TinyVM& vm, atl::Code& code)
 	AssembleCode(&code).finish();
 
 #ifdef DEBUGGING
-	code.dbg();
+	auto printer = CodePrinter(code);
+	printer.dbg();
 	vm.run_debug(code, 100);
 #else
     vm.run(code);

@@ -469,7 +469,10 @@ namespace atl
     };
 
     void Compile::dbg()
-    { code_store.dbg(); }
+    {
+	    auto printer = CodePrinter(code_store);
+	    printer.dbg();
+    }
 }
 
 
