@@ -312,11 +312,27 @@ namespace atl
 		void print_stack();
 	};
 
+
 	void TinyVM::print_stack()
 	{
 		using namespace std;
+
+		auto stack = call_stack;
+		size_t frame_count = 1;
+
 		for(auto itr = end() - 1; itr >= begin(); --itr)
-			{ cout << " " << itr << ": @" << *itr << endl; }
+			{
+				cout << " " << itr << ": @" << *itr;
+
+				if(itr == stack)
+					{
+						cout << "   frame:" << frame_count;
+						++frame_count;
+						stack = reinterpret_cast<iterator>(*stack);
+					}
+
+				cout << endl;
+			}
 	}
 }
 
