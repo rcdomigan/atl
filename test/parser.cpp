@@ -43,7 +43,7 @@ TEST_F(ParserTest, test_simple_int_list) {
 
     for(auto& vv : zip(parsed.slice, expected)) {
 #ifdef DEBUGGING
-        cout << "parsed: " << printer::any(*get<0>(vv)) << "\nexpected: " << printer::any(*get<1>(vv)) << endl;
+        cout << "parsed: " << printer::print(*get<0>(vv)) << "\nexpected: " << printer::print(*get<1>(vv)) << endl;
 #endif
         ASSERT_EQ(*get<0>(vv), *get<1>(vv));
     }
