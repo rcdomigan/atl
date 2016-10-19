@@ -409,20 +409,23 @@ namespace atl
 
                             auto is_procedure = is<CallLambda>(fn);
                             LambdaMetadata* metadata = nullptr;
+
+                            // CxxFunctor doesn't need to be padded for
+                            size_t tail_size = 0;
+                            size_t padding = 0;
+
                             if(is_procedure)
 	                            {
 		                            metadata = unwrap<CallLambda>(fn).value;
 		                            std::cout << "Function@" << metadata->body_address << std::endl;
+
+		                            tail_size = std::max(form.pad_to, rest.size());
+		                            padding = tail_size - rest.size();
+
+		                            // pad out so a tail call can use this call's frame
+		                            for(size_t i=0; i < padding; ++i)
+			                            { assemble.constant(8); }
 	                            }
-
-                            size_t tail_size = std::max(form.pad_to, rest.size());
-                            size_t padding = tail_size - rest.size();
-
-                            std::cout << "pad to:" <<  padding << "(tail size:" << tail_size << ")" << std::endl;
-
-                            // pad out to leave space for a tail call
-                            if(context.tail)
-	                            { for(size_t i=0; i < padding; ++i) assemble.constant(8); }
 
                             // Compile the args:
                             for(auto& vv : rest)
