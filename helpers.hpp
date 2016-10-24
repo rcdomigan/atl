@@ -572,6 +572,34 @@ namespace atl
 
 		sym.value = value;
 	}
+
+	bool is_astish(Any const& input)
+	{
+		switch(input._tag)
+			{
+			case tag<AstData>::value:
+			case tag<Ast>::value:
+			case tag<Slice>::value:
+				return true;
+			default:
+				return false;
+			}
+	}
+
+	Ast unwrap_astish(Any& astish)
+	{
+		switch(astish._tag)
+			{
+			case tag<AstData>::value:
+				return Ast(&reinterpret_cast<AstData&>(astish));
+			case tag<Ast>::value:
+				return explicit_unwrap<Ast>(astish);
+			default:
+				throw WrongTypeError(std::string("Cannot make ")
+				                     .append(type_name(astish))
+				                     .append(" into an Ast."));
+			}
+	}
 }
 
 #endif

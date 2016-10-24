@@ -139,7 +139,7 @@ TEST_F(TestToplevelMap, test_define_form)
 
 		ASSERT_TRUE(match(ast(tag<Define>::value, tag<Symbol>::value,
 		                      ast(tag<Lambda>::value, ast(),
-		                          is_astish)),
+		                          astish)),
 		                  wrapped))
 			<< "got: " << printer::print(wrapped) << std::endl;
 	}

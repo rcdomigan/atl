@@ -78,18 +78,8 @@ namespace atl
 			}
 		};
 
-		bool is_astish(Match& _match_state, Any const& input)
-		{
-			switch(input._tag)
-				{
-				case tag<AstData>::value:
-				case tag<Ast>::value:
-				case tag<Slice>::value:
-					return true;
-				default:
-					return false;
-				}
-		}
+		bool astish(Match& _match_state, Any const& input)
+		{ return ::atl::is_astish(input); }
 
 		template<class T>
 		Matcher capture(T& passed_hold)
