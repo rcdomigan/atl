@@ -13,6 +13,7 @@ test/lexical_environment
 test/lists
 test/macros
 test/parser
+test/passes
 test/primitive
 test/structs
 test/test

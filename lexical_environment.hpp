@@ -14,6 +14,7 @@
 #include <exception.hpp>
 #include <type.hpp>
 #include <helpers.hpp>
+#include <helpers/pattern_match.hpp>
 #include "./gc.hpp"
 #include "./print.hpp"
 
@@ -265,14 +266,28 @@ namespace atl
 						{
 						case tag<Define>::value:
 							{
-								assign_free(env, store, backpatch, ast[2]);
-
 								auto &sym = unwrap<Symbol>(ast[1]);
 
-								if(is_astish(ast[2]))
-									{ env.define(sym, pass_value<Undefined>()); }
-								else
-									{ env.define(sym, pass_value(ast[2])); }
+								{
+									using namespace pattern_match;
+									Lambda func;
+									if(match(pattern_match::ast(capture(func), astish, astish),
+									         ast[2]))
+										{
+											auto& metadata = *func.value;
+
+											env.define(sym, pass_value(wrap<CallLambda>(&metadata)));
+											assign_free(env, store, backpatch, ast[2]);
+										}
+									else
+										{
+											assign_free(env, store, backpatch, ast[2]);
+											if(is_astish(ast[2]))
+												{ env.define(sym, pass_value<Undefined>()); }
+											else
+												{ env.define(sym, pass_value(ast[2])); }
+										}
+								}
 
 								auto found = backpatch.find(sym.name);
 								if(found != backpatch.end())

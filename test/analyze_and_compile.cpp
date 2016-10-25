@@ -11,6 +11,7 @@
 #include <vm.hpp>
 #include <print.hpp>
 #include <lexical_environment.hpp>
+#include <passes.hpp>
 #include <type_inference.hpp>
 #include <compile.hpp>
 #include <gc.hpp>
@@ -74,6 +75,8 @@ struct AnalyzeAndCompile
 		            backpatch,
 		            expr);
 
+		assign_padding(expr);
+
 		return type_info.type;
 	}
 
@@ -89,19 +92,9 @@ struct AnalyzeAndCompile
 				compiler.assemble.add_label("__call-main__");
 
 				auto call_main = wrap(mk("main")(ast_alloc(store)));
-
-				/* Calling a thunk; don't need type inference here. */
-				BackPatch backpatch;
-				assign_free(lexical,
-				            store,
-				            backpatch,
-				            call_main);
+				annotate(call_main);
 				compiler.any(call_main);
-
-				compiler.assemble.finish();
 			}
-
-		compiler.code_store.dbg();
 	}
 
 	template<class T>
@@ -295,17 +288,6 @@ TEST_F(AnalyzeAndCompile, test_simple_recursion)
 TEST_F(AnalyzeAndCompile, test_simple_recursion_results)
 {
 	using namespace make_ast;
-	auto simple_recur = mk
-		("define", "simple-recur",
-		 mk(wrap<Lambda>(),
-		    mk("a", "b"),
-		    mk("if",
-		       mk("equal2", 0, "a"),
-		       "b",
-		       mk("simple-recur",
-		          mk("sub2", "a", 1),
-		          mk("add2", "b", 1)))))
-		(ast_alloc(store));
 
 	auto foo = mk
 		("define", "foo",
@@ -314,40 +296,27 @@ TEST_F(AnalyzeAndCompile, test_simple_recursion_results)
 		    mk("add2", "a", 3)))
 		(ast_alloc(store)),
 
+		simple_recur = mk
+		("define", "simple-recur",
+		 mk(wrap<Lambda>(),
+		    mk("a", "b"),
+		    mk("if",
+		       mk("equal2", 0, "a"),
+		       "b",
+		       mk("simple-recur",
+		          mk("sub2", "a", 1),
+		          mk("foo", "b")))))
+		(ast_alloc(store)),
+
 		main = mk(wrap<Define>(), "main",
 		          mk(wrap<Lambda>(),
 		             mk(),
-		             mk("simple-recur", 3, 2)))
-		(store);
+		             mk("simple-recur", 2, 2)))
+		(ast_alloc(store));
 
-	compile(simple_recur);
 	compile(foo);
-
+	compile(simple_recur);
 	compile(main);
 
 	ASSERT_EQ(8, run());
-}
-
-TEST_F(AnalyzeAndCompile, multiple_functions)
-{
-	using namespace make_ast;
-	compile(mk(wrap<Define>(), "simple-recur",
-	           mk(wrap<Lambda>(),
-	              mk("a", "b"),
-	              mk("if", mk("equal2", 0, "a"), "b",
-	                 mk("simple_recur", mk("sub2", "a", 1), mk("add2", "b", 1)))))
-	        (store));
-
-	compile(mk(wrap<Define>(), "simple-recur2",
-	           mk(wrap<Lambda>(),
-	              mk("a", "b"),
-	              mk("if", mk("equal2", 0, "a"), "b",
-	                 mk("simple_recur", mk("sub2", "a", 1), mk("add2", "b", 4)))))
-	        (store));
-
-	compile(mk(wrap<Define>(), "main",
-	           mk(wrap<Lambda>(), mk(), mk("add2", mk("simple-recur", 2, 3), mk("simple-recur2", 2, 0))))
-	        (store));
-
-	ASSERT_EQ(13, run());
 }

@@ -68,6 +68,12 @@ namespace atl
 	 /* Simple compilation I'm sharing between the backpatcher and the compiler. */
 	void compile_atom(PatchingAssembler& assemble, Any input)
 	{
+		auto call_lambda = [&assemble](Any any)
+		{
+			auto func = unwrap<CallLambda>(any);
+			assemble.call_procedure(func.value->body_address);
+		};
+
 		switch(input._tag)
 			{
 			case tag<Fixnum>::value:
@@ -94,8 +100,7 @@ namespace atl
 				}
 			case tag<CallLambda>::value:
 				{
-					auto func = unwrap<CallLambda>(input);
-					assemble.call_procedure(func.value->body_address);
+					call_lambda(input);
 					break;
 				}
 			case tag<Bound>::value:
@@ -195,14 +200,11 @@ namespace atl
         {
             // result from 'form'
             PassByValue applicable;
-            size_t pad_to;
             FormTag form_tag;
 
             _Form(PassByValue applicable_,
-                  size_t pad_to_,
                   FormTag form_tag_)
 	            : applicable(applicable_),
-	              pad_to(pad_to_),
                   form_tag(form_tag_)
             {}
         };
@@ -227,38 +229,30 @@ namespace atl
                 {
                 case tag<CxxMacro>::value:
 	                return _Form(pass_value(unwrap<CxxMacro>(head).fn(slice(ast, 1))),
-	                             0,
 	                             FormTag::macro_expansion);
 
                 case tag<Lambda>::value:
                     {
 	                    auto& metadata = *unwrap<Lambda>(head).value;
-	                    Slice formals = unwrap_slice(ast[1]);
-	                    auto size = formals.size();
 
                         auto compile_body = [&]()
                             {
                                 metadata.body_address = assemble.pos_end();
                                 auto comp_val = _compile(pass_value(ast[2]), context);
 
-                                // Might need to allocate for more params to make the tail call happy
-                                size = max(size, comp_val.pad_to);
-                                metadata.pad_to = size;
-                                assemble.return_(size);
+                                assemble.return_(metadata.pad_to);
                                 return comp_val;
                             };
 
-                        _Compile comp_val;
                         if(context.definition)
-                            { comp_val = compile_body(); }
+                            { compile_body(); }
                         else
                             {
                                 SkipBlock my_def(assemble);
-                                comp_val = compile_body();
+                                compile_body();
                             }
 
                         return _Form(pass_value(wrap<CallLambda>(&metadata)),
-                                     size,
                                      FormTag::done);
                     }
                 case tag<Quote>::value:
@@ -266,14 +260,12 @@ namespace atl
                         // TODO: copy?  Not sure how to handle this with GC.
                         assemble.pointer(&ast[1]);
                         return _Form(pass_value(wrap<Null>()),
-                                     0,
                                      FormTag::done);
                     }
                 case tag<DeclareType>::value:
 	                {
 		                Compile::any(ast[1]);
 		                return _Form(pass_value(wrap<Null>()),
-		                             0,
 		                             FormTag::declare_type);
 		           }
                 case tag<If>::value:
@@ -288,35 +280,23 @@ namespace atl
                         assemble.if_();
 
                         // consiquent
-                        auto consiquent = compile_tail(ast[2]);
+                        compile_tail(ast[2]);
 
                         auto after_alt = will_jump();
                         assemble.jump();
 
                         // alternate
                         assemble[alt_address] = assemble.pos_end();
-                        auto alternate = compile_tail(ast[3]);
+                        compile_tail(ast[3]);
 
                         assemble[after_alt] = assemble.pos_end();
 
-                        auto padding = 0;
-                        if(context.tail)
-                            padding = max(consiquent.pad_to,
-                                          alternate.pad_to);
-
-                        return _Form(pass_value<Null>(), padding, FormTag::done);
+                        return _Form(pass_value<Null>(), FormTag::done);
                     }
                 case tag<Slice>::value:
                     {
                         auto compiled = _compile(head, Context(false, false));
-                        size_t tail_size = 0;
-
-                        if(is<CallLambda>(compiled.applicable))
-	                        { tail_size = unwrap<CallLambda>(compiled.applicable).value->pad_to; }
-
-                        return _Form(compiled.applicable,
-                                     tail_size,
-                                     FormTag::function);
+                        return _Form(pass_value(compiled), FormTag::function);
                     }
                 case tag<Define>::value:
                     {
@@ -332,45 +312,44 @@ namespace atl
 	                        if(match(pattern_match::ast(capture(func), astish, astish),
 	                                 value))
 		                        {
-			                        assemble.add_label(sym.name);
+			                        auto& metadata = *func.value;
 
 			                        _compile(pass_value(value), Context(true, true));
 
-			                        sym.value = wrap<CallLambda>(func.value);
+			                        sym.value = wrap<CallLambda>(&metadata);
 		                        }
                         }
 
+                        assemble.add_label(sym.name);
                         assemble.patch(sym);
 
                         return _Form(pass_value<Null>(),
-                                     0,
                                      FormTag::done);
                     }
+
                 case tag<CallLambda>::value:
-	                {
-		                auto& metadata = *unwrap<CallLambda>(head).value;
-		                return _Form(head,
-		                             metadata.pad_to,
-		                             FormTag::function);
-	                }
                 case tag<CxxFunctor>::value:
-	                { return _Form(head, 0, FormTag::function); }
+	                { return _Form(head, FormTag::function); }
+
+                case tag<Symbol>::value:
+	                {
+		                auto& sym = unwrap<Symbol>(head);
+
+		                if(is<CallLambda>(sym.value))
+			                {
+				                return _Form(pass_value(sym.value),
+				                             FormTag::function);
+			                }
+
+		                throw WrongTypeError("Symbol found which is not part of a closure or recursive definition");
+	                }
                 default:
 	                throw WrongTypeError
-		                (std::string("Dunno how to use ").append(type_name(head.any)).append(" as a function"));
+		                (std::string("Dunno how to use ")
+		                 .append(type_name(head.any))
+		                 .append(" as a function"));
                 }
         }
-
-        struct _Compile
-        {
-            PassByValue applicable;
-            size_t pad_to;
-
-            _Compile() = default;
-            _Compile(PassByValue aa, size_t pad)
-                : applicable(aa), pad_to(pad)
-            {}
-        };
 
 	    /// \internal Take an input and generate byte-code.
 	    ///
@@ -378,7 +357,7 @@ namespace atl
 	    /// @param assemble: the "AssembleCode" helper we're using
 	    /// @param context: relavent context, ie are we in a tail call
 	    /// @return: Type information and other things a calling _compile needs to know about.
-        _Compile _compile(PassByValue input, Context context)
+        Any _compile(PassByValue input, Context context)
 	    {
             using namespace std;
 
@@ -391,7 +370,7 @@ namespace atl
 
                     switch(form.form_tag) {
                     case FormTag::done:
-	                    return _Compile(form.applicable, form.pad_to);
+	                    return form.applicable.any;
 
                     case FormTag::macro_expansion:
 	                    {
@@ -410,19 +389,12 @@ namespace atl
                             auto is_procedure = is<CallLambda>(fn);
                             LambdaMetadata* metadata = nullptr;
 
-                            // CxxFunctor doesn't need to be padded for
-                            size_t tail_size = 0;
-                            size_t padding = 0;
-
                             if(is_procedure)
 	                            {
 		                            metadata = unwrap<CallLambda>(fn).value;
-		                            std::cout << "Function@" << metadata->body_address << std::endl;
-
-		                            tail_size = std::max(form.pad_to, rest.size());
-		                            padding = tail_size - rest.size();
 
 		                            // pad out so a tail call can use this call's frame
+		                            auto padding = metadata->pad_to - rest.size();
 		                            for(size_t i=0; i < padding; ++i)
 			                            { assemble.constant(8); }
 	                            }
@@ -434,22 +406,24 @@ namespace atl
                             if(is_procedure)
                                 {
                                     if(context.tail)
-	                                    { assemble.tail_call(tail_size, metadata->body_address); }
+	                                    { assemble.tail_call(metadata->pad_to,
+	                                                         metadata->body_address); }
                                     else
 	                                    { assemble.call_procedure(metadata->body_address); }
                                 }
                             else
 	                            { _compile(form.applicable, Context(false, false)); }
 
-                            return _Compile(form.applicable, tail_size);
+                            // Todo: need to gather tail info for
+                            // return type of function returning
+                            // function...
+                            return wrap<Null>();
                         }}
                     assert(0);
                 }
             default:
-                {
-	                compile_atom(assemble, input.any);
-                }}
-            return _Compile(pass_value<Null>(), 0);
+                { compile_atom(assemble, input.any); }}
+            return wrap<Null>();
         }
 
 	    void ast(Ast const& ast)
