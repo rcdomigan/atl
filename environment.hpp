@@ -18,7 +18,7 @@ namespace atl
 	{
 		GC& gc;
 		ParseString& parse;
-		ToplevelMap& lexical;
+		SymbolMap& lexical;
 		Compile& compile;
 		TinyVM& vm;
 
@@ -30,7 +30,7 @@ namespace atl
 
 		Environment(GC& gc_,
 		            ParseString& parse_,
-		            ToplevelMap& lexical_,
+		            SymbolMap& lexical_,
 		            Compile& compile_,
 		            TinyVM& vm_)
 			: gc(gc_), parse(parse_), lexical(lexical_),
@@ -39,23 +39,18 @@ namespace atl
 			stdout = &cout;
 		}
 
-        PassByValue eval(PassByValue value)
+        void eval(PassByValue value)
 		{
-			auto tag = compile.any(value);
-			compile.assert_ready();
+			compile.any(value.any);
 			{
-				auto code = compile.pass_code_out();
+				auto code = std::move(compile.code_store);
 #ifdef DEBUGGING
-				code->dbg();
-				vm.run_debug(*code);
+				code.dbg();
+				vm.run_debug(code);
 #else
-				vm.run(*code);
+				vm.run(code);
 #endif
-				compile.take_code(code);
 			}
-
-			Any result(tag, reinterpret_cast<void*>(vm.result()));
-			return PassByValue(result);
 		}
 
 		tag_t struct_tag() { return _struct_tag++; }
