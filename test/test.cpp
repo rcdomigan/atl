@@ -6,21 +6,15 @@
 
 #include <gtest/gtest.h>
 
-#include <ffi.hpp>
-#include <vm.hpp>
-
-#include "./testing_utils.hpp"
-
 #include "./helpers.cpp"
 #include "./utility.cpp"
 #include "./test_type.cpp"
 #include "./vm.cpp"
 #include "./parser.cpp"
 #include "./compile.cpp"
-#include "./lists.cpp"
-#include "./macros.cpp"
-#include "./gc.cpp"
-#include "./type_deduction.cpp"
+#include "./lexical_environment.cpp"
+#include "./type_inference.cpp"
+#include "./analyze_and_compile.cpp"
 
 // #include "./atl.cpp"
 
