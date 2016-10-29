@@ -429,6 +429,12 @@ namespace atl
 		Quantified quantified;
 		Any type;
 
+		bool is_function()
+		{
+			return type._tag == tag<Ast>::value &&
+				reinterpret_cast<Ast&>(type)[0]._tag == tag<FunctionConstructor>::value;
+		}
+
 		Scheme() : type(tag<Undefined>::value, nullptr) {}
 
 		Scheme(Quantified const& bound_, Any const& type_)
