@@ -332,7 +332,7 @@ template<class Tup, size_t elem = 0, size_t last = std::tuple_size<Tup>::value>
 struct ForeachTuple
 {
 	template<class Fn>
-	static void apply(Fn& fn, Tup& tup)
+	static void apply(Fn& fn, Tup const& tup)
 	{
 		fn( std::get<elem>(tup) );
 		ForeachTuple<Tup,elem + 1, last>::apply(fn, tup);
@@ -341,12 +341,11 @@ struct ForeachTuple
 
 template<class Tup, size_t elem>
 struct ForeachTuple<Tup, elem, elem>
-{ template<class Fn>  static void apply(Fn&, Tup&) {} };
+{ template<class Fn>  static void apply(Fn&, Tup const&) {} };
 
 template<class Fn, class Tup>
-void foreach_tuple(Fn& fn, Tup& tup)
+void foreach_tuple(Fn& fn, Tup const& tup)
 { ForeachTuple<typename std::remove_reference<Tup>::type >::apply(fn, tup); }
-
 
 template<class Tup, size_t elem = 0, size_t last = std::tuple_size<Tup>::value>
 struct AndTuple

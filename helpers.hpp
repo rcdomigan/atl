@@ -8,6 +8,7 @@
 #include "./conversion.hpp"
 #include "./utility.hpp"
 #include "./pass_value.hpp"
+#include "./type_testing.hpp"
 
 namespace atl
 {
@@ -112,55 +113,6 @@ namespace atl
 
 		typedef std::function<void (AstAllocator)> ast_composer;
 
-		ast_composer lift(Any tt)
-		{
-			return [tt](AstAllocator space)
-				{ space.push_back(tt); };
-		}
-
-		template<class T, class ... Args>
-		ast_composer lift(Args ... args)
-		{
-			return [args ...](AstAllocator space)
-				{ space.push_back(wrap<T>(args ...)); };
-		}
-
-		/** Add a symbol value to the ast
-		 *
-		 * @param name: symbol's name
-		 * @return: an ast_composer
-		 */
-		ast_composer sym(std::string const& name)
-		{
-			return [name](AstAllocator heap)
-				{ heap.push_back(wrap(heap.symbol(name))); };
-		}
-
-		struct _Run
-		{
-			AstAllocator space;
-			_Run(AstAllocator ss) : space(ss) {}
-
-			template<class Fn>
-			void operator()(Fn &fn) { fn(space); }
-		};
-
-		template<class ... Args>
-		std::function<Ast (AstAllocator)>
-		make(Args ... args)
-		{
-			auto tup = make_tuple(args...);
-			return [tup](AstAllocator space) -> Ast
-				{
-					NestAst nested(space);
-
-					_Run do_apply(space);
-					foreach_tuple(do_apply, tup);
-
-					return *nested.ast;
-				};
-		}
-
 		/* _Run which automatically wraps a number and assumes a bare string is a sym. */
 		struct _SRun
 		{
@@ -178,6 +130,8 @@ namespace atl
 
 			void operator()(int ss)
 			{ space.push_back(wrap<Fixnum>(ss)); }
+
+			void operator()(Any const& value) { space.push_back(value); }
 
 			template<class Fn>
 			void operator()(Fn &fn) { fn(space); }
@@ -251,116 +205,6 @@ namespace atl
 			{ store.push_back(input); }
 	}
 
-
-	namespace pattern_matcher
-	{
-		struct Match
-		{
-			bool is_match;
-			typedef std::vector<Any*> Matches;
-			Matches matches;
-
-			Any& operator[](off_t pos) { return *matches[pos]; }
-			operator bool() { return is_match; }
-
-			Match(bool is_match_, Matches&& matches_)
-				: is_match(is_match_), matches(matches_)
-			{}
-
-			Match(bool is_match_)
-				: is_match(is_match_)
-			{}
-
-			Match(Match && other)
-				: is_match(other.is_match), matches(std::move(other.matches))
-			{}
-		};
-
-		typedef std::function<Match (Any&)> Matcher;
-
-		template<class T>
-		Matcher capture()
-		{
-			return [](Any& expr) -> Match
-				{
-					if(is<T>(expr))
-						{ return Match(true, Match::Matches({&expr})); }
-					else
-						{ return Match(false); }
-				};
-		}
-
-		Matcher capture_whatever()
-		{
-			return [](Any& expr) -> Match
-				{
-					return Match(true, Match::Matches({&expr}));
-				};
-		}
-
-		template<class T>
-		Matcher match_is()
-		{
-			return [](Any& expr) -> Match
-				{ return Match(is<T>(expr)); };
-		}
-
-		Matcher whatever()
-		{
-			return [](Any& expr) -> Match
-				{ return Match(true); };
-		}
-
-		template<class ... Args>
-		Matcher match_ast(Args ... args)
-		{
-			auto tup = make_tuple(args...);
-			return [tup](Any& expr) -> Match
-				{
-					AstData* ast;
-
-					switch(expr._tag)
-						{
-						case tag<AstData>::value:
-							ast = &explicit_unwrap<AstData>(expr);
-							break;
-						case tag<Ast>::value:
-							ast = explicit_unwrap<Ast>(expr).value;
-							break;
-						default:
-							return Match(false);
-						}
-
-					Match match(true);
-					auto itr = ast->begin();
-
-					auto accume = [&](Matcher const& fn) -> bool
-						{
-							if(itr == ast->end())
-								{ return false; }
-
-							auto inner_result = fn(*itr);
-							if(inner_result.is_match)
-								{
-									++itr;
-									match.matches.insert(match.matches.end(),
-									                     inner_result.matches.begin(),
-									                     inner_result.matches.end());
-									return true;
-								}
-							else
-								{ return false; }
-						};
-
-					match.is_match = and_tuple(accume, tup);
-					if(itr != ast->end())
-						{ return Match(false); }
-					else
-						{ return match; }
-				};
-		}
-	}
-
 	/* Pass through a Slice or wrap an ast or AstData */
 	Slice unwrap_slice(Any& input)
 	{
@@ -386,11 +230,162 @@ namespace atl
 			}
 	}
 
+	namespace make_type
+	{
+		/** Make a Type with T's tag.  Not much to it, but used in a bunch of tests.
+		 * @tparam T: the type whose tag to use
+		 * @return: a wraped Type
+		 */
+		template<class T>
+		Any tt() { return wrap<Type>(tag<T>::value); }
+	}
+
+
+
+	namespace fn_type
+	{
+		using make_ast::AstAllocator;
+		using make_ast::NestAst;
+		using make_ast::ast_alloc;
+		using make_ast::ast_composer;
+		using make_type::tt;
+
+		/** Make a function declartion like (-> a (-> b c)) from arguments like (a b c).
+		 */
+
+		struct FnBuilder
+		{
+			AstAllocator space;
+			std::vector<NestAst> nesting;
+
+			bool is_last;
+
+			FnBuilder(AstAllocator ss)
+				: space(ss)
+				, is_last(false)
+			{}
+
+			void _push_back(Any const& tt)
+			{
+				switch(tt._tag)
+					{
+					case tag<Slice>::value:
+					case tag<Ast>::value:
+					case tag<AstData>::value:
+						{
+							// assume it's a nested function:
+							ast_hof::copy(pass_value(tt).slice,
+							              space);
+							break;
+						}
+					default:
+						space.push_back(tt);
+					}
+			}
+
+			void _nest()
+			{
+				nesting.emplace_back(space);
+				space.push_back(wrap<Type>(tag<FunctionConstructor>::value));
+			}
+
+			void last_arg(Any const& type)
+			{ _push_back(type); }
+
+			void other_arg(Any const& type)
+			{
+				_nest();
+				_push_back(type);
+			}
+
+			void arg_type(Any type)
+			{
+				if(is_last)
+					{ last_arg(type); }
+				else
+					{ other_arg(type); }
+			}
+
+			/* Note: this is useful for the "shape_check" used in testing, but won't produce a proper type. */
+			void operator()(std::string const& ss)
+			{ arg_type(wrap(space.symbol(ss))); }
+
+			void operator()(long ss)
+			{ arg_type(wrap<Type>(ss)); }
+
+			void operator()(unsigned long ss)
+			{ arg_type(wrap<Type>(ss)); }
+
+			void operator()(int ss)
+			{ arg_type(wrap<Type>(ss)); }
+
+			void operator()(Any const& value) { arg_type(value); }
+
+			void operator()(ast_composer const& fn)
+			{
+				if(!is_last)
+					{ _nest(); }
+
+				fn(space);
+			}
+
+			Ast root() { return Ast(&reinterpret_cast<AstData&>(space.buffer.root())); }
+		};
+
+		template<typename Tuple,
+		         size_t size = std::tuple_size<Tuple>::value>
+		struct _DispatchRunner
+		{
+			static Ast a(Tuple const& tup, AstAllocator& space)
+			{
+				FnBuilder runner(space);
+
+				ForeachTuple<Tuple, 0, std::tuple_size<Tuple>::value - 2>::apply(runner, tup);
+
+				runner(std::get<std::tuple_size<Tuple>::value - 2>(tup));
+
+				runner.is_last = true;
+				runner(std::get<std::tuple_size<Tuple>::value - 1>(tup));
+
+				return runner.root();
+			}
+		};
+
+		// thunk:
+		template<class Tuple>
+		struct _DispatchRunner<Tuple, 1>
+		{
+			static Ast a(Tuple const& tup, AstAllocator& space)
+			{
+				FnBuilder runner(space);
+				runner(get<0>(tup));
+				return runner.root();
+			}
+		};
+
+		template<class ... Args>
+		std::function<Ast (make_ast::AstAllocator)>
+		fn(Args ... args)
+		{
+			typedef std::tuple<Args...> Tuple;
+
+			auto tup = Tuple(std::forward<Args>(args)...);
+
+			return [tup](AstAllocator space) -> Ast
+				{
+					static_assert(std::tuple_size<Tuple>::value > 0,
+					              "Some arguments required");
+					return _DispatchRunner<Tuple>::a(tup, space);
+				};
+		}
+	}
+
 
 	struct AstSubscripter
 	{
 		PassByValue value;
 		AstSubscripter(PassByValue const& in) : value(in) {}
+		AstSubscripter(Ast& value_) : value(pass_value(value_)) {}
 		AstSubscripter() = delete;
 
 		AstSubscripter operator[](off_t pos)
@@ -404,6 +399,38 @@ namespace atl
 	template<class T>
 	AstSubscripter subscripter(T&& ast)
 	{ return AstSubscripter(pass_value(ast)); }
+
+
+	struct RefSubscripter
+	{
+		Any *value;
+		RefSubscripter(Any& value_) : value(&value_) {}
+		RefSubscripter(Ast& value_) : value(reinterpret_cast<Any*>(&value_)) {}
+
+		RefSubscripter() = delete;
+
+		RefSubscripter operator[](off_t pos)
+		{
+			switch(value->_tag)
+				{
+				case tag<Ast>::value:
+					return RefSubscripter(explicit_unwrap<Ast>(*value)[pos]);
+
+				case tag<AstData>::value:
+					return RefSubscripter(explicit_unwrap<AstData>(*value)[pos]);
+
+				case tag<Slice>::value:
+					return RefSubscripter(unwrap<Slice>(*value)[pos]);
+
+				default:
+					throw WrongTypeError("Can't subscript given type");
+				}
+		}
+
+		template<class T>
+		T& a()
+		{ return unwrap<T>(*value); }
+	};
 
 
 	template<class T>
@@ -450,11 +477,9 @@ namespace atl
 	                        bool>::type
 	operator==(Tree const& aa_tree, Tree const& bb_tree)
 	{
-		if(aa_tree.flat_size() != bb_tree.flat_size())
-			{ return false; }
-
 		auto aa = aa_tree.begin(),
 			bb = bb_tree.begin();
+
 		while((aa != aa_tree.end()) && (bb != bb_tree.end()))
 			{
 				if(aa->_tag != bb->_tag)
@@ -516,6 +541,64 @@ namespace atl
 			}
 		else
 			{ return value.any; }
+	}
+
+	/** Assign `sym` a constant `value`. */
+	void symbol_assign(Symbol& sym, Any value)
+	{
+		sym.subtype = Symbol::Subtype::constant;
+		switch(value._tag)
+			{
+			case tag<CxxFunctor>::value:
+				{
+					auto fn = unwrap<CxxFunctor>(value);
+					sym.scheme.quantified.clear();
+					sym.scheme.type = wrap(fn.type);
+					break;
+				}
+
+			case tag<Ast>::value:
+			case tag<AstData>::value:
+			case tag<Slice>::value:
+				break;
+
+			default:
+				{
+					sym.scheme.quantified.clear();
+					sym.scheme.type = wrap<Type>(value._tag);
+					break;
+				}
+			}
+
+		sym.value = value;
+	}
+
+	bool is_astish(Any const& input)
+	{
+		switch(input._tag)
+			{
+			case tag<AstData>::value:
+			case tag<Ast>::value:
+			case tag<Slice>::value:
+				return true;
+			default:
+				return false;
+			}
+	}
+
+	Ast unwrap_astish(Any& astish)
+	{
+		switch(astish._tag)
+			{
+			case tag<AstData>::value:
+				return Ast(&reinterpret_cast<AstData&>(astish));
+			case tag<Ast>::value:
+				return explicit_unwrap<Ast>(astish);
+			default:
+				throw WrongTypeError(std::string("Cannot make ")
+				                     .append(type_name(astish))
+				                     .append(" into an Ast."));
+			}
 	}
 }
 

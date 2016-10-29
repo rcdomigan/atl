@@ -157,7 +157,16 @@ namespace atl
 	{
 		AstSubstrate() : std::vector<Any>() {}
 		AstSubstrate(AstSubstrate const&) = delete;
+
+		Any& root() { return front(); }
+
+		void dbg();
 	};
+
+	void AstSubstrate::dbg() {
+		for(auto& vv : *this)
+			{ std::cout << type_name(vv) << std::endl; }
+	}
 
 	// An iterator like thing which follows the position of an object
 	// in a vector so it will remain valid after a resize.
@@ -198,7 +207,8 @@ namespace atl
 
 		virtual AstSubstrate& sequence() = 0;
 		virtual Symbol* symbol(std::string const&) = 0;
-		virtual DefProcedure* def_procedure() = 0;
+		virtual Bound* bound(Symbol*, Bound::Subtype, size_t) = 0;
+		virtual LambdaMetadata* lambda_metadata() = 0;
 		virtual Symbol* symbol(std::string const&, Scheme const& type) = 0;
 
 		virtual void free(Any any) = 0;
@@ -216,11 +226,11 @@ namespace atl
 
 		void unregister(MarkType::iterator itr) { _mark.erase(itr); }
 
-		memory_pool::Pool< Procedure > _procedure_heap;
-		memory_pool::Pool< DefProcedure > _def_procedure_heap;
+		memory_pool::Pool< LambdaMetadata > _lambda_metadata_heap;
 		memory_pool::Pool< String > _string_heap;
 		memory_pool::Pool< CxxFunctor > _primitive_recursive_heap;
 		memory_pool::Pool< Symbol > _symbol_heap;
+		memory_pool::Pool< Bound > _bound_heap;
 		memory_pool::Pool< Slice > _slice_heap;
 
 		template< class T,  memory_pool::Pool<T> GC::*member >
@@ -230,12 +240,12 @@ namespace atl
 			const static PoolType value;
 		};
 
-		typedef mpl::map< mpl::pair< Procedure , MemberPtr<Procedure, &GC::_procedure_heap > >
-		                  , mpl::pair< DefProcedure , MemberPtr<DefProcedure, &GC::_def_procedure_heap > >
+		typedef mpl::map< mpl::pair< LambdaMetadata , MemberPtr<LambdaMetadata, &GC::_lambda_metadata_heap > >
 		                  , mpl::pair< String , MemberPtr<String, &GC::_string_heap > >
 		                  , mpl::pair< CxxFunctor,
 		                               MemberPtr<CxxFunctor, &GC::_primitive_recursive_heap > >
 		                  , mpl::pair< Symbol,	MemberPtr<Symbol, &GC::_symbol_heap > >
+		                  , mpl::pair< Bound,	MemberPtr<Bound, &GC::_bound_heap > >
 		                  , mpl::pair< Slice,  MemberPtr<Slice, &GC::_slice_heap > >
 		                  > PoolMap;
 
@@ -261,7 +271,6 @@ namespace atl
 			for(auto i : _mark_callbacks)
 				i(*this);
 
-			_procedure_heap.sweep();
 			_string_heap.sweep();
 		}
 
@@ -315,11 +324,14 @@ namespace atl
 		virtual Symbol* symbol(std::string const& name) override
 		{ return make<Symbol>(name); }
 
-		virtual DefProcedure* def_procedure() override
-		{ return make<DefProcedure>(); }
+		virtual LambdaMetadata* lambda_metadata() override
+		{ return make<LambdaMetadata>(); }
 
 		virtual Symbol* symbol(std::string const& name, Scheme const& type) override
 		{ return make<Symbol>(name, type); }
+
+		virtual Bound* bound(Symbol* sym, Bound::Subtype subtype, size_t offset) override
+		{ return make<Bound>(sym, subtype, offset); }
 
 		virtual void free(Any any) override { /* stub */ }
 	};
@@ -351,22 +363,25 @@ namespace atl
 			return *rval;
 		}
 
-		template<class Type, class ... Types>
-		Type* make(Types ... args)
-		{ return new Type (args...); }
+		template<class T, class ... Args>
+		T* make(Args ... args)
+		{ return new  T(args...); }
 
-		template<class Type, class ... Types>
-		Any amake(Types ... args)
-		{ return Any( tag<Type>::value , make<Type>(args...)); }
+		template<class T, class ... Args>
+		Any amake(Args ... args)
+		{ return Any( tag<T>::value , make<T>(args...)); }
 
 		virtual Symbol* symbol(std::string const& name) override
 		{ return make<Symbol>(name); }
 
-		virtual DefProcedure* def_procedure() override
-		{ return make<DefProcedure>(); }
+		virtual LambdaMetadata* lambda_metadata() override
+		{ return make<LambdaMetadata>(); }
 
 		virtual Symbol* symbol(std::string const& name, Scheme const& type) override
 		{ return make<Symbol>(name, type); }
+
+		virtual Bound* bound(Symbol* sym, Bound::Subtype subtype, size_t offset) override
+		{ return make<Bound>(sym, subtype, offset); }
 
 		virtual void free(Any any) override { /* stub */ }
 	};

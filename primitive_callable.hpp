@@ -21,13 +21,7 @@ namespace atl
 	{
 		using namespace primitives;
 
-		env.lexical.define("__\\__", wrap<Lambda>());
-		env.lexical.define(":", wrap<DeclareType>());
-		env.lexical.define("quote", wrap<Quote>());
-		env.lexical.define("if", wrap<If>());
-		env.lexical.define("#f", atl_false());
-		env.lexical.define("#t", atl_true());
-		env.lexical.define("define", wrap<Define>());
+		setup_basic_definitions(env.lexical);
 
 		// for debugging (I still need a more general printing
 		// mechanism)

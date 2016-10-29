@@ -3,7 +3,7 @@ main
 test-vm
 byte-coded
 test-zipper
-test/abstract_type
+test/analyze_and_compile
 test/atl
 test/compile
 test/ffi
@@ -13,10 +13,12 @@ test/lexical_environment
 test/lists
 test/macros
 test/parser
+test/passes
 test/primitive
 test/structs
 test/test
 test/test_type
+test/type
 test/type_inference
 test/utility
 test/vm

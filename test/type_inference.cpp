@@ -7,12 +7,10 @@
 
 #include <gtest/gtest.h>
 
-#include <iostream>
-#include <unordered_map>
-#include <unordered_set>
-
 #include <lexical_environment.hpp>
 #include <type_inference.hpp>
+#include <ffi.hpp>
+#include <helpers/pattern_match.hpp>
 
 using namespace atl;
 
@@ -33,7 +31,7 @@ TEST_F(TestSubstitution, test_nop_type_substitution)
 
     subst[Type(1)] = wrap<Type>(3);
 
-    auto make_expr = make(lift<Type>(4), lift<Type>(5));
+    auto make_expr = mk(wrap<Type>(4), wrap<Type>(5));
 
     auto pre = make_expr(ast_alloc(arena));
     auto post = inference::substitute_type(ast_alloc(arena),
@@ -54,17 +52,18 @@ TEST_F(TestSubstitution, test_type_substitution)
     auto expr = inference::substitute_type
 	    (ast_alloc(arena),
 	     subst,
-	     pass_value(make
-	                (lift<Type>(1),
-	                 make(lift<Type>(1)),
-	                 lift<Type>(2))
+	     pass_value(mk
+	                (wrap<Type>(1),
+	                 mk(wrap<Type>(1)),
+	                 wrap<Type>(2))
 	                (ast_alloc(arena))));
 
-    auto expect = make(lift<Type>(3),
-                       make(lift<Type>(3)),
-                       lift<Type>(2))(ast_alloc(arena));
+    auto expect = mk(wrap<Type>(3),
+                       mk(wrap<Type>(3)),
+                       wrap<Type>(2))(ast_alloc(arena));
 
-    ASSERT_EQ(expect, explicit_unwrap<Ast>(expr));
+    ASSERT_EQ(expect, explicit_unwrap<Ast>(expr))
+	    << "Got: " << printer::with_type(expr) << std::endl;
 }
 
 /* substitution example from Ian Grant page 8 */
@@ -74,12 +73,12 @@ TEST_F(TestSubstitution, test_type_substitution_p8)
 	Arena arena;
 
 	auto type = [](char cc)
-		{ return lift<Type>(cc + LAST_CONCRETE_TYPE); };
+		{ return wrap<Type>(cc + LAST_CONCRETE_TYPE); };
 
 
     inference::SubstituteMap subs;
     subs[Type('x' + LAST_CONCRETE_TYPE)] = wrap<Type>('a' + LAST_CONCRETE_TYPE);
-    subs[Type('y' + LAST_CONCRETE_TYPE)] = wrap(make(type('b'), type('a'))(ast_alloc(arena)));
+    subs[Type('y' + LAST_CONCRETE_TYPE)] = wrap(mk(type('b'), type('a'))(ast_alloc(arena)));
 
     auto do_sub = [&](Ast& ast) -> Ast
 	    {
@@ -89,17 +88,20 @@ TEST_F(TestSubstitution, test_type_substitution_p8)
 		                                           PassByValue(ast)).value));
 	    };
 
-    auto first = make(type('x'),
-                      make(type('b'),
+    auto first = mk(type('x'),
+                      mk(type('b'),
                            type('x')))(ast_alloc(arena));
 
-    auto second = make(type('a'),
+    auto second = mk(type('a'),
                        type('y'))(ast_alloc(arena));
 
-    auto expect = make(type('a'), make(type('b'), type('a')))(ast_alloc(arena));
+    auto expect = mk(type('a'), mk(type('b'), type('a')))(ast_alloc(arena));
 
-    ASSERT_EQ(expect, do_sub(first));
-    ASSERT_EQ(expect, do_sub(second));
+    ASSERT_EQ(expect, do_sub(first))
+	    << "Got: " << printer::with_type(first) << std::endl;
+
+    ASSERT_EQ(expect, do_sub(second))
+	    << "Got: " << printer::with_type(second) << std::endl;
 }
 
 TEST_F(TestSubstitution, example_p9_assuming_mgu)
@@ -108,30 +110,30 @@ TEST_F(TestSubstitution, example_p9_assuming_mgu)
     using namespace inference;
     Arena arena;
 
-	auto type = [&](char cc) { return lift<Type>(cc); };
+	auto type = [&](char cc) { return wrap<Type>(cc); };
 
-	auto zero = lift<Type>(0); //[&] () { return type(0); }
+	auto zero = wrap<Type>(0);
     auto aalloc = [&](){ return ast_alloc(arena); };
 
-    auto left = make(type(1), type(2), type(3))(aalloc()),
-	    right = make(make(type(2), type(2)),
-	                 make(type(3), type(3)),
-	                 make(type(0), type(0)))(aalloc());
+    auto left = mk(type(1), type(2), type(3))(aalloc()),
+	    right = mk(mk(type(2), type(2)),
+	                 mk(type(3), type(3)),
+	                 mk(type(0), type(0)))(aalloc());
 
     SubstituteMap subs
 	    ({
 		    make_pair
 			    (Type(1),
-			     wrap(make(make(make(zero, zero), make(zero, zero)),
-			               make(make(zero, zero), make(zero, zero)))(aalloc()))),
+			     wrap(mk(mk(mk(zero, zero), mk(zero, zero)),
+			               mk(mk(zero, zero), mk(zero, zero)))(aalloc()))),
 
 			    make_pair
 			    (Type(2),
-			     wrap(make(make(zero, zero), make(zero, zero))(aalloc()))),
+			     wrap(mk(mk(zero, zero), mk(zero, zero))(aalloc()))),
 
 			    make_pair
 			    (Type(3),
-			     wrap(make(zero, zero)(aalloc())))
+			     wrap(mk(zero, zero)(aalloc())))
 			    });
 
     auto sub_left = substitute_type(aalloc(), subs, pass_value(left)),
@@ -150,11 +152,11 @@ TEST_F(TestSubstitution, test_substitution_composition)
 
 	{
 		SubstituteMap left({{Type(2), wrap<Type>(0)}}),
-			right({{Type(1), wrap(make(lift<Type>(2), lift<Type>(3))(ast_alloc(arena)))}});
+			right({{Type(1), wrap(mk(wrap<Type>(2), wrap<Type>(3))(ast_alloc(arena)))}});
 		compose_subs(arena, left, right);
 
 		ASSERT_EQ(2, left.size());
-		ASSERT_EQ(make(lift<Type>(0), lift<Type>(3))(ast_alloc(arena)),
+		ASSERT_EQ(mk(wrap<Type>(0), wrap<Type>(3))(ast_alloc(arena)),
 		          explicit_unwrap<Ast>(left[Type(1)]));
 	}
 }
@@ -172,8 +174,7 @@ struct Unification
 	{ init_types(); }
 
 	make_ast::AstAllocator aalloc() { return make_ast::ast_alloc(store); }
-	make_ast::ast_composer type(size_t tt)
-	{ return make_ast::lift<Type>(tt); }
+	Any type(size_t tt) { return wrap<Type>(tt); }
 };
 
 TEST_F(Unification, rule_1)
@@ -198,14 +199,12 @@ TEST_F(Unification, rule_2a)
     auto subst = inference::most_general_unification
 	    (store,
 	     pass_value<Type>(0),
-	     pass_value(make(lift<Type>(1),
-	                     lift<Type>(2))
-	                (ast_alloc(store))));
+	     pass_value(mk(type(1),type(2))(ast_alloc(store))));
 
     ASSERT_EQ(subst.size(), 1);
     ASSERT_EQ(tag<Ast>::value, subst[Type(0)]._tag);
     ASSERT_EQ(explicit_unwrap<Ast>(subst[Type(0)]),
-              make(lift<Type>(1), lift<Type>(2))(ast_alloc(store)));
+              mk(wrap<Type>(1), wrap<Type>(2))(ast_alloc(store)));
 }
 
 TEST_F(Unification, rule_2aa)
@@ -216,12 +215,12 @@ TEST_F(Unification, rule_2aa)
     auto subst = inference::most_general_unification
 	    (store,
 	     pass_value<Type>(0),
-	     pass_value(make(type(1), type(2))(ast_alloc(store))));
+	     pass_value(mk(type(1), type(2))(ast_alloc(store))));
 
     ASSERT_EQ(subst.size(), 1);
     ASSERT_EQ(tag<Ast>::value, subst[Type(0)]._tag);
     ASSERT_EQ(explicit_unwrap<Ast>(subst[Type(0)]),
-              make(type(1), type(2))(ast_alloc(store)));
+              mk(type(1), type(2))(ast_alloc(store)));
 }
 
 TEST_F(Unification, rule_2b)
@@ -230,13 +229,13 @@ TEST_F(Unification, rule_2b)
     //rule (iib)
     auto subst = inference::most_general_unification
 	    (store,
-	     pass_value(make(type(0), type(1))(ast_alloc(store))),
+	     pass_value(mk(type(0), type(1))(ast_alloc(store))),
 	     pass_value<Type>(2));
 
     ASSERT_EQ(subst.size(), 1);
     ASSERT_EQ(tag<Ast>::value, subst[Type(2)]._tag);
     ASSERT_EQ(explicit_unwrap<Ast>(subst[Type(2)]),
-              make(type(0), type(1))(ast_alloc(store)));
+              mk(type(0), type(1))(ast_alloc(store)));
 }
 
 TEST_F(Unification, rule_3)
@@ -255,8 +254,8 @@ TEST_F(Unification,  rule_4)
 
     auto subst = inference::most_general_unification
 		(store,
-		 pass_value(make(type(0), type(1))(aalloc())),
-		 pass_value(make(type(2), type(3))(aalloc())));
+		 pass_value(mk(type(0), type(1))(aalloc())),
+		 pass_value(mk(type(2), type(3))(aalloc())));
 
     ASSERT_EQ(subst.size(), 2);
     ASSERT_EQ(subst[Type(2)], wrap<Type>(0));
@@ -270,8 +269,8 @@ TEST_F(Unification, example_p8)
 
     enum { A=0, B=1, X=10, Y=11 };
 
-    auto left = make(type(A), type(Y))(aalloc()),
-	    right = make(type(X), make(type(B), type(X)))(aalloc());
+    auto left = mk(type(A), type(Y))(aalloc()),
+	    right = mk(type(X), mk(type(B), type(X)))(aalloc());
 
     auto subs = inference::most_general_unification
 	    (store, pass_value(left), pass_value(right));
@@ -288,10 +287,10 @@ TEST_F(Unification, example_p9)
     using namespace make_ast;
     using namespace inference;
 
-    auto left = make(type(1), type(2), type(3))(aalloc()),
-	    right = make(make(type(2), type(2)),
-	                 make(type(3), type(3)),
-	                 make(type(0), type(0)))(aalloc());
+    auto left = mk(type(1), type(2), type(3))(aalloc()),
+	    right = mk(mk(type(2), type(2)),
+	                 mk(type(3), type(3)),
+	                 mk(type(0), type(0)))(aalloc());
 
     auto subs = most_general_unification(store, pass_value(left), pass_value(right));
 
@@ -301,7 +300,6 @@ TEST_F(Unification, example_p9)
     ASSERT_EQ(explicit_unwrap<Ast>(sub_left),
               explicit_unwrap<Ast>(sub_right));
 }
-
 
 struct SpecializeAndGeneralize
     : public ::testing::Test
@@ -324,15 +322,15 @@ TEST_F(SpecializeAndGeneralize, instantiate)
 		ff = new_types + 2;
 
 	Scheme scheme(Scheme::Quantified{aa, bb},
-	              wrap(make(lift<Type>(cc),
-	                        make(lift<Type>(aa),
-	                             lift<Type>(bb)),
-	                        lift<Type>(dd))(ast_alloc(store))));
+	              wrap(mk(wrap<Type>(cc),
+	                        mk(wrap<Type>(aa),
+	                             wrap<Type>(bb)),
+	                        wrap<Type>(dd))(ast_alloc(store))));
 
-	auto expected = make(lift<Type>(cc),
-	                     make(lift<Type>(ee),
-	                          lift<Type>(ff)),
-	                     lift<Type>(dd))(ast_alloc(store));
+	auto expected = mk(wrap<Type>(cc),
+	                     mk(wrap<Type>(ee),
+	                          wrap<Type>(ff)),
+	                     wrap<Type>(dd))(ast_alloc(store));
 	Scheme::Quantified expected_subs{ee, ff};
 
 	auto instantiated = instantiate(store, new_types, scheme);
@@ -341,10 +339,12 @@ TEST_F(SpecializeAndGeneralize, instantiate)
 
 	auto inner_ast = subscripter(explicit_unwrap<Ast>(instantiated))[1];
 
-	ASSERT_TRUE(expected_subs.count(unwrap<Type>(inner_ast[0].value).value)) << "got: " << unwrap<Type>(inner_ast[0].value).value;
-	ASSERT_TRUE(expected_subs.count(unwrap<Type>(inner_ast[1].value).value));
-	ASSERT_NE(unwrap<Type>(inner_ast[0].value).value,
-	          unwrap<Type>(inner_ast[1].value).value);
+	ASSERT_TRUE(expected_subs.count(unwrap<Type>(inner_ast[0].value).value()))
+		<< "got: " << unwrap<Type>(inner_ast[0].value).value();
+
+	ASSERT_TRUE(expected_subs.count(unwrap<Type>(inner_ast[1].value).value()));
+	ASSERT_NE(unwrap<Type>(inner_ast[0].value).value(),
+	          unwrap<Type>(inner_ast[1].value).value());
 }
 
 TEST_F(SpecializeAndGeneralize, generalize)
@@ -361,15 +361,15 @@ TEST_F(SpecializeAndGeneralize, generalize)
 		ff = new_types + 2;
 
 	Scheme scheme(Scheme::Quantified{aa, bb},
-	              wrap(make(lift<Type>(cc),
-	                        make(lift<Type>(aa),
-	                             lift<Type>(bb)),
-	                        lift<Type>(dd))(ast_alloc(store))));
+	              wrap(mk(wrap<Type>(cc),
+	                        mk(wrap<Type>(aa),
+	                             wrap<Type>(bb)),
+	                        wrap<Type>(dd))(ast_alloc(store))));
 
-	auto expected = make(lift<Type>(cc),
-	                     make(lift<Type>(ee),
-	                          lift<Type>(ff)),
-	                     lift<Type>(dd))(ast_alloc(store));
+	auto expected = mk(wrap<Type>(cc),
+	                     mk(wrap<Type>(ee),
+	                          wrap<Type>(ff)),
+	                     wrap<Type>(dd))(ast_alloc(store));
 	Scheme::Quantified expected_subs{ee, ff};
 
 	auto instantiated = instantiate(store, new_types, scheme);
@@ -378,10 +378,12 @@ TEST_F(SpecializeAndGeneralize, generalize)
 
 	auto inner_ast = subscripter(explicit_unwrap<Ast>(instantiated))[1];
 
-	ASSERT_TRUE(expected_subs.count(unwrap<Type>(inner_ast[0].value).value)) << "got: " << unwrap<Type>(inner_ast[0].value).value;
-	ASSERT_TRUE(expected_subs.count(unwrap<Type>(inner_ast[1].value).value));
-	ASSERT_NE(unwrap<Type>(inner_ast[0].value).value,
-	          unwrap<Type>(inner_ast[1].value).value);
+	ASSERT_TRUE(expected_subs.count(unwrap<Type>(inner_ast[0].value).value()))
+		<< "got: " << unwrap<Type>(inner_ast[0].value).value();
+
+	ASSERT_TRUE(expected_subs.count(unwrap<Type>(inner_ast[1].value).value()));
+	ASSERT_NE(unwrap<Type>(inner_ast[0].value).value(),
+	          unwrap<Type>(inner_ast[1].value).value());
 }
 
 struct Inference
@@ -389,12 +391,15 @@ struct Inference
 {
 	Type::value_type new_types;
 	inference::Gamma gamma;
+
 	SymbolMap symbols;
 
 	Inference()
-		: Unification(), new_types(LAST_CONCRETE_TYPE), symbols(nullptr)
+		: Unification(), new_types(LAST_CONCRETE_TYPE), symbols(store)
 	{}
 };
+
+
 
 /* My plan is that the symbols will be bound to their scope by
    assign_free, so I can't really test var in isolation.
@@ -425,13 +430,9 @@ TEST_F(Inference, test_lambda)
     using namespace inference;
     using namespace make_ast;
 
-    auto e1 = make(lift<Lambda>(),
-                   make(sym("a")),
-                   sym("a"))(aalloc());
-    auto wrapped = wrap(e1);
-
-    FreeSymbols _free;
-    assign_free(symbols, store, _free, wrapped);
+    auto e1 = mk(wrap<Lambda>(),
+                   mk("a"),
+                   "a")(aalloc());
 
     auto We1 = W(store, new_types, gamma, pass_value(e1));
 
@@ -447,20 +448,44 @@ TEST_F(Inference, test_multi_arg_lambda)
     using namespace inference;
     using namespace make_ast;
 
-    auto e1 = make(lift<Lambda>(),
-                   make(sym("a"), sym("b")),
-                   sym("a"))(aalloc());
-    auto wrapped = wrap(e1);
-
-    FreeSymbols _free;
-    assign_free(symbols, store, _free, wrapped);
+    auto e1 = mk(wrap<Lambda>(),
+                   mk("a", "b"),
+                   "a")(aalloc());
 
     auto We1 = W(store, new_types, gamma, pass_value(e1));
 
-    auto type = explicit_unwrap<Ast>(We1.type);
-    ASSERT_EQ(type[0], wrap<Type>(tag<FunctionConstructor>::value));
-    ASSERT_EQ(type[1], type[3]);
-    ASSERT_NE(type[1], type[2]);
+    {
+	    using namespace pattern_match;
+	    ASSERT_TRUE
+		    (match(fnt("a", "b", "a"),
+		           We1.type))
+		    << printer::with_type(e1);
+    }
+}
+
+/* Same "simple lambda" used in analyse_and_compile */
+TEST_F(Inference, test_simple_lambda)
+{
+	using namespace inference;
+	using namespace make_ast;
+
+	auto expr = mk(wrap<Lambda>(),
+	               mk("a", "b"),
+	               mk("add2", "a", "b"))
+		(aalloc());
+
+	std::cout << printer::with_type(expr) << std::endl;
+
+	auto inferred = W(store, new_types, gamma, pass_value(expr));
+	apply_substitution(store, gamma, inferred.subs, ref_wrap(expr));
+
+	{
+		using namespace pattern_match;
+		ASSERT_TRUE
+			(match(fnt("x", "y", "z"),
+			       inferred.type))
+			<< "\n" << printer::with_type(inferred.type);
+	}
 }
 
 TEST_F(Inference, test_application)
@@ -468,26 +493,19 @@ TEST_F(Inference, test_application)
     using namespace make_ast;
     using namespace inference;
 
-    auto fcc = []() { return lift<Type>(tag<FunctionConstructor>::value); };
-
-    auto e1 = make(lift<Lambda>(),
-                   make(sym("x"), sym("y")),
-                   make(sym("x"), sym("y")))(aalloc());
+    auto e1 = mk(wrap<Lambda>(),
+                 mk("x", "y"),
+                 mk("x", "y"))(aalloc());
     auto We1 = W(store, new_types, gamma, pass_value(e1));
 
-    auto wrapped = wrap(e1);
-    apply_substitution(store, gamma, We1.subs, wrapped);
-
-    /* first possible free type is not used in final inference */
-    auto new_types = LAST_CONCRETE_TYPE + 1;
-
-    auto a = ++new_types;
-    auto b = ++new_types;
-
-    ASSERT_EQ(make(fcc(),
-                   make(fcc(), lift<Type>(a), lift<Type>(b)),
-                   lift<Type>(a), lift<Type>(b))(aalloc()),
-              explicit_unwrap<Ast>(We1.type));
+    /* Check the body: */
+    {
+	    using namespace pattern_match;
+	    ASSERT_TRUE
+		    (match(fnt(fnt("a", "b"), fnt("a", "b")),
+		           We1.type))
+		    << printer::with_type(We1.type);
+    }
 }
 
 TEST_F(Inference, test_define)
@@ -495,7 +513,7 @@ TEST_F(Inference, test_define)
     using namespace make_ast;
     using namespace inference;
 
-    auto e1 = make(lift<Define>(), sym("a"), sym("b"))(aalloc());
+    auto e1 = mk(wrap<Define>(), "a", "b")(aalloc());
     auto wrapped = wrap(e1);
 
     auto We1 = W(store, new_types, gamma, pass_value(e1));
@@ -508,7 +526,7 @@ TEST_F(Inference, test_define)
     ASSERT_EQ(1, scheme.quantified.size());
 
     ASSERT_TRUE(is<Type>(scheme.type));
-    ASSERT_EQ(1, scheme.quantified.count(unwrap<Type>(scheme.type).value));
+    ASSERT_EQ(1, scheme.quantified.count(unwrap<Type>(scheme.type).value()));
 }
 
 TEST_F(Inference, test_apply_defined)
@@ -517,10 +535,8 @@ TEST_F(Inference, test_apply_defined)
     using namespace inference;
 
     // id function
-    auto e1 = make(lift<Define>(), sym("id"),
-                   make(lift<Lambda>(),
-                        make(sym("x")),
-                        sym("x")))(aalloc());
+    auto e1 = mk(wrap<Define>(), "id",
+                   mk(wrap<Lambda>(), mk("x"), "x"))(aalloc());
     auto wrapped = wrap(e1);
 
     auto We1 = W(store, new_types, gamma, pass_value(e1));
@@ -532,110 +548,57 @@ TEST_F(Inference, test_apply_defined)
 
     ASSERT_TRUE(is<Ast>(id_scheme.type));
     ASSERT_EQ(*id_scheme.quantified.begin(),
-              unwrap<Type>(explicit_unwrap<Ast>(id_scheme.type)[1]).value);
+              unwrap<Type>(explicit_unwrap<Ast>(id_scheme.type)[1]).value());
     ASSERT_EQ(*id_scheme.quantified.begin(),
-              unwrap<Type>(explicit_unwrap<Ast>(id_scheme.type)[2]).value);
+              unwrap<Type>(explicit_unwrap<Ast>(id_scheme.type)[2]).value());
 
     ASSERT_TRUE(We1.subs.empty());
 
     apply_substitution(store, gamma, We1.subs, wrapped);
 
     // Now see if we can apply the newly defined "id"
-    auto e2 = make(sym("id"), sym("y"))(aalloc());
+    auto e2 = mk("id", "y")(aalloc());
     auto We2 = W(store, new_types, gamma, pass_value(e2));
 
     ASSERT_EQ(2, We2.subs.size());
     ASSERT_TRUE(is<Type>(We2.type));
 
-    ASSERT_NE(unwrap<Type>(We2.type).value,
+    ASSERT_NE(unwrap<Type>(We2.type).value(),
               *id_scheme.quantified.begin());
 
     ASSERT_TRUE(is<Symbol>(e2[1]));
     ASSERT_TRUE(is<Type>(unwrap<Symbol>(e2[1]).scheme.type));
 
-    ASSERT_NE(unwrap<Type>(We2.type).value,
-              unwrap<Type>(unwrap<Symbol>(e2[1]).scheme.type).value);
+    ASSERT_NE(unwrap<Type>(We2.type).value(),
+              unwrap<Type>(unwrap<Symbol>(e2[1]).scheme.type).value());
 
     auto wrapped2 = wrap(e2);
     apply_substitution(store, gamma, We2.subs, wrapped2);
 
-    ASSERT_EQ(unwrap<Type>(We2.type).value,
-              unwrap<Type>(unwrap<Symbol>(e2[1]).scheme.type).value);
+    ASSERT_EQ(unwrap<Type>(We2.type).value(),
+              unwrap<Type>(unwrap<Symbol>(e2[1]).scheme.type).value());
 
 }
-
-
-typedef std::map<std::string, Type> SeenShapeMap;
-
-
-bool _shape_check(SeenShapeMap& map, Slice target, Slice got)
-{
-	if(target.size() != got.size())
-		{ return false; }
-
-	for(auto vv : zip(target, got))
-		{
-			auto aa = pass_value(*get<0>(vv)),
-				bb = pass_value(*get<1>(vv));
-
-			switch(aa._tag)
-				{
-				case tag<Slice>::value:
-					if(!is<Slice>(bb)) { return false; }
-
-					if(!_shape_check(map, aa.slice, bb.slice))
-						{ return false; }
-					break;
-
-				case tag<Symbol>::value:
-					{
-						if(!is<Type>(bb)) { return false; }
-
-						auto sym = unwrap<Symbol>(aa);
-						auto type = unwrap<Type>(bb);
-
-						auto itr = map.find(sym.name);
-						if(itr != map.end() && itr->second != type)
-							{ return false; }
-						else
-							{ map.emplace(make_pair(sym.name, type)); }
-						break;
-					}
-				}
-		}
-	return true;
-}
-
-
-bool shape_check(Ast target, Ast got)
-{
-	SeenShapeMap map;
-	return _shape_check(map, Slice(target), Slice(got));
-}
-
 
 TEST_F(Inference, test_nested_application)
 {
     using namespace make_ast;
     using namespace inference;
 
-    auto e1 = mk(lift<Lambda>(),
+    auto e1 = mk(wrap<Lambda>(),
                  mk("x", "y", "z"),
                  mk("x", mk("y", "z")))
 	    (aalloc());
 
     auto We1 = W(store, new_types, gamma, pass_value(e1));
 
-    ASSERT_TRUE
-	    (shape_check
-	     (mk("->",
-	         mk("->", "a", "b"), // x
-	         mk("->", "c", "a"), // y
-	         "c", // z
-	         "b")
-	      (aalloc()),
-	      explicit_unwrap<Ast>(We1.type)))
-	    << "\n" << printer::any(We1.type);
+    {
+	    using namespace pattern_match;
+	    ASSERT_TRUE
+		    (match(fnt(fnt("a", "b"), fnt(fnt("c", "a"), fnt("c", "b"))),
+		           We1.type))
+		    << "\n" << printer::print(We1.type);
+    }
 }
 
 TEST_F(Inference, test_multi_arg_application)
@@ -643,21 +606,53 @@ TEST_F(Inference, test_multi_arg_application)
     using namespace make_ast;
     using namespace inference;
 
-    auto e1 = make(lift<Lambda>(),
-                   make(sym("x"), sym("y"), sym("z")),
-                   make(sym("x"), sym("y"), sym("z")))(aalloc());
+    auto e1 = mk(wrap<Lambda>(),
+                 mk("x", "y", "z"),
+                 mk("x", "y", "z"))
+	    (aalloc());
+
     auto We1 = W(store, new_types, gamma, pass_value(e1));
 
-    ASSERT_TRUE
-	    (shape_check
-	     (mk("->",
-	         mk("->", "a", mk("->", "b", "c")),
-	         "a",
-	         "b",
-	         "c")
-	      (aalloc()),
-	      explicit_unwrap<Ast>(We1.type)))
-	    << "\n" << printer::any(We1.type);
+    {
+	    using namespace pattern_match;
+	    ASSERT_TRUE
+		    (match(fnt(fnt("a", "b", "c"), "a", "b", "c"),
+		           We1.type))
+		    << "\n" << printer::print(We1.type);
+    }
+    auto wrapped = wrap(e1);
+    apply_substitution(store, gamma, We1.subs, wrapped);
+
+    // z should be a non-function type
+    {
+	    auto z = AstSubscripter(e1)[1][2].value.any;
+	    ASSERT_EQ(tag<Symbol>::value, z._tag);
+	    ASSERT_EQ(tag<Type>::value,
+	              unwrap<Symbol>(z).scheme.type._tag)
+		    << "Got " << type_name(unwrap<Symbol>(z).scheme.type._tag) << std::endl;
+    }
+
+    // y should also be a non-function (as I keep forgetting: x
+    // _applied_ to y to produces a function)
+    {
+	    auto y = AstSubscripter(e1)[1][1].value.any;
+	    ASSERT_EQ(tag<Symbol>::value, y._tag);
+	    ASSERT_EQ(tag<Type>::value,
+	              unwrap<Symbol>(y).scheme.type._tag)
+		    << "Got " << type_name(unwrap<Symbol>(y).scheme.type._tag) << std::endl;
+
+    }
+
+    {
+	    using namespace pattern_match;
+	    auto x = AstSubscripter(e1)[1][0].value.any;
+	    ASSERT_EQ(tag<Symbol>::value, x._tag);
+	    ASSERT_TRUE
+		    (match(fnt("a", "b", "c"),
+		           unwrap<Symbol>(x).scheme.type))
+		    << "\n" << printer::print(unwrap<Symbol>(x).scheme.type);
+    }
+
 }
 
 TEST_F(Inference, test_recursive_fn)
@@ -665,16 +660,143 @@ TEST_F(Inference, test_recursive_fn)
     using namespace make_ast;
     using namespace inference;
 
-    auto rec = mk(lift<Define>(),
-                  "rec", mk(lift<Lambda>(),
+    auto rec = mk(wrap<Define>(),
+                  "rec", mk(wrap<Lambda>(),
                             mk("x"),
                             mk("rec", "x")))
 	    (aalloc());
     auto Wrec = W(store, new_types, gamma, pass_value(rec));
+    {
+	    using namespace pattern_match;
+	    ASSERT_TRUE
+		    (match(fnt("a", "b"),
+		           unwrap<Scheme>(Wrec.type).type))
+		    << "\n" << printer::print(Wrec.type);
+    }
+}
 
-    ASSERT_TRUE
-	    (shape_check
-	     (mk("->", "a", "b")(aalloc()),
-	      explicit_unwrap<Ast>(unwrap<Scheme>(Wrec.type).type)))
-	    << "\n" << printer::any(Wrec.type);
+TEST_F(Inference, test_cxx_functor)
+{
+	using namespace make_ast;
+	using namespace inference;
+
+	auto add = atl::cxx_functions::WrapStdFunction<bool (long, long)>::a
+		([](long a, long b) { return a + b; },
+		 store,
+		 "add");
+
+	auto expr = mk(wrap(add), "x", "y")(aalloc());
+
+	auto inferred = W(store, new_types, gamma, pass_value(expr));
+
+	ASSERT_TRUE(is<Type>(inferred.type));
+	ASSERT_EQ(tag<Bool>::value
+	          , unwrap<Type>(inferred.type).value());
+
+	apply_substitution(store, gamma, inferred.subs, ref_wrap(expr));
+
+	{
+		using namespace pattern_match;
+		Symbol a(""), b("");
+
+		ASSERT_TRUE
+			(match(ast(tag<CxxFunctor>::value,
+			           capture(a), capture(b)),
+			       wrap(expr)))
+			<< "\n" << printer::with_type(expr);
+
+		ASSERT_TRUE(match(wrap<Type>(tag<Fixnum>::value), a.scheme.type));
+		ASSERT_TRUE(match(wrap<Type>(tag<Fixnum>::value), b.scheme.type));
+	}
+}
+
+/* See if inference works with ((a) (-> bool (-> a (-> a (-> a))))) */
+TEST_F(Inference, test_if_scheme)
+{
+	using namespace make_ast;
+	using namespace inference;
+
+	auto arg_type = ++new_types;
+
+	auto foo = *store.symbol
+		("foo",
+		 Scheme(std::unordered_set<Type::value_type>({arg_type}),
+		        wrap(fn_type::fn(fn_type::tt<Bool>(), arg_type, arg_type, arg_type)(aalloc()))));
+
+	auto expr = mk(wrap(&foo), "x", wrap<Type>(tag<Fixnum>::value), "y")(aalloc());
+
+	auto inferred = W(store, new_types, gamma, pass_value(expr));
+
+	apply_substitution(store, gamma, inferred.subs, ref_wrap(expr));
+
+	{
+		using namespace pattern_match;
+
+		Symbol a, b;
+		ASSERT_TRUE
+			(match(ast("foo", capture(a), tt<Fixnum>(), capture(b)),
+			       wrap(expr)))
+			<< "\n" << printer::with_type(expr);
+
+		ASSERT_TRUE(match(tt<Bool>(), a.scheme.type));
+		ASSERT_TRUE(match(tt<Fixnum>(), b.scheme.type));
+	}
+}
+
+TEST_F(Inference, test_thunk)
+{
+	using namespace make_ast;
+	using namespace inference;
+
+	auto add = atl::cxx_functions::WrapStdFunction<bool (long, long)>::a
+		([](long a, long b) { return a + b; },
+		 store,
+		 "add2");
+
+	Symbol fn("add2");
+	symbol_assign(fn, wrap(add));
+
+	auto expr = mk(wrap<Lambda>(),
+	               mk(),
+	               mk(wrap(&fn), "foo", "foo"))(ast_alloc(store));
+
+	auto inferred = W(store, new_types, gamma, pass_value(expr));
+
+	{
+		using namespace pattern_match;
+		ASSERT_TRUE
+			(match(ast(wrap<Type>(tag<FunctionConstructor>::value),
+			           wrap<Type>(tag<Bool>::value)),
+			       inferred.type));
+	}
+
+}
+
+TEST_F(Inference, test_applying_defined_lambda)
+{
+	using namespace make_ast;
+	using namespace inference;
+
+	auto def = mk(wrap<Define>(), "foo", 3)(ast_alloc(store)),
+
+		expr = mk(wrap<Define>(), "main",
+	               mk(wrap<Lambda>(),
+	                  mk(),
+	                  mk("add2", "foo", "foo")))(ast_alloc(store));
+
+	// Test that defining a constant works
+	W(store, new_types, gamma, pass_value(def));
+	auto inferred = W(store, new_types, gamma, pass_value(expr));
+
+	{
+		using namespace pattern_match;
+		ASSERT_TRUE(is<Scheme>(inferred.type));
+
+		auto scheme = unwrap<Scheme>(inferred.type);
+		ASSERT_TRUE
+			(match(ast(wrap<Type>(tag<FunctionConstructor>::value),
+			           "a"),
+			       scheme.type))
+			<< " " << printer::print(scheme.type) << std::endl;
+	}
 }

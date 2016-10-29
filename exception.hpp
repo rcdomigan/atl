@@ -14,6 +14,11 @@ namespace atl {
 		WrongTypeError(const char* what_arg) : std::runtime_error(what_arg) {}
 	};
 
+	struct ArityError : public std::runtime_error {
+		ArityError(const std::string& what_arg) : std::runtime_error(what_arg) {}
+		ArityError(const char* what_arg) : std::runtime_error(what_arg) {}
+	};
+
 	struct UnbalancedParens : public std::runtime_error {
 		UnbalancedParens(const std::string& what_arg) : std::runtime_error(what_arg) {}
 		UnbalancedParens(const char* what_arg) : std::runtime_error(what_arg) {}

@@ -1,5 +1,12 @@
-CXX=g++ -pipe -I./ -std=c++11 -ggdb -Wall
-#CXX=clang -pipe -I./ -stdlib=libc++ -lc++ -std=c++11 -ggdb -Wall
+CXXFLAGS=$(CFLAGS) $(COMMON_FLAGS)
+
+GCC_INCLUDE=-I./
+CLANG_INCLUDE=$(GCC_INCLUDE) -isystem /usr/lib/clang/3.5/include
+
+IWYU=iwyu -std=c++11 $(CLANG_INCLUDE)
+
+CXX=g++ $(CXXFLAGS) $(GCC_INCLUDE)
+#CXX=clang $(CXXFLAGS) -lc++ -stdlib=libc++ $(CLANG_INCLUDE)
 
 all: main
 
@@ -15,7 +22,6 @@ main: Makefile main.cpp *.hpp
 test: test.cpp *.hpp
 	$(CXX) test.cpp -o test
 
-
 test-vm: test_tiny_vm.cpp *.hpp
 	$(CXX) test_tiny_vm.cpp -o test-vm
 
@@ -27,3 +33,6 @@ test-zipper: ./test/test_zipper.cpp *.hpp
 
 TAGS: ./*.cpp ./*.hpp ./test/*.hpp
 	find -iname "*cpp" -o -iname "*hpp" | etags -
+
+iwyu-%:
+	$(IWYU) $(subst iwyu-,,$@)

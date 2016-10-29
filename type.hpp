@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <iterator>
 #include <functional>
+#include <map>
 
 #include <boost/mpl/at.hpp>
 #include <boost/mpl/size.hpp>
@@ -83,8 +84,8 @@ namespace atl
     struct is_pimpl : public std::false_type {};
 
 
-#define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(DeclareType)(Type)(Ast)(AstData)(Parameter)(ClosureParameter)(Bound)(Undefined)(FunctionConstructor)
-#define ATL_PIMPL_SEQ (Slice)(String)(Symbol)(DefProcedure)(Procedure)(Macro)(Struct)(CxxFunctor)(CxxMacro)(Scheme)
+#define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(CallLambda)(DeclareType)(Type)(Ast)(AstData)(Undefined)(FunctionConstructor)
+#define ATL_PIMPL_SEQ (Slice)(String)(Symbol)(Struct)(CxxFunctor)(CxxMacro)(Scheme)(LambdaMetadata)(Bound)
 #define ATL_TYPES_SEQ ATL_REINTERPERABLE_SEQ ATL_PIMPL_SEQ
 
 #define M(r, _, i, elem)						\
@@ -105,7 +106,7 @@ namespace atl
 #undef M
 
 
-    typedef mpl::vector29< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
+    typedef mpl::vector26< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
 
 	const static tag_t LAST_CONCRETE_TYPE = mpl::size<TypesVec>::value;
 
@@ -127,8 +128,8 @@ namespace atl
 
 		Any(const Any&) = default;
 		constexpr Any() : _tag(tag<Any>::value) , value(nullptr) {}
-		constexpr Any(tag_t t, void *v) : _tag(t) , value(v) {}
-		constexpr Any(tag_t t) : _tag(t) , value(nullptr) {}
+		explicit constexpr Any(tag_t t, void *v) : _tag(t) , value(v) {}
+		explicit constexpr Any(tag_t t) : _tag(t) , value(nullptr) {}
 
 		bool operator<(Any const& other) const
 		{ return (value < other.value) && (_tag < other._tag); }
@@ -177,6 +178,7 @@ namespace atl
 
 	struct Fixnum
 	{
+		typedef long value_type;
 		tag_t _tag;
 		long value;
 
@@ -186,11 +188,32 @@ namespace atl
     template<>
     struct tag<long> : public tag<Fixnum> {};
 
+	struct LambdaMetadata;
+
     struct Lambda
     {
         tag_t _tag;
-        long value;
-        Lambda() : _tag(tag<Lambda>::value) {}
+        LambdaMetadata *value;
+
+        Lambda(LambdaMetadata *value_)
+	        : _tag(tag<Lambda>::value),
+	          value(value_)
+	    {}
+
+	    Lambda() : Lambda(nullptr) {}
+    };
+
+    struct CallLambda
+    {
+        tag_t _tag;
+        LambdaMetadata *value;
+
+        CallLambda(LambdaMetadata *value_)
+	        : _tag(tag<CallLambda>::value),
+	          value(value_)
+	    {}
+
+	    CallLambda() : CallLambda(nullptr) {}
     };
 
     struct DeclareType
@@ -215,11 +238,12 @@ namespace atl
     /* | |_) | (_) | (_) | | */
     /* |____/ \___/ \___/|_| */
     /*************************/
-    struct Bool {
-	tag_t _tag;
-	long value;
-	Bool() : _tag(tag<Bool>::value), value(false) {}
-        Bool(bool vv) : _tag(tag<Bool>::value), value(vv) {}
+    struct Bool
+    {
+	    tag_t _tag;
+	    long value;
+	    Bool() : _tag(tag<Bool>::value), value(false) {}
+	    Bool(bool vv) : _tag(tag<Bool>::value), value(vv) {}
     };
     template<>
     struct tag<bool> : public tag<Bool> {};
@@ -241,56 +265,19 @@ namespace atl
 	/** | _|_|  ||  |_  **/
 	/**           pimpl **/
 	/*********************/
-	struct Type // OK, type isn't a pimpl
+    struct LambdaMetadata
     {
-	    typedef tag_t value_type;
+	    typedef std::map<std::string, Symbol*> Closure;
+	    Closure closure;
 
-        tag_t _tag;
-	    tag_t value;
+	    // Amount of stack space to leave for Params + padding for the
+	    // paramaters of a tail call.
+	    size_t pad_to;
 
-	    Type(tag_t value_) : _tag(tag<Type>::value), value(value_) {}
-	    bool operator<(Type const& other) const { return value < other.value; }
-	    bool operator==(Type const& other) const { return value == other.value; }
-	    bool operator!=(Type const& other) const { return value != other.value; }
+	    pcode::Offset body_address;
+
+	    Any return_type;
     };
-
-	struct Scheme
-	{
-		typedef std::unordered_set<Type::value_type> Quantified;
-		Quantified quantified;
-		Any type;
-
-		Scheme() : type(tag<Undefined>::value, nullptr) {}
-
-		Scheme(Quantified const& bound_, Any const& type_)
-			: quantified(bound_), type(type_)
-		{}
-	};
-
-    struct Symbol
-    {
-	    std::string name;
-	    Scheme scheme;
-
-	    Symbol(std::string const& name_)
-		    : name(name_)
-	    {}
-
-	    Symbol(std::string const& name_, Scheme const& type_)
-		    : name(name_), scheme(type_)
-	    {}
-    };
-
-	struct Bound
-	{
-		tag_t _tag;
-		/* Refers to my formal or toplevel definition */
-		Symbol *value;
-
-		Bound(Symbol *vv)
-			: _tag(tag<Bound>::value), value(vv)
-		{}
-	};
 
 	namespace ast_helper
 	{
@@ -374,6 +361,8 @@ namespace atl
 		iterator end() { return iterator(flat_end()); }
 		const_iterator end() const { return const_iterator(flat_end()); }
 
+		bool empty() const { return value == 0; }
+
 		Any& operator[](size_t n) {
 			auto itr = begin();
 			itr = itr + n;
@@ -414,7 +403,8 @@ namespace atl
 			return *itr;
 		}
 
-		const Any& operator[](size_t n) const {
+		Any const& operator[](size_t n) const
+		{
 			auto itr = begin();
 			itr = itr + n;
 			return *itr;
@@ -453,28 +443,108 @@ namespace atl
 
 	// Return an Ast pointing to an AstData `input` which was cast to
 	// Any.
+	Ast AstData_to_Ast(AstData &input)
+	{ return Ast(&input); }
+
 	Ast AstData_to_Ast(Any &input)
-	{ return Ast(&reinterpret_cast<AstData&>(input)); }
+	{ return AstData_to_Ast(reinterpret_cast<AstData&>(input)); }
 
+	struct Type // OK, type isn't a pimpl
+    {
+	    typedef tag_t value_type;
+	    static const tag_t RIGID_TYPE_MASK = 1;
 
-	struct Parameter
+        tag_t _tag;
+	    tag_t _value;
+
+	    Type(tag_t value_, bool rigid=false)
+		    : _tag(tag<Type>::value)
+		    , _value(value_ << 1)
+	    {
+		    if(rigid || (value_ < LAST_CONCRETE_TYPE))
+			    { _value |= RIGID_TYPE_MASK; }
+	    }
+
+	    tag_t value() const { return _value >> 1; }
+	    bool is_rigid() const { return _value & RIGID_TYPE_MASK; }
+
+	    bool operator<(Type const& other) const { return _value < other._value; }
+	    bool operator==(Type const& other) const { return _value == other._value; }
+	    bool operator!=(Type const& other) const { return _value != other._value; }
+    };
+
+	struct Scheme
 	{
-		tag_t _tag;
-		size_t value;  // offset of the argument
+		typedef std::unordered_set<Type::value_type> Quantified;
+		Quantified quantified;
+		Any type;
 
-		Parameter() : _tag(tag<Parameter>::value), value(0) {}
-		Parameter(size_t offset_) noexcept : _tag(tag<Parameter>::value), value(offset_) {}
+		bool is_function()
+		{
+			if(type._tag == tag<Ast>::value)
+				{
+					auto& ast = *reinterpret_cast<AstData*>(type.value);
+					if(ast.empty())
+						{ return false; }
+
+					auto head = ast[0];
+					return head._tag == tag<Type>::value &&
+						(reinterpret_cast<Type&>(head).value() == tag<FunctionConstructor>::value);
+				}
+			return false;
+		}
+
+		Scheme() : type(tag<Undefined>::value, nullptr) {}
+
+		Scheme(Quantified const& bound_, Any const& type_)
+			: quantified(bound_), type(type_)
+		{}
 	};
 
-	struct ClosureParameter
+    struct Symbol
+    {
+	    enum Subtype {variable, constant};
+	    Subtype subtype;
+
+	    std::string name;
+	    Scheme scheme;
+
+	    Any value;
+
+	    Symbol(std::string const& name_="")
+		    : subtype(Subtype::variable)
+		    , name(name_)
+		    , value(tag<Undefined>::value)
+	    {}
+
+	    Symbol(std::string const& name_, Scheme const& type_)
+		    : subtype(Subtype::variable)
+		    , name(name_)
+		    , scheme(type_)
+		    , value(tag<Undefined>::value)
+	    {}
+    };
+
+	struct Bound
 	{
-		tag_t _tag;
-		size_t value;  // offset of the argument
+		/* Refers to my formal or toplevel definition */
+		Symbol *sym;
 
-		ClosureParameter() : _tag(tag<ClosureParameter>::value), value(0) {}
-		ClosureParameter(size_t offset_) noexcept : _tag(tag<ClosureParameter>::value), value(offset_) {}
+		enum Subtype {is_local, is_closure};
+		Subtype subtype;
+		size_t offset;
+
+		LambdaMetadata *closure;
+
+		Bound(Symbol *vv=nullptr
+		      , Subtype subtype_=Subtype::is_local
+		      , size_t offset_=0)
+			: sym(vv)
+			, subtype(subtype_)
+			, offset(offset_)
+			, closure(nullptr)
+		{}
 	};
-
 
     struct String {
 	std::string value;
@@ -491,51 +561,23 @@ namespace atl
     template<> struct
     tag<std::string*> : public tag<String> {};
 
-
-    struct DefProcedure
-    {
-	    typedef std::set<std::string> Closure;
-	    Closure closure;
-
-        size_t tail_params;
-        tag_t return_type;
-
-	    DefProcedure(size_t padding=0, tag_t rtype=0)
-		    : tail_params(padding), return_type(rtype)
-        {}
-    };
-
-    /* Macro and Procedure have the same data layout, but distinct tags */
-    struct Procedure
-    {
-	    pcode::Offset body;
-
-	    Ast formals;
-
-        size_t tail_params;
-
-        tag_t return_type;
-
-	    Procedure(pcode::Offset body_=0, size_t padding=0, tag_t rtype=0)
-		    : body(body_), tail_params(padding), return_type(rtype)
-        {}
-    };
-
-
     struct CxxFunctor
     {
-	    const std::string _name;
+	    const std::string name;
 
 	    typedef std::function<void (vm_stack::iterator begin, vm_stack::iterator end)> Fn;
 	    typedef Fn value_type;
 	    mutable value_type fn;
 
-	    Ast types;
+	    // A function signature (-> a (-> b c)), or (-> a) for a thunk
+	    Ast type;
+	    size_t arity;
 
 	    CxxFunctor(const Fn& fn
 	               , const std::string& name
-	               , Ast const& tt)
-		    : _name(name), fn(fn), types(tt)
+	               , Ast const& tt
+	               , size_t arity_)
+		    : name(name), fn(fn), type(tt), arity(arity_)
 	    {}
     };
 
@@ -550,7 +592,7 @@ namespace atl
 	    Fn fn;
 
         CxxMacro(Fn const& fn_,
-                       const std::string& name_)
+                 const std::string& name_)
 	        : name(name_), fn(fn_)
         {}
     };
@@ -606,6 +648,8 @@ namespace atl
 	    Any& operator[](size_t n) { return *(begin() + n); }
 	    Any const& operator[](size_t n) const { return *(begin() + n); }
 
+	    Any& back() { return *(_end - 1); }
+
 	    iterator begin() { return iterator(_begin); }
 	    const_iterator begin() const { return const_iterator(_begin); }
 
@@ -623,7 +667,7 @@ namespace atl
 
 	    size_t flat_size() const { return flat_end() - flat_begin(); }
 
-	    Slice slice(size_t off) { return Slice(_begin + off, _end); }
+	    Slice slice(size_t off, size_t end_off=0) { return Slice(_begin + off, _end - end_off); }
     };
 
 
@@ -672,11 +716,12 @@ namespace atl
 
     unsigned int type_tag(Any a) { return a._tag; }
 
-    const char* type_name(unsigned int t) {
-	if (t > BOOST_PP_SEQ_SIZE(ATL_TYPES_SEQ))
-	    return "TYPE_TAG_OUT_OF_RANGE";
-	return primitive_type_names[t];
-    }
+	const char* type_name(unsigned int t)
+	{
+		if (t > BOOST_PP_SEQ_SIZE(ATL_TYPES_SEQ))
+			{ return "TYPE_TAG_OUT_OF_RANGE"; }
+		return primitive_type_names[t];
+	}
     const char* type_name(Any a) { return type_name( type_tag(a)); }
 }
 

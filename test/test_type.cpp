@@ -9,6 +9,8 @@
 
 #include "../type.hpp"
 
+#include <boost/mpl/next_prior.hpp>
+
 #include <iostream>
 #include <vector>
 
@@ -61,4 +63,38 @@ TEST(TestType, test_Slice)
 	ASSERT_EQ(3, slice.size());
 	ASSERT_EQ(false, ast.empty());
 	ASSERT_EQ(3, reinterpret_cast<Fixnum&>(slice[2]).value);
+}
+
+TEST(TestType, test_scheme_is_function)
+{
+	auto make_type = [](Type::value_type inner_tag) -> Any
+		{ return Any(tag<Type>::value, reinterpret_cast<void*>(Type(inner_tag)._value)); };
+
+	vector<Any> space;
+	space.emplace_back(tag<AstData>::value, reinterpret_cast<void*>(2));
+
+	space.push_back(make_type(tag<FunctionConstructor>::value));
+	space.push_back(make_type(tag<Fixnum>::value));
+
+	Any ast(tag<Ast>::value,
+	        reinterpret_cast<AstData*>(&space.front()));
+
+	Scheme scheme;
+	scheme.type = ast;
+
+	ASSERT_TRUE(scheme.is_function());
+
+	space[1].value = reinterpret_cast<void*>(tag<FunctionConstructor>::value);
+	ASSERT_FALSE(scheme.is_function());
+}
+
+TEST(TestType, test_Type)
+{
+	typedef mpl::deref<mpl::prior<typename mpl::end<TypesVec>::type>::type>::type LastType;
+
+	auto captured = Type(tag<LastType>::value);
+
+	ASSERT_TRUE(captured.is_rigid());
+	ASSERT_EQ(tag<LastType>::value, captured.value());
+	ASSERT_NE(tag<LastType>::value, captured._value);
 }

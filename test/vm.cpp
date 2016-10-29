@@ -5,8 +5,7 @@
  */
 
 #include <vm.hpp>
-#include <primitive_callable.hpp>
-#include <lexical_environment.hpp>
+#include "./trivial_functions.hpp"
 #include "./testing_utils.hpp"
 
 #include <gtest/gtest.h>
@@ -15,26 +14,74 @@ using namespace atl;
 
 struct VmTest : public ::testing::Test
 {
-	Code code;
-	TinyVM vm;
+	Code code_store;
     AssembleCode assemble;
+	TinyVM vm;
+	TrivialFunctions fns;
 
-    VmTest() : assemble(&code) {}
+	VmTest() : assemble(&code_store) {}
 };
 
 TEST_F(VmTest, TestCxxFn2)
 {
     using namespace atl;
-    auto fns = TrivialFunctions();
 
     assemble.constant(2)
         .constant(3)
         .std_function(&fns.wadd->fn, 2)
         .finish();
 
-    run_code(vm, assemble);
+    run_code(vm, code_store);
 
     ASSERT_EQ(vm.stack[0], 5);
+}
+
+TEST_F(VmTest, test_over_write_constant)
+{
+	assemble.constant(2);
+
+	auto patch = assemble.pos_end();
+
+	assemble
+        .constant(3)
+        .std_function(&fns.wadd->fn, 2)
+        .finish();
+
+    WrapCodeItr overwrite_code(*assemble.code);
+    AssembleCode overwrite(&overwrite_code);
+
+    overwrite_code.set_position(patch);
+
+    overwrite.constant(4);
+
+    run_code(vm, code_store);
+
+    ASSERT_EQ(vm.stack[0], 6);
+}
+
+TEST_F(VmTest, test_over_write_function)
+{
+
+	assemble
+        .constant(3)
+		.constant(2);
+
+	auto patch = assemble.pos_end();
+
+	assemble
+        .std_function(&fns.wadd->fn, 2)
+        .finish();
+
+    WrapCodeItr overwrite_code(*assemble.code);
+    AssembleCode overwrite(&overwrite_code);
+
+    overwrite_code.set_position(patch);
+
+    overwrite.std_function(&fns.wsub->fn, 2);
+
+    run_code(vm, code_store);
+
+    ASSERT_EQ(vm.stack[0], 1);
 }
 
 TEST_F(VmTest, TestSimpleCxxStdFunction)
@@ -53,7 +100,7 @@ TEST_F(VmTest, TestSimpleCxxStdFunction)
         .std_function(&unwrap<CxxFunctor>(fn).fn, 1)
         .finish();
 
-    run_code(vm, assemble);
+    run_code(vm, code_store);
 
     ASSERT_EQ(vm.stack[0], 9);
 }
@@ -75,7 +122,7 @@ TEST_F(VmTest, TestCxxStdFunction)
         .std_function(&shimmed_function->fn, 1)
         .finish();
 
-    run_code(vm, assemble);
+    run_code(vm, code_store);
     ASSERT_EQ(vm.stack[0], 9);
 
     multiple = 4;
@@ -84,7 +131,7 @@ TEST_F(VmTest, TestCxxStdFunction)
         .std_function(&shimmed_function->fn, 1)
         .finish();
 
-    run_code(vm, assemble);
+    run_code(vm, code_store);
     ASSERT_EQ(12, vm.result());
 }
 
@@ -106,7 +153,7 @@ TEST_F(VmTest, TestIfTrue)
     assemble[end_of_alt] = assemble.pos_end();
     assemble.finish();
 
-    run_code(vm, assemble);
+    run_code(vm, code_store);
 
     ASSERT_EQ(vm.stack[0], 5);
 }
@@ -129,58 +176,37 @@ TEST_F(VmTest, TestIfFalse)
     assemble[end_of_alt] = assemble.pos_end();
     assemble.finish();
 
-    run_code(vm, assemble);
+    run_code(vm, code_store);
 
     ASSERT_EQ(vm.stack[0], 9);
 }
 
-TEST_F(VmTest, TestArguments)
+TEST_F(VmTest, test_simple_function)
 {
-    TrivialFunctions fns;
+	//  ((\ (a b) (sub a b)) 5 3)
+	assemble.constant(5)
+		.constant(3)
+		.add_label("function")
+		.call_procedure(0)
+		.finish()
+		.constant_patch_label("function")
+		.argument(1)
+		.argument(0)
+		.std_function(&fns.wsub->fn,
+		              2)
+		.constant(2) // # args
+		.return_();
 
-    assemble.constant(5)
-	.constant(3)
-	.pointer(nullptr);
-    auto procedure_address = assemble.pos_last();
+	run_code(vm, code_store);
 
-    assemble.call_procedure()
-	.finish();
-
-    assemble[procedure_address] = assemble.pos_end();
-
-    assemble.argument(2)
-	.argument(1)
-	.std_function(&fns.wsub->fn,
-                      2)
-	.constant(2) // # args
-	.return_();
-
-    run_code(vm, assemble);
-
-    ASSERT_EQ(vm.stack[0], 2);
+	ASSERT_EQ(vm.stack[0], 2);
 }
 
-TEST_F(VmTest, SymToFunction)
-{
-    GC gc;
-    ToplevelMap env(gc);
-    TrivialFunctions fns;
-
-    env.define("add2", wrap(fns.wadd));
-
-    auto fn = env.toplevel.value("add2");
-
-    assemble.constant(1)
-        .constant(2)
-        .std_function(&unwrap<CxxFunctor>(fn).fn, 2)
-        .finish();
-
-    run_code(vm, assemble);
-
-    ASSERT_EQ(vm.stack[0], 3);
-}
-
-TEST_F(VmTest, SMoveN)
+/* The way a tail call works (ATM) is to place the call's arguments on
+ * the top of the stack, then move them down the stack to over-write
+ * its caller's stack.
+ */
+TEST_F(VmTest, test_move_n)
 {
     assemble.pointer(nullptr);
     auto after_defs = assemble.pos_last(); // skip over function definitions
@@ -202,8 +228,31 @@ TEST_F(VmTest, SMoveN)
         .constant(0)
         .call_procedure(enter_setup);
 
-    run_code(vm, assemble);
+    run_code(vm, code_store);
 
     for(int i = 0; i < 4; ++i)
         ASSERT_EQ(vm.stack[i], i + 1);
+}
+
+/** Try accessing parameters from a closure. */
+TEST_F(VmTest, test_bound_non_locals)
+{
+	Closure my_closure;
+	my_closure.body = 0;
+	my_closure.values = {3, 5};
+
+	assemble
+		.call_closure(my_closure)
+		.finish();
+	my_closure.body = assemble.pos_end();
+
+	assemble
+		.closure_argument(0)
+		.closure_argument(1)
+		.std_function(&fns.wadd->fn, 2)
+		.return_(0);
+
+	run_code(vm, code_store);
+
+	ASSERT_EQ(8, vm.stack[0]);
 }

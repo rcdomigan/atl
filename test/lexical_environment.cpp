@@ -14,6 +14,7 @@
 #include <gtest/gtest.h>
 #include <print.hpp>
 #include <helpers.hpp>
+#include <helpers/pattern_match.hpp>
 
 using namespace std;
 using namespace atl;
@@ -22,13 +23,21 @@ using namespace atl;
 struct TestToplevelMap
 	: public ::testing::Test
 {
+	Arena store;
 	SymbolMap env;
-	FreeSymbols free;
+	BackPatch backpatch;
+
 	GC gc;
 
+	void do_assign_free(Any& thing)
+	{ assign_free(env, gc, backpatch, thing); }
+
 	TestToplevelMap()
-		: env(nullptr)
-	{ init_types(); }
+		: env(store)
+	{
+		init_types();
+		setup_basic_definitions(gc, env);
+	}
 };
 
 
@@ -36,37 +45,37 @@ TEST_F(TestToplevelMap, test_assigning_bound_lambda)
 {
 	using namespace make_ast;
 
-	auto expr = make
-		(lift<Lambda>(),
-		 make(sym("a")),
-		 make(lift<Lambda>(),
-		      make(sym("b")),
-		      make(sym("a"), sym("b"), sym("c"))))
+	auto expr = mk
+		(wrap<Lambda>(),
+		 mk("a"),
+		 mk(wrap<Lambda>(),
+		    mk("b"),
+		    mk("a", "b", "c")))
 		(ast_alloc(gc));
 
-	auto wrapped = wrap(expr);
-
-	assign_free(env,
-	            gc,
-	            free,
-	            wrapped);
-
-	dbg_ast(expr);
+	do_assign_free(ref_wrap(expr));
 
 	/* On the toplevel, only "c" should be free */
-    ASSERT_EQ(1, free.size());
+    ASSERT_EQ(1, backpatch.size());
 
-    /* 'a' in the body should point to the 'a' formal */
-    auto bound_a = subscripter(expr)[2][2][0].value;
-    ASSERT_EQ(tag<Bound>::value, bound_a._tag);
-    ASSERT_EQ(reinterpret_cast<Symbol*>(subscripter(expr)[1][0].value.any.value),
-              unwrap<Bound>(bound_a).value);
+    {
+	    using namespace pattern_match;
 
-    /* and 'b' should point to its formal */
-    auto bound_b = subscripter(expr)[2][2][1].value;
-    ASSERT_EQ(tag<Bound>::value, bound_b._tag);
-    ASSERT_EQ(reinterpret_cast<Symbol*>(subscripter(expr)[2][1][0].value.any.value),
-              unwrap<Bound>(bound_b).value);
+	    Symbol const *a, *b;
+	    Symbol c;
+	    Bound bound_a, bound_b;
+
+	    ASSERT_TRUE
+		    (match(ast("fn", ast(capture_ptr(a)),
+		               ast("fn", ast(capture_ptr(b)),
+		                   ast(capture(bound_a), capture(bound_b), capture(c)))),
+		           wrap(expr)))
+		    << printer::with_type(expr);
+
+	    ASSERT_EQ(a, bound_a.sym);
+	    ASSERT_EQ(b, bound_b.sym);
+	    ASSERT_TRUE(is<Undefined>(c.value));
+    }
 }
 
 
@@ -74,42 +83,159 @@ TEST_F(TestToplevelMap, test_toplevel_replacements)
 {
 	using namespace make_ast;
 
-	auto expr = make
-		(lift<Lambda>(),
-		 make(sym("a")),
-		 make(lift<Lambda>(),
-		      make(sym("b")),
-		      make(sym("a"), sym("b"), sym("c"))))
+	auto expr = mk(wrap<Lambda>(),
+	               mk("a"),
+	               mk(wrap<Lambda>(),
+	                  mk("b"),
+	                  mk("a", "b", "c")))
 		(ast_alloc(gc)),
 
-		assign = make(lift<Define>(),
-		              sym("c"),
-		              lift<Fixnum>(3))(ast_alloc(gc));
+		assign = mk(wrap<Define>(), "c", 3)(ast_alloc(gc));
 
-	auto wrapped_expr = wrap(expr),
-		wrapped_assign = wrap(assign);
+	assign_forms(env, ref_wrap(expr));
+	do_assign_free(ref_wrap(expr));
 
-	assign_free(env,
-	            gc,
-	            free,
-	            wrapped_expr);
+	assign_forms(env, ref_wrap(expr));
+	do_assign_free(ref_wrap(assign));
 
-	assign_free(env,
-	            gc,
-	            free,
-	            wrapped_assign);
+	ASSERT_EQ(0, backpatch.size());
 
-	/* 'c have been bound by the toplevel */
-    ASSERT_EQ(0, free.size());
+    {
+	    using namespace pattern_match;
 
-	ASSERT_EQ(tag<Bound>::value,
-	          subscripter(expr)[2][2][2].value._tag);
-	ASSERT_EQ(env[std::string("c")].first,
-	          subscripter(expr)[2][2][2].value.any.value);
+	    Symbol const *a, *b, *c;
+	    Bound bound_a, bound_b;
 
-	/* Check the types while I'm at it */
-	auto stype = [](AstSubscripter aa) { return unwrap<Type>(unwrap<Symbol>(aa.value).scheme.type).value; };
-	ASSERT_EQ(LAST_CONCRETE_TYPE + 1, stype(subscripter(expr)[1][0]));
-	ASSERT_EQ(LAST_CONCRETE_TYPE + 2, stype(subscripter(expr)[2][1][0]));
-	ASSERT_EQ(LAST_CONCRETE_TYPE + 3, stype(subscripter(expr)[2][2][2]));
+	    ASSERT_TRUE
+		    (match(ast("fn", ast(capture_ptr(a)),
+		               ast("fn", ast(capture_ptr(b)),
+		                   ast(capture(bound_a), capture(bound_b), capture_ptr(c)))),
+		           wrap(expr)))
+		    << printer::with_type(expr);
+
+	    ASSERT_EQ(a, bound_a.sym);
+	    ASSERT_EQ(b, bound_b.sym);
+
+	    ASSERT_TRUE(is<Fixnum>(c->value));
+	    ASSERT_EQ(3, unwrap<Fixnum>(c->value).value);
+    }
 }
+
+TEST_F(TestToplevelMap, test_define_form)
+{
+	using namespace make_ast;
+
+	auto expr = mk("define",
+	               "recur",
+	               mk("__\\__", mk(), mk("recur")))
+		(ast_alloc(gc));
+	auto wrapped = wrap(expr);
+
+	BackPatch backpatch;
+	assign_forms(env, wrapped);
+
+	{
+		using namespace pattern_match;
+
+		ASSERT_TRUE(match(ast(tag<Define>::value, tag<Symbol>::value,
+		                      ast(tag<Lambda>::value, ast(),
+		                          astish)),
+		                  wrapped))
+			<< "got: " << printer::print(wrapped) << std::endl;
+	}
+}
+
+TEST_F(TestToplevelMap, test_getting_definitions)
+{
+	using namespace make_ast;
+
+	auto expr = mk("define",
+	               "recur",
+	               mk("__\\__",
+	                  mk(),
+	                  mk("recur")))
+		(ast_alloc(gc));
+	auto wrapped = wrap(expr);
+
+	BackPatch backpatch;
+	do_assign_free(wrapped);
+
+	{
+		using namespace pattern_match;
+		Symbol const* formal_recur, *body_recur;
+
+		ASSERT_TRUE(match(ast(tag<Define>::value, capture_ptr(formal_recur),
+		                      ast(tag<Lambda>::value, ast(),
+		                          ast(capture_ptr(body_recur)))),
+		                  wrapped))
+			<< "got: " << printer::print(wrapped) << std::endl;
+
+		ASSERT_EQ(body_recur, formal_recur);
+
+		// No inference occured, so the symbol's type should still be 'Undefined'
+		ASSERT_TRUE(match(tt<Undefined>(), formal_recur->scheme.type))
+			<< "expr: " << printer::print(formal_recur->scheme.type) << std::endl;
+	}
+}
+
+
+TEST_F(TestToplevelMap, test_lambda_with_if)
+{
+	using namespace make_ast;
+    auto expr = mk
+	    (mk(wrap<Lambda>(),
+	        mk("a", "b"),
+	        mk(wrap<If>(),
+	           mk("equal2", "a", "b"),
+	           mk("add2", "a", "b"),
+	           mk("sub2", "a", "b"))),
+	     7, 3)
+	    (ast_alloc(store));
+
+    assign_forms(env, ref_wrap(expr));
+    do_assign_free(ref_wrap(expr));
+
+    {
+	    using namespace pattern_match;
+	    ASSERT_TRUE
+		    (match(ast(ast(tag<Lambda>::value,
+		                   types<Symbol, Symbol>(),
+		                   ast(tag<If>::value,
+		                       types<Symbol, Bound, Bound>(),
+		                       types<Symbol, Bound, Bound>(),
+		                       types<Symbol, Bound, Bound>())),
+		               wrap<Fixnum>(7), wrap<Fixnum>(3)),
+		           wrap(expr)))
+		    << printer::print(expr) << std::endl;
+    }
+}
+
+
+/* TEST_F(TestToplevelMap, test_applying_defined_lambda) */
+/* { */
+/* 	using namespace make_ast; */
+/* 	auto define_add3 = mk("define", */
+/* 	                      "my-add3", */
+/* 	                      mk(wrap<Lambda>(), mk("a", "b", "c"), */
+/* 	                         mk("add2", */
+/* 	                            "a", */
+/* 	                            mk("add2", "b", "c")))) */
+/* 		(ast_alloc(store)), */
+
+/* 		apply_add3 = mk("define", */
+/* 		                "main", */
+/* 		                mk(wrap<Lambda>(), */
+/* 		                   mk(), */
+/* 		                   mk("my-add3", 2, 3, 7))) */
+/* 		(ast_alloc(store)); */
+
+/* 	assign_forms(env, ref_wrap(define_add3)); */
+/* 	std::cout << "form assigned: " << printer::print(define_add3) << std::endl; */
+/* 	do_assign_free(ref_wrap(define_add3)); */
+
+/* 	assign_forms(env, ref_wrap(apply_add3)); */
+/* 	do_assign_free(ref_wrap(apply_add3)); */
+
+/* 	std::cout << printer::with_type(define_add3) << std::endl; */
+/* 	std::cout << printer::with_type(apply_add3) << std::endl; */
+/* } */

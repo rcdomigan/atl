@@ -82,3 +82,21 @@ TEST(Utilities, test_apply_tuple)
 
 	ASSERT_EQ(out.out.str(), "2:string:3");
 }
+
+TEST(Utilities, test_slice)
+{
+	std::vector<int> foo{1, 2, 3};
+	auto sliced = slice(foo, 1);
+
+	ASSERT_EQ(2, sliced[0]);
+	ASSERT_EQ(3, sliced[1]);
+	ASSERT_EQ(2, sliced.size());
+}
+
+TEST(Utilities, test_slice_one_element)
+{
+	std::vector<int> foo{1};
+	auto sliced = slice(foo, 1);
+
+	ASSERT_TRUE(sliced.empty());
+}
