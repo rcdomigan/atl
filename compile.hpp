@@ -144,16 +144,11 @@ namespace atl
         typedef AssembleCode::const_iterator iterator;
 	    typedef pcode::Offset Offset;
 
-	    GC& gc;
-
 	    Code code_store;
         PatchingAssembler assemble;
 
-	    Compile()=delete;
-
-	    Compile(GC& gc_)
-		    : gc(gc_)
-		    , assemble(&code_store)
+	    Compile()
+		    : assemble(&code_store)
         {}
 
 	    // Setup a VM jump instruction which skips over the code

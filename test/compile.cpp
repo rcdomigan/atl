@@ -33,7 +33,6 @@ struct CompilerTest
 
 	CompilerTest()
 		: lexical(store)
-		, compile(store)
 	{
 		init_types();
 

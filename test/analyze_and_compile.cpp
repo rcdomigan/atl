@@ -39,7 +39,6 @@ struct AnalyzeAndCompile
 	AnalyzeAndCompile()
 		: store(cxx_fns.store)
 		, lexical(store)
-		, compiler(store)
 	{
 		init_types();
 
