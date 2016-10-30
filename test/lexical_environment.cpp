@@ -210,31 +210,3 @@ TEST_F(TestToplevelMap, test_lambda_with_if)
 }
 
 
-/* TEST_F(TestToplevelMap, test_applying_defined_lambda) */
-/* { */
-/* 	using namespace make_ast; */
-/* 	auto define_add3 = mk("define", */
-/* 	                      "my-add3", */
-/* 	                      mk(wrap<Lambda>(), mk("a", "b", "c"), */
-/* 	                         mk("add2", */
-/* 	                            "a", */
-/* 	                            mk("add2", "b", "c")))) */
-/* 		(ast_alloc(store)), */
-
-/* 		apply_add3 = mk("define", */
-/* 		                "main", */
-/* 		                mk(wrap<Lambda>(), */
-/* 		                   mk(), */
-/* 		                   mk("my-add3", 2, 3, 7))) */
-/* 		(ast_alloc(store)); */
-
-/* 	assign_forms(env, ref_wrap(define_add3)); */
-/* 	std::cout << "form assigned: " << printer::print(define_add3) << std::endl; */
-/* 	do_assign_free(ref_wrap(define_add3)); */
-
-/* 	assign_forms(env, ref_wrap(apply_add3)); */
-/* 	do_assign_free(ref_wrap(apply_add3)); */
-
-/* 	std::cout << printer::with_type(define_add3) << std::endl; */
-/* 	std::cout << printer::with_type(apply_add3) << std::endl; */
-/* } */
