@@ -191,6 +191,7 @@ namespace atl
 	 * the special forms (like Lambda) before type inference occurs.
 	 */
 	void assign_forms(SymbolMap& env,
+	                  AllocatorBase& store,
 	                  Any& value)
 	{
 		switch(value._tag)
@@ -198,7 +199,25 @@ namespace atl
 			case tag<Ast>::value:
 				{
 					for(auto& item : unwrap<Ast>(value).modify_data())
-						{ assign_forms(env, item); }
+						{ assign_forms(env, store, item); }
+
+					{
+						using namespace pattern_match;
+						namespace pm = pattern_match;
+						Lambda const* lambda;
+						AstData const* formals;
+
+						if(match(pm::ast(capture_ptr(lambda), capture_ptr(formals), astish),
+						         value))
+							{
+								auto metadata = store.lambda_metadata();
+								const_cast<Lambda*>(lambda)->value = metadata;
+
+								for(auto& item : *formals)
+									{ metadata->formals.push_back(&unwrap<Symbol>(item)); }
+							}
+					}
+					break;
 				}
 			case tag<Symbol>::value:
 				/* Just assign forms; ints and other atoms are also safe.  Just no Asts. */
@@ -206,7 +225,6 @@ namespace atl
 
 				if(sym_value.second && !is<Ast>(sym_value.first))
 					{ value = sym_value.first; }
-
 				break;
 			}
 	}

@@ -32,6 +32,16 @@ struct TestToplevelMap
 	void do_assign_free(Any& thing)
 	{ assign_free(env, gc, backpatch, thing); }
 
+	void do_assign_forms(Any& thing)
+	{ assign_forms(env, gc, thing); }
+
+	void do_assign(Any& thing)
+	{
+		do_assign_forms(thing);
+		do_assign_free(thing);
+	}
+
+
 	TestToplevelMap()
 		: env(store)
 	{
@@ -84,18 +94,16 @@ TEST_F(TestToplevelMap, test_toplevel_replacements)
 	using namespace make_ast;
 
 	auto expr = mk(wrap<Lambda>(),
-	               mk("a"),
-	               mk(wrap<Lambda>(),
-	                  mk("b"),
-	                  mk("a", "b", "c")))
+	               mk("a", "b"),
+	               mk("a", "b", "c"))
 		(ast_alloc(gc)),
 
 		assign = mk(wrap<Define>(), "c", 3)(ast_alloc(gc));
 
-	assign_forms(env, ref_wrap(expr));
+	do_assign_forms(ref_wrap(expr));
 	do_assign_free(ref_wrap(expr));
 
-	assign_forms(env, ref_wrap(expr));
+	do_assign_forms(ref_wrap(expr));
 	do_assign_free(ref_wrap(assign));
 
 	ASSERT_EQ(0, backpatch.size());
@@ -107,9 +115,8 @@ TEST_F(TestToplevelMap, test_toplevel_replacements)
 	    Bound bound_a, bound_b;
 
 	    ASSERT_TRUE
-		    (match(ast("fn", ast(capture_ptr(a)),
-		               ast("fn", ast(capture_ptr(b)),
-		                   ast(capture(bound_a), capture(bound_b), capture_ptr(c)))),
+		    (match(ast("fn", ast(capture_ptr(a), capture_ptr(b)),
+		               ast(capture(param_a), capture(param_b), capture_ptr(c))),
 		           wrap(expr)))
 		    << printer::with_type(expr);
 
@@ -129,17 +136,15 @@ TEST_F(TestToplevelMap, test_define_form)
 	               "recur",
 	               mk("__\\__", mk(), mk("recur")))
 		(ast_alloc(gc));
-	auto wrapped = wrap(expr);
 
-	BackPatch backpatch;
-	assign_forms(env, wrapped);
+	do_assign_forms(ref_wrap(expr));
 
 	{
 		using namespace pattern_match;
 
 		ASSERT_TRUE(match(ast(tag<Define>::value, tag<Symbol>::value,
 		                      ast(tag<Lambda>::value, ast(), tag<Ast>::value)),
-		                  wrapped))
+		                  ref_wrap(expr)))
 			<< "got: " << printer::print(wrapped) << std::endl;
 	}
 }
@@ -191,8 +196,7 @@ TEST_F(TestToplevelMap, test_lambda_with_if)
 	     7, 3)
 	    (ast_alloc(store));
 
-    assign_forms(env, ref_wrap(expr));
-    do_assign_free(ref_wrap(expr));
+    do_assign(ref_wrap(expr));
 
     {
 	    using namespace pattern_match;

@@ -523,11 +523,9 @@ namespace atl
 									                      scheme.quantified.end());
 								    }
 
-							    auto& lambda = unwrap<Lambda>(ast.reference(0));
-							    if(nullptr == lambda.value)
-								    { lambda.value = store.lambda_metadata(); }
+							    auto metadata = unwrap<Lambda>(ast[0]).value;
 
-							    lambda.value->return_type = body.type;
+							    metadata->return_type = body.type;
 
 							    return WResult(body.subs, wrap(result_type));
 						    }

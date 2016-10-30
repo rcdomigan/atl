@@ -61,7 +61,7 @@ struct AnalyzeAndCompile
 	{
 		BackPatch backpatch;
 
-		assign_forms(lexical, expr);
+		assign_forms(lexical, store, expr);
 
 		auto type_info = inference::W(store, new_types, gamma, expr);
 
