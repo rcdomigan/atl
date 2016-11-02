@@ -451,14 +451,6 @@ namespace atl
 
 		    switch(expr._tag)
 			    {
-			    case tag<Bound>::value:
-				    {
-					    return WResult(SubstituteMap(),
-					                   instantiate(store,
-					                               new_types,
-					                               get_sym(*unwrap<Bound>(expr).sym).scheme));
-				    }
-
 			    case tag<Symbol>::value:
 				    {
 					    auto& sym = get_sym(unwrap<Symbol>(expr));
