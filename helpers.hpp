@@ -197,14 +197,6 @@ namespace atl
 		}
 	}
 
-	void copy_into(PassByValue input, ast_hof::AstAllocator store)
-	{
-		if(is<Slice>(input))
-			{ ast_hof::copy(unwrap<Slice>(input), store); }
-		else
-			{ store.push_back(input); }
-	}
-
 	/* Pass through a Slice or wrap an ast or AstData */
 	Slice unwrap_slice(Any& input)
 	{
