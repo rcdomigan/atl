@@ -18,9 +18,6 @@
 
 namespace atl
 {
-	struct PatchingAssembler;
-	void compile_atom(PatchingAssembler&, Any);
-
 	struct PatchingAssembler
 		: public AssembleCode
 	{
@@ -57,92 +54,17 @@ namespace atl
 				    for(auto pos : patch->second)
 					    {
 						    wrapped_code.itr = wrapped_code._begin + pos;
-						    compile_atom(assemble, sym.value);
+						    if(is<CallLambda>(sym.value))
+							    { assemble.call_procedure
+									    (unwrap<CallLambda>(sym.value).value->body_address); }
+						    else
+							    { throw WrongTypeError("Can only backpatch functions"); }
 					    }
 				    backpatches.erase(patch);
 			    }
 		    return *this;
 		}
 	};
-
-	 /* Simple compilation I'm sharing between the backpatcher and the compiler. */
-	void compile_atom(PatchingAssembler& assemble, Any input)
-	{
-		auto call_lambda = [&assemble](Any any)
-		{
-			auto func = unwrap<CallLambda>(any);
-			assemble.call_procedure(func.value->body_address);
-		};
-
-		switch(input._tag)
-			{
-			case tag<Fixnum>::value:
-				assemble.constant(value<Fixnum>(input));
-				break;
-
-			case tag<Bool>::value:
-				assemble.constant(value<Bool>(input));
-				break;
-
-			case tag<Pointer>::value:
-				assemble.pointer(value<Pointer>(input));
-				break;
-
-			case tag<String>::value:
-				assemble.pointer(&value<String>(input));
-				break;
-
-			case tag<CxxFunctor>::value:
-				{
-					auto& fn = unwrap<CxxFunctor>(input);
-					assemble.std_function(&fn.fn, fn.arity);
-					break;
-				}
-			case tag<CallLambda>::value:
-				{
-					call_lambda(input);
-					break;
-				}
-			case tag<Bound>::value:
-				{
-					auto& bound = unwrap<Bound>(input);
-					auto& sym = *bound.sym;
-
-		            if(is<Undefined>(sym.value))
-			            {
-				            assemble.needs_patching(sym);
-				            return;
-			            }
-
-		            switch(sym.subtype)
-			            {
-			            case Symbol::Subtype::constant:
-				            compile_atom(assemble, sym.value);
-				            return;
-
-			            case Symbol::Subtype::variable:
-				            {
-					            switch(bound.subtype)
-						            {
-						            case Bound::Subtype::is_local:
-							            assemble.argument(bound.offset);
-							            return;
-
-						            case Bound::Subtype::is_closure:
-							            assemble.closure_argument(bound.offset);
-							            return;
-						            }
-				            }
-			            }
-				}
-			default:
-				{
-					throw std::string("Illegal syntax or something; got ")
-						.append(type_name(input._tag))
-						.append(" where value was required.");
-				}
-			}
-	}
 
     struct Compile
     {
@@ -420,8 +342,60 @@ namespace atl
                         }}
                     assert(0);
                 }
-            default:
-                { compile_atom(assemble, input); }}
+
+			case tag<Fixnum>::value:
+				assemble.constant(unwrap<Fixnum>(input).value);
+				return wrap<Null>();
+
+			case tag<Bool>::value:
+				assemble.constant(unwrap<Bool>(input).value);
+				return wrap<Null>();
+
+			case tag<Pointer>::value:
+				assemble.pointer(unwrap<Pointer>(input).value);
+				return wrap<Null>();
+
+			case tag<String>::value:
+				assemble.pointer(&unwrap<String>(input));
+				return wrap<Null>();
+
+			case tag<CxxFunctor>::value:
+				{
+					auto& fn = unwrap<CxxFunctor>(input);
+					assemble.std_function(&fn.fn, fn.arity);
+					return wrap<Null>();
+				}
+			case tag<CallLambda>::value:
+				{
+					auto& metadata = *unwrap<CallLambda>(input).value;
+
+					if(metadata.closure.empty())
+						{ assemble.call_procedure(metadata.body_address); }
+					else
+						{
+							assemble.call_closure();
+						}
+					return input;
+				}
+			case tag<Parameter>::value:
+				{
+					/* The frame we're computing from comes after the parameters on the stack */
+					assemble.argument
+						(context.closure->formals.size() - unwrap<Parameter>(input).value - 1);
+					return wrap<Null>();
+				}
+			case tag<ClosureParameter>::value:
+				{
+					assemble.closure_argument(unwrap<ClosureParameter>(input).value);
+					return wrap<Null>();
+				}
+			default:
+				{
+					throw std::string("Illegal syntax or something; got ")
+						.append(type_name(input._tag))
+						.append(" where value was required.");
+				}
+            }
             return wrap<Null>();
         }
 

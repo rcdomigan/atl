@@ -63,29 +63,6 @@ struct CompilerTest
 	}
 };
 
-
-TEST_F(CompilerTest, test_back_patch_constant)
-{
-	Symbol sym("foo");
-
-	Code code_store;
-	PatchingAssembler assemble(&code_store);
-
-	assemble
-		.constant(3)
-		.needs_patching(sym)
-		.std_function(fn_add, 2)
-		.finish();
-
-	sym.value = wrap<Fixnum>(4);
-
-	assemble
-		.patch(sym);
-
-	run_code(vm, code_store);
-	ASSERT_EQ(7, vm.stack[0]);
-}
-
 TEST_F(CompilerTest, test_back_patch_function)
 {
 	using namespace make_ast;
