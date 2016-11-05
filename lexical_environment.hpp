@@ -119,9 +119,9 @@ namespace atl
 		const_iterator begin() const { return local.begin(); }
 
 		void define(Symbol& sym,
-		            PassByValue const& value)
+		            Any const& value)
 		{
-			symbol_assign(sym, value.any);
+			symbol_assign(sym, value);
 			local.emplace(sym.name, &sym);
 		}
 
@@ -166,20 +166,20 @@ namespace atl
 	{
 		using namespace fn_type;
 
-		toplevel.define(*store.symbol("__\\__"), pass_value<Lambda>());
-		toplevel.define(*store.symbol(":"), pass_value<DeclareType>());
-		toplevel.define(*store.symbol("quote"), pass_value<Quote>());
+		toplevel.define(*store.symbol("__\\__"), wrap<Lambda>());
+		toplevel.define(*store.symbol(":"), wrap<DeclareType>());
+		toplevel.define(*store.symbol("quote"), wrap<Quote>());
 
 		toplevel.define
 			(*store.symbol
 			 ("if",
 			  Scheme(std::unordered_set<Type::value_type>({0}),
 			         wrap(fn(tt<Bool>(), 0, 0, 0)(ast_alloc(store))))),
-			 pass_value<If>());
+			 wrap<If>());
 
-		toplevel.define(*store.symbol("#f"), pass_value(atl_false()));
-		toplevel.define(*store.symbol("#t"), pass_value(atl_true()));
-		toplevel.define(*store.symbol("define"), pass_value<Define>());
+		toplevel.define(*store.symbol("#f"), atl_false());
+		toplevel.define(*store.symbol("#t"), atl_true());
+		toplevel.define(*store.symbol("define"), wrap<Define>());
 	}
 
 	typedef std::map<std::string, std::vector<Any*> > BackPatch;
@@ -197,16 +197,15 @@ namespace atl
 			{
 			case tag<Ast>::value:
 			case tag<AstData>::value:
-			case tag<Slice>::value:
 				{
-					for(auto& item : unwrap_slice(value))
+					for(auto& item : unwrap_astish(value))
 						{ assign_forms(env, item); }
 				}
 			case tag<Symbol>::value:
 				/* Just assign forms; ints and other atoms are also safe.  Just no Asts. */
 				auto sym_value = env.current_value(value);
 
-				if(sym_value.second && !is<Slice>(sym_value.first))
+				if(sym_value.second && !is<Ast>(sym_value.first))
 					{ value = sym_value.first; }
 
 				break;
@@ -254,9 +253,8 @@ namespace atl
 			{
 			case tag<Ast>::value:
 			case tag<AstData>::value:
-			case tag<Slice>::value:
 				{
-					auto ast = unwrap_slice(value);
+					auto ast = unwrap_astish(value);
 					auto& head = ast[0];
 
 					if(is<Symbol>(head))
@@ -276,14 +274,14 @@ namespace atl
 										{
 											auto& metadata = *func.value;
 
-											env.define(sym, pass_value(wrap<CallLambda>(&metadata)));
+											env.define(sym, wrap<CallLambda>(&metadata));
 											assign_free(env, store, backpatch, ast[2]);
 										}
 									else
 										{
 											assign_free(env, store, backpatch, ast[2]);
 											if(is_astish(ast[2]))
-												{ env.define(sym, pass_value<Undefined>()); }
+												{ env.define(sym, wrap<Undefined>()); }
 											else
 												{ env.define(sym, pass_value(ast[2])); }
 										}
@@ -306,7 +304,7 @@ namespace atl
 								// created by the type inference
 								SymbolMap inner_map(&env);
 
-								auto formals = unwrap_slice(ast[1]);
+								auto formals = unwrap_astish(ast[1]);
 								size_t count = formals.size();
 								for(auto& sym : formals)
 									{

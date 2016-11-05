@@ -85,7 +85,7 @@ namespace atl
 
 
 #define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(CallLambda)(DeclareType)(Type)(Ast)(AstData)(Undefined)(FunctionConstructor)
-#define ATL_PIMPL_SEQ (Slice)(String)(Symbol)(Struct)(CxxFunctor)(CxxMacro)(Scheme)(LambdaMetadata)(Bound)
+#define ATL_PIMPL_SEQ (String)(Symbol)(Struct)(CxxFunctor)(CxxMacro)(Scheme)(LambdaMetadata)(Bound)
 #define ATL_TYPES_SEQ ATL_REINTERPERABLE_SEQ ATL_PIMPL_SEQ
 
 #define M(r, _, i, elem)						\
@@ -106,7 +106,7 @@ namespace atl
 #undef M
 
 
-    typedef mpl::vector26< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
+    typedef mpl::vector25< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
 
 	const static tag_t LAST_CONCRETE_TYPE = mpl::size<TypesVec>::value;
 
@@ -603,73 +603,6 @@ namespace atl
     /** / \_|_|_  _ ._  **/
     /** \_/ |_| |(/_|   **/
     /*********************/
-    struct Slice
-    {
-	    typedef typename Ast::iterator iterator;
-	    typedef typename Ast::const_iterator const_iterator;
-
-	    typedef typename Ast::flat_iterator flat_iterator;
-	    typedef typename Ast::const_flat_iterator const_flat_iterator;
-
-
-	    Any *_begin, *_end;
-
-	    Slice() : _begin(nullptr), _end(nullptr) {}
-	    explicit Slice(Any *begin, Any *end)
-		    : _begin(begin), _end(end)
-	    {}
-
-	    explicit Slice(Ast const& ast)
-		    : _begin(ast.value->flat_begin()),
-		      _end(ast.value->flat_end())
-	    {}
-
-	    explicit Slice(AstData& ast)
-		    : _begin(ast.flat_begin()),
-		      _end(ast.flat_end())
-	    {}
-
-	    /* Ug.  Maybe Slice should be read-only.  Not changing that today though. */
-	    explicit Slice(AstData const& ast)
-		    : _begin(const_cast<AstData::flat_iterator>(ast.flat_begin())),
-		      _end(const_cast<AstData::flat_iterator>(ast.flat_end()))
-	    {}
-
-	    template<class Itr>
-	    explicit Slice(Itr begin, Itr end)
-		    : _begin(&*begin), _end(&*end) {}
-
-	    template<class Range>
-	    explicit Slice(Range&& range)
-		    : _begin(&*range.begin()), _end(&*range.end()) {}
-
-	    Slice(Slice const&) = default;
-
-	    Any& operator[](size_t n) { return *(begin() + n); }
-	    Any const& operator[](size_t n) const { return *(begin() + n); }
-
-	    Any& back() { return *(_end - 1); }
-
-	    iterator begin() { return iterator(_begin); }
-	    const_iterator begin() const { return const_iterator(_begin); }
-
-	    iterator end() { return iterator(_end); }
-	    const_iterator end() const { return const_iterator(_end); }
-
-	    size_t size() const { return end() - begin(); }
-	    bool empty() const { return _begin == _end; }
-
-	    flat_iterator flat_begin() { return _begin; }
-	    flat_iterator flat_end() { return _end; }
-
-	    const_flat_iterator flat_begin() const { return _begin; }
-	    const_flat_iterator flat_end() const { return _end; }
-
-	    size_t flat_size() const { return flat_end() - flat_begin(); }
-
-	    Slice slice(size_t off, size_t end_off=0) { return Slice(_begin + off, _end - end_off); }
-    };
-
 
     /**
      * For a container wrapping Ast::iterator types, what is size

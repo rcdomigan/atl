@@ -90,7 +90,7 @@ namespace atl
 	     * @param value:
 	     * @return:
 	     */
-	    Any substitute_type(AstAllocator store, SubstituteMap& subs, PassByValue value)
+	    Any substitute_type(AstAllocator store, SubstituteMap& subs, Any& value)
 	    {
 		    switch(value._tag)
 			    {
@@ -110,20 +110,21 @@ namespace atl
 						    }
 					    else
 						    {
-							    new_value = value.any;
+							    new_value = value;
 							    store.push_back(new_value);
 						    }
 
 					    return new_value;
 				    }
-			    case tag<Slice>::value:
+			    case tag<Ast>::value:
+			    case tag<AstData>::value:
 				    {
 					    ast_hof::NestAst nest(store);
 
-					    for(auto& vv : unwrap<Slice>(value))
+					    for(auto& vv : unwrap_astish(value))
 						    {
 							    // values goes to `store`
-							    substitute_type(store, subs, pass_value(vv));
+							    substitute_type(store, subs, vv);
 						    }
 
 					    return wrap(*nest.ast);
@@ -142,7 +143,7 @@ namespace atl
 		    for(auto& item : gamma)
 			    {
 				    std::cout<<item.first<<": ";
-				    dbg_type(pass_value(&item.second));
+				    dbg_type(wrap(&item.second));
 			    }
 	    }
 
@@ -162,7 +163,7 @@ namespace atl
 					    auto& sym = unwrap<Symbol>(value);
 
 					    SubsScope scope(subs, sym.scheme.quantified);
-					    sym.scheme.type = substitute_type(store, subs, pass_value(sym.scheme.type));
+					    sym.scheme.type = substitute_type(store, subs, sym.scheme.type);
 					    break;
 				    }
 			    case tag<Lambda>::value:
@@ -174,18 +175,17 @@ namespace atl
 						    {
 							    auto& scheme = unwrap<Scheme>(lambda.value->return_type);
 							    SubsScope scope(subs, scheme.quantified);
-							    scheme.type = substitute_type(store, subs, pass_value(scheme.type));
+							    scheme.type = substitute_type(store, subs, scheme.type);
 						    }
 					    else
-						    { lambda.value->return_type = substitute_type(store, subs, pass_value(lambda.value->return_type)); }
+						    { lambda.value->return_type = substitute_type(store, subs, lambda.value->return_type); }
 
 					    break;
 				    }
 			    case tag<Ast>::value:
 			    case tag<AstData>::value:
-			    case tag<Slice>::value:
 				    {
-					    for(auto& item : unwrap_slice(value))
+					    for(auto& item : unwrap_astish(value))
 						    { apply_substitution(store, gamma, subs, item); }
 					    break;
 				    }
@@ -211,19 +211,20 @@ namespace atl
 					    {
 						    subs[Type(item)] = wrap<Type>(++new_types);
 					    }
-				    return substitute_type(store, subs, pass_value(scheme.type));
+				    return substitute_type(store, subs, scheme.type);
 			    }
 	    }
 
-	    void free_type_variables(Scheme::Quantified& rval, PassByValue value)
+	    void free_type_variables(Scheme::Quantified& rval, Any const& value)
 	    {
 		    switch(value._tag)
 			    {
 			    case tag<Type>::value:
 				    rval.insert(unwrap<Type>(value).value());
 				    return;
-			    case tag<Slice>::value:
-				    for(auto& item : unwrap<Slice>(value))
+			    case tag<AstData>::value:
+			    case tag<Ast>::value:
+				    for(auto& item : unwrap_astish(value))
 					    { free_type_variables(rval, pass_value(item)); }
 				    return;
 			    default:
@@ -243,10 +244,13 @@ namespace atl
 	    void compose_subs(AllocatorBase& store, SubstituteMap& left, SubstituteMap const& right)
 	    {
 		    for(auto const& rr : right)
-			    { left[rr.first] = substitute_type(make_ast::ast_alloc(store), left, pass_value(Any(rr.second))); }
+			    {
+				    auto right_temp = rr.second;
+				    left[rr.first] = substitute_type(make_ast::ast_alloc(store), left, right_temp);
+			    }
 	    }
 
-	    void arity_mismatch(PassByValue left, PassByValue right)
+	    void arity_mismatch(Any const& left, Any const& right)
 	    {
 		    std::stringstream output;
 
@@ -261,7 +265,7 @@ namespace atl
 	    }
 
 	    /* Unify the Types lists `left` and `right` */
-	    SubstituteMap most_general_unification(AllocatorBase& store, PassByValue left, PassByValue right)
+	    SubstituteMap most_general_unification(AllocatorBase& store, Any const& left, Any const& right)
         {
 	        using namespace make_ast;
             SubstituteMap sub{};
@@ -272,20 +276,20 @@ namespace atl
 	        /* Try to pick the concrete type */
 	        if(is<Type>(right) && is<Type>(left))
 		        {
-			        if(right.any.value < left.any.value)
-				        { return SubstituteMap({{unwrap<Type>(left), right.any}}); }
+			        if(right.value < left.value)
+				        { return SubstituteMap({{unwrap<Type>(left), right}}); }
 			        else
-				        { return SubstituteMap({{unwrap<Type>(right), left.any}}); }
+				        { return SubstituteMap({{unwrap<Type>(right), left}}); }
 		        }
 
-	        if(!is<Slice>(right))
-		        { return SubstituteMap({{typify(right), de_slice(store, left)}}); }
+	        if(!is_astish(right))
+		        { return SubstituteMap({{typify(right), pass_value(left)}}); }
 
-	        if(!is<Slice>(left))
-		        { return SubstituteMap({{typify(left), de_slice(store, right)}}); }
+	        if(!is_astish(left))
+		        { return SubstituteMap({{typify(left), pass_value(right)}}); }
 
-	        auto left_ast = unwrap<Slice>(left),
-		        right_ast = unwrap<Slice>(right);
+	        auto left_ast = unwrap_astish(left),
+		        right_ast = unwrap_astish(right);
 
 	        while(true)
 	            {
@@ -301,22 +305,21 @@ namespace atl
 					            new_right = right_store.nest_ast();
 
 				            if(left_ast.size() != right_ast.size())
-					            { arity_mismatch(pass_value(left_ast),
-					                             pass_value(right_ast)); }
+					            { arity_mismatch(wrap(left_ast), wrap(right_ast)); }
 
 
 				            for(auto inner_itr : zip(slice(left_ast, 1),
 				                                     slice(right_ast, 1)))
 					            {
-						            substitute_type(left_store, u1, pass_value(*get<0>(inner_itr)));
-						            substitute_type(right_store, u1, pass_value(*get<1>(inner_itr)));
+						            substitute_type(left_store, u1, *get<0>(inner_itr));
+						            substitute_type(right_store, u1, *get<1>(inner_itr));
 					            }
 
 				            new_left.end_ast();
 				            new_right.end_ast();
 
-				            left_ast = Slice(*new_left);
-				            right_ast = Slice(*new_right);
+				            left_ast = *new_left;
+				            right_ast = *new_right;
 
 				            compose_subs(store, u1, sub);
 				            sub.swap(u1);
@@ -339,7 +342,7 @@ namespace atl
 		    Gamma old;
 		    std::vector<std::string> formals;
 
-		    FormalsScope(Gamma& gamma_, Type::value_type& new_types, Slice ast)
+		    FormalsScope(Gamma& gamma_, Type::value_type& new_types, Ast ast)
 			    : gamma(gamma_)
 		    {
 			    for(auto& var : ast)
@@ -399,15 +402,15 @@ namespace atl
 				    }
 			    case tag<Ast>::value:
 			    case tag<AstData>::value:
-			    case tag<Slice>::value:
 				    {
-					    Slice slice(pass_value(type).slice);
-					    if(!slice.empty())
+					    auto ast = unwrap_astish(type);
+					    rval.type = type;
+
+					    if(!ast.empty())
 						    {
-							    free_type_variables(rval.quantified,
-							                        // Skip the constructor
-							                        pass_value(slice.slice(1)));
-							    rval.type = type;
+							    // Skip the constructor
+							    for(auto& vv : slice(ast, 1))
+								    { free_type_variables(rval.quantified, vv); }
 						    }
 					    break;
 				    }
@@ -434,8 +437,10 @@ namespace atl
 	    };
 
         // Take a stab at the algorithm W
-	    WResult W(AllocatorBase& store, Type::value_type& new_types, Gamma& gamma, PassByValue expr)
+	    WResult W(AllocatorBase& store, Type::value_type& new_types, Gamma& gamma, Any const& raw_expr)
 	    {
+		    auto expr = pass_value(raw_expr);
+
 		    auto new_var = [&](Scheme& scheme)
 			    {
 				    if(is<Undefined>(scheme.type))
@@ -476,9 +481,9 @@ namespace atl
 					                   wrap(unwrap<CxxFunctor>(expr).type));
 				    }
 
-			    case tag<Slice>::value:
+			    case tag<Ast>::value:
 				    {
-					    auto ast = unwrap<Slice>(expr);
+					    auto ast = explicit_unwrap<Ast>(expr);
 
 					    if(is<Lambda>(ast[0]))
 						    {
@@ -486,7 +491,7 @@ namespace atl
 							    if(ast.size() != 3)
 								    { throw ArityError("Lambda accepts only a formals and body lists"); }
 
-							    auto formals = pass_value(ast[1]).slice;
+							    auto formals = unwrap_astish(ast[1]);
 
 							    Scheme::Quantified quantified;
 							    Ast result_type;
@@ -503,7 +508,7 @@ namespace atl
 								    {
 									    fn_type::FnBuilder rtype_builder(ast_alloc(store));
 
-									    auto tmp = wrap(&formals);
+									    auto tmp = wrap(formals);
 									    apply_substitution(store, gamma, body.subs, tmp);
 
 									    for(auto& raw_sym : formals)
@@ -513,7 +518,7 @@ namespace atl
 											    sym.scheme.type = substitute_type
 												    (store,
 												     body.subs,
-												     pass_value(sym.scheme.type));
+												     sym.scheme.type);
 
 											    quantified.insert(sym.scheme.quantified.begin(),
 											                      sym.scheme.quantified.end());
@@ -556,7 +561,7 @@ namespace atl
 							    for(auto& item : generalize_env)
 								    {
 									    SubsScope knockout_subs(e1.subs, item.second.quantified);
-									    substitute_type(store, e1.subs, pass_value(item.second.type));
+									    substitute_type(store, e1.subs, item.second.type);
 								    }
 
 							    sym.scheme = generalize(generalize_env, e1.type);
@@ -595,7 +600,7 @@ namespace atl
 										    {
 											    SubsScope knockout_subs(e1.subs, item.second.quantified);
 											    new_var(item.second);
-											    item.second.type = substitute_type(store, e1.subs, pass_value(item.second.type));
+											    item.second.type = substitute_type(store, e1.subs, item.second.type);
 										    }
 
 									    for(auto& arg : slice(ast, 1))
@@ -606,10 +611,10 @@ namespace atl
 
 											    auto V = most_general_unification
 												    (store,
-												     pass_value(substitute_type(store, e2.subs, pass_value(e1.type))),
-												     pass_value(fn_type::fn(e2.type, beta.value())(ast_alloc(store))));
+												     pass_value(substitute_type(store, e2.subs, e1.type)),
+												     wrap(fn_type::fn(e2.type, beta.value())(ast_alloc(store))));
 
-											    auto subbed_beta = substitute_type(store, V, pass_value(beta));
+											    auto subbed_beta = substitute_type(store, V, ref_wrap(beta));
 
 											    compose_subs(store, V, e2.subs);
 											    compose_subs(store, V, e1.subs);
@@ -624,7 +629,7 @@ namespace atl
 				    }
 
 			    case tag<Type>::value:
-				    return WResult(SubstituteMap(), expr.any);
+				    return WResult(SubstituteMap(), expr);
 
 			    default:
 				    return WResult(SubstituteMap(), wrap<Type>(expr._tag));

@@ -96,27 +96,28 @@ namespace atl
 				}
 		}
 
-		std::ostream& print_type(PassByValue value, std::ostream& out)
+		std::ostream& print_type(Any const& value, std::ostream& out)
 		{
 			switch(value._tag)
 				{
-				case tag<Slice>::value:
+				case tag<Ast>::value:
+				case tag<AstData>::value:
 					{
-						auto ast = unwrap<Slice>(value);
+						auto ast = unwrap_astish(value);
 						out << "(";
 						if(!ast.empty())
 							{
-								print_type(pass_value(ast[0]), out);
+								print_type(ast[0], out);
 								for(auto& vv : slice(ast, 1))
 									{
 										out << ' ';
-										print_type(pass_value(vv), out);
+										print_type(vv, out);
 									}
 							}
 						return out << ")";
 					}
 				case tag<Type>::value:
-					return _print_type_atom(value.any, out);
+					return _print_type_atom(value, out);
 
 				case tag<Scheme>::value:
 					{
@@ -130,7 +131,7 @@ namespace atl
 									{ out << " " << item; }
 								out << "] ";
 							}
-						return print_type(pass_value(scheme.type), out) << ">";
+						return print_type(scheme.type, out) << ">";
 					}
 				default:
 					return out << "#<BAD TYPE: " << type_name(value._tag) << ">";
@@ -143,17 +144,18 @@ namespace atl
 		struct PrintAny
 			: public Printer
 		{
-			PassByValue root;
+			Any root;
 
-			PrintAny(PassByValue vv) : root(vv) {}
+			PrintAny(Any const& vv) : root(pass_value(vv)) {}
 
-			std::ostream& _print(PassByValue value, std::ostream& out) const
+			std::ostream& _print(Any const& value, std::ostream& out) const
 			{
 				switch(value._tag)
 					{
-					case tag<Slice>::value:
+					case tag<AstData>::value:
+					case tag<Ast>::value:
 						{
-							auto ast = value.slice;
+							auto ast = unwrap_astish(value);
 							out << "(";
 							if(!ast.empty())
 								{
@@ -167,7 +169,7 @@ namespace atl
 							return out << ")";
 						}
 					default:
-						return print_atom(value.any, out);
+						return print_atom(value, out);
 					}
 			}
 
@@ -175,40 +177,41 @@ namespace atl
 			{ return _print(root, out); }
 		};
 
-		PrintAny print(PassByValue aa) { return PrintAny(aa); }
+		PrintAny print(Any const& aa) { return PrintAny(aa); }
 
 		template<class T>
-		PrintAny print(T const& aa) { return PrintAny(pass_value(aa)); }
+		PrintAny print(T const& aa) { return PrintAny(wrap(aa)); }
 
 		struct PrintWithType
 			: public Printer
 		{
-			PassByValue root;
+			Any root;
 
-			PrintWithType(PassByValue vv) : root(vv) {}
+			PrintWithType(Any const& vv) : root(pass_value(vv)) {}
 
-			std::ostream& _print(PassByValue value, std::ostream& out) const
+			std::ostream& _print(Any const& value, std::ostream& out) const
 			{
-				auto print_sym = [&](Symbol& sym) -> std::ostream&
+				auto print_sym = [&](Symbol const& sym) -> std::ostream&
 					{
 						out << sym.name << ":";
-						print_type(pass_value(wrap(&sym.scheme)), out);
+						print_type(wrap(&const_cast<Symbol&>(sym).scheme), out);
 						return out;
 					};
 
 				switch(value._tag)
 					{
-					case tag<Slice>::value:
+					case tag<AstData>::value:
+					case tag<Ast>::value:
 						{
-							auto ast = value.slice;
+							auto ast = unwrap_astish(value);
 							out << "(";
 							if(!ast.empty())
 								{
-									_print(pass_value(ast[0]), out);
+									_print(ast[0], out);
 									for(auto& vv : slice(ast, 1))
 										{
 											out << ' ';
-											_print(pass_value(vv), out);
+											_print(vv, out);
 										}
 								}
 							return out << ")";
@@ -227,8 +230,7 @@ namespace atl
 						{
 							auto fn = unwrap<CxxFunctor>(value);
 							out << "#<c++-fn: " << fn.name;
-							print_type(pass_value(fn.type),
-							           out);
+							print_type(wrap(fn.type), out);
 							return out << ">";
 						}
 					case tag<Lambda>::value:
@@ -237,7 +239,7 @@ namespace atl
 
 							out << "#<fn: ";
 							if(metadata != nullptr)
-								{ print_type(pass_value(unwrap<Lambda>(value).value->return_type), out); }
+								{ print_type(unwrap<Lambda>(value).value->return_type, out); }
 							else
 								{ out << "null"; }
 
@@ -246,7 +248,7 @@ namespace atl
 					case tag<Scheme>::value:
 						{ return print_type(value, out); }
 					default:
-						return print_atom(value.any, out);
+						return print_atom(value, out);
 					}
 			}
 			virtual std::ostream& print(std::ostream& out) const override
@@ -254,7 +256,7 @@ namespace atl
 		};
 
 		template<class T>
-		PrintWithType with_type(T const& aa) { return PrintWithType(pass_value(aa)); }
+		PrintWithType with_type(T const& aa) { return PrintWithType(wrap(aa)); }
 
 		std::ostream& operator<<(std::ostream& out, const printer::Printer& p) { return p.print(out); }
 	}
@@ -262,19 +264,13 @@ namespace atl
 	std::ostream& dbg_any(Any vv)
 	{ return cout << printer::print(vv) << endl; }
 
-	std::ostream& dbg_pbv(PassByValue value)
-	{ return dbg_any(value.any); }
-
 	std::ostream& dbg_ast(Ast const& vv)
 	{ return cout << printer::print(vv) << endl; }
 
-	std::ostream& dbg_slice(Slice const& vv)
-	{ return cout << printer::print(vv) << endl; }
-
-	std::ostream& dbg_type(PassByValue const& value)
+	std::ostream& dbg_type(Any const& value)
 	{ return printer::print_type(value, std::cout) << std::endl; }
 
-	std::ostream& dbg_with_type(PassByValue const& value)
+	std::ostream& dbg_with_type(Any const& value)
 	{ return std::cout << printer::PrintWithType(value) << std::endl; }
 }
 

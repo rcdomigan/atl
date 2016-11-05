@@ -65,7 +65,7 @@ namespace atl
 				case tag<Lambda>::value:
 					{
 						auto& metadata = *unwrap<Lambda>(head).value;
-						Slice formals = unwrap_slice(ast[1]);
+						auto formals = unwrap_astish(ast[1]);
 
 						auto formals_size = formals.size();
 						auto body_size  = assign_padding(ast[2]);

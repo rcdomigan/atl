@@ -179,7 +179,7 @@ namespace atl
 
 
 		/* parse one S-expression from a string into an ast */
-		PassByValue string_(const std::string& input)
+		Any string_(const std::string& input)
 		{
 			auto& vec = _gc.sequence();
 
@@ -194,11 +194,11 @@ namespace atl
 				                            .append(input)
 				                            .append("`"));
 
-			return PassByValue(*vec.begin());
+			return pass_value(*vec.begin());
 		}
 
 		/* parse one S-expression from a stream into an ast */
-		PassByValue stream(istream &stream)
+		Any stream(istream &stream)
 		{
 			auto initial_flags = stream.flags();
 			noskipws(stream);
@@ -214,7 +214,7 @@ namespace atl
 			skip_ws_and_comments(itr, end);
 
 			stream.flags(initial_flags);
-			return PassByValue(*vec.begin());
+			return pass_value(*vec.begin());
 		}
 
 		void reset_line_number() { _line = 1; }

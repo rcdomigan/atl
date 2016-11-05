@@ -135,13 +135,6 @@ namespace atl
 								end = ast.end();
 								break;
 							}
-						case tag<Slice>::value:
-							{
-								auto const& slice = *reinterpret_cast<Slice const*>(expr.value);
-								begin = slice.begin();
-								end = slice.end();
-								break;
-							}
 						default:
 							return false;
 						}

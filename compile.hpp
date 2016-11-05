@@ -199,10 +199,10 @@ namespace atl
         struct _Form
         {
             // result from 'form'
-            PassByValue applicable;
+            Any applicable;
             FormTag form_tag;
 
-            _Form(PassByValue applicable_,
+            _Form(Any applicable_,
                   FormTag form_tag_)
 	            : applicable(applicable_),
                   form_tag(form_tag_)
@@ -213,11 +213,11 @@ namespace atl
         /// \internal
         /// Evaluates the application position of an s-expression and
         /// returns a _Form structure with information for _compile.
-        _Form form(Slice ast, Context context)
+        _Form form(Ast ast, Context context)
         {
             using namespace std;
 
-            PassByValue head = pass_value(ast[0]);
+            Any head = pass_value(ast[0]);
 
             auto compile_tail = [&](Any& input)
                 {
@@ -291,9 +291,9 @@ namespace atl
 
                         assemble[after_alt] = assemble.pos_end();
 
-                        return _Form(pass_value<Null>(), FormTag::done);
+                        return _Form(wrap<Null>(), FormTag::done);
                     }
-                case tag<Slice>::value:
+                case tag<Ast>::value:
                     {
                         auto compiled = _compile(head, Context(false, false));
                         return _Form(pass_value(compiled), FormTag::function);
@@ -323,7 +323,7 @@ namespace atl
                         assemble.add_label(sym.name);
                         assemble.patch(sym);
 
-                        return _Form(pass_value<Null>(),
+                        return _Form(wrap<Null>(),
                                      FormTag::done);
                     }
 
@@ -346,7 +346,7 @@ namespace atl
                 default:
 	                throw WrongTypeError
 		                (std::string("Dunno how to use ")
-		                 .append(type_name(head.any))
+		                 .append(type_name(head))
 		                 .append(" as a function"));
                 }
         }
@@ -357,20 +357,21 @@ namespace atl
 	    /// @param assemble: the "AssembleCode" helper we're using
 	    /// @param context: relavent context, ie are we in a tail call
 	    /// @return: Type information and other things a calling _compile needs to know about.
-        Any _compile(PassByValue input, Context context)
+        Any _compile(Any input, Context context)
 	    {
             using namespace std;
 
         compile_value:
             switch(input._tag) {
-            case tag<Slice>::value:
+            case tag<Ast>::value:
+            case tag<AstData>::value:
                 {
-                    auto ast = unwrap<Slice>(input);
+                    auto ast = unwrap_astish(input);
                     auto form = this->form(ast, context);
 
                     switch(form.form_tag) {
                     case FormTag::done:
-	                    return form.applicable.any;
+	                    return form.applicable;
 
                     case FormTag::macro_expansion:
 	                    {
@@ -422,12 +423,12 @@ namespace atl
                     assert(0);
                 }
             default:
-                { compile_atom(assemble, input.any); }}
+                { compile_atom(assemble, input); }}
             return wrap<Null>();
         }
 
 	    void ast(Ast const& ast)
-	    { _compile(pass_value(ast), Context(false, false)); }
+	    { _compile(wrap(ast), Context(false, false)); }
 
         // For most external use.  The generated code can be passed to
         // the VM for evaluation.
@@ -439,7 +440,7 @@ namespace atl
 
         // For most external use.  The generated code can be passed to
         // the VM for evaluation.
-        void value(PassByValue ast)
+        void value(Any ast)
 	    { _compile(ast, Context(false, false)); }
 
         void dbg();
