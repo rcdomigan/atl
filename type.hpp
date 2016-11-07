@@ -546,14 +546,14 @@ namespace atl
 		{}
 	};
 
-    struct String {
-	std::string value;
+	struct String {
+		std::string value;
 
-	String() : value() {}
+		String() : value() {}
 
-	template<class T>
-	String(T init) : value(init) {}
-    };
+		template<class T>
+		String(T init) : value(init) {}
+	};
 
     template<> struct
     Name<std::string*> : public Name<String> {};
