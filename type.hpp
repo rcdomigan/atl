@@ -281,6 +281,14 @@ namespace atl
 
 	namespace ast_helper
 	{
+		template<class Itr>
+		Itr add_iters(Itr itr, size_t n)
+		{
+			for(size_t i = 0; i < n; ++i)
+				++itr;
+			return itr;
+		}
+
 		// This is really a special iterator for when I have nested
 		// arrays.  I don't know when that would happen other than in
 		// generating ASTs.
@@ -289,11 +297,17 @@ namespace atl
 		{
 			// Should by Any or Any const
 			Value *value;
+
 			IteratorBase(Value* vv) : value(vv) {}
 			IteratorBase() = default;
 
-			Value& operator*() { return *value; }
-			Value const& operator*() const { return *value; }
+			Any operator*() const
+			{
+				if(value->_tag == tag<AstData>::value)
+					{ return Any(tag<Ast>::value,
+					             reinterpret_cast<void*>(const_cast<Any*>(value))); }
+				return *value;
+			}
 
 			Value* operator->() { return value; }
 			Value const* operator->() const { return value; }
@@ -314,12 +328,7 @@ namespace atl
 			}
 
 			IteratorBase operator+(size_t n) const
-			{
-				IteratorBase itr = *this;
-				for(size_t i = 0; i < n; ++i)
-					++itr;
-				return itr;
-			}
+			{ return add_iters(*this, n); }
 
 			size_t operator-(IteratorBase other) const
 			{
@@ -333,6 +342,58 @@ namespace atl
 			bool operator==(const IteratorBase<Value>& j) const {return j.value == value;}
 
 			std::ostream& print(std::ostream& out) const { return out << value; }
+		};
+
+
+		/* Modify the values of an Ast, but not its structure.  This
+		   iterator is suitable for traversal, but Ast references
+		   returned by it will be invalid after an increment.
+		 */
+		struct ModifyDataIterator
+			: public IteratorBase<Any>
+		{
+			typedef IteratorBase<Any> Base;
+			Any _data_wrapper;
+
+			ModifyDataIterator(Any *vv) : Base(vv) {}
+
+			/* Returns a reference to the data of an Ast.  For nested AstData, return a reference to an instance Ast. */
+			Any& operator*()
+			{
+				if(value->_tag == tag<AstData>::value)
+					{
+						_data_wrapper = Any(tag<Ast>::value,
+						                    reinterpret_cast<void*>(value));
+						return _data_wrapper;
+					}
+				return *value;
+			}
+
+			ModifyDataIterator operator+(size_t n) const
+			{ return add_iters(*this, n); }
+		};
+
+		struct ModifyData
+		{
+			typedef ModifyDataIterator iterator;
+			iterator _begin, _end, _peek;
+
+			ModifyData(Any *bb, Any *ee)
+				: _begin(bb), _end(ee), _peek(nullptr)
+			{}
+
+			iterator begin() { return _begin; }
+			iterator end() { return _end; }
+
+			Any& peek(size_t n)
+			{
+				_peek = begin() + n;
+				return *_peek;
+			}
+
+			Any operator[](size_t n) const {
+				return *(_begin + n);
+			}
 		};
 	}
 
@@ -363,13 +424,7 @@ namespace atl
 
 		bool empty() const { return value == 0; }
 
-		Any& operator[](size_t n) {
-			auto itr = begin();
-			itr = itr + n;
-			return *itr;
-		}
-
-		Any const& operator[](size_t n) const {
+		Any operator[](size_t n) const {
 			auto itr = begin();
 			itr = itr + n;
 			return *itr;
@@ -397,17 +452,31 @@ namespace atl
 		friend std::ostream& operator<<(std::ostream& out, const iterator& itr) { return itr.print(out); }
 		friend std::ostream& operator<<(std::ostream& out, const const_iterator& itr) { return itr.print(out); }
 
-		Any& operator[](size_t n) {
+		/* The operator[] behavior doesn't return a reference because
+		   nested AstData should be wrapped before return so it can be
+		   passed by value (and I'd like to avoid having two Ast types
+		   (Ast and AstData) to deal with everywhere).  The
+		   'reference' method exists if something in the Ast needs to
+		   be set. */
+		Any operator[](size_t n) const
+		{
 			auto itr = begin();
 			itr = itr + n;
 			return *itr;
 		}
 
-		Any const& operator[](size_t n) const
+		Any const* address(size_t n) const
 		{
 			auto itr = begin();
 			itr = itr + n;
-			return *itr;
+			return itr.value;
+		}
+
+		Any& reference(size_t n)
+		{
+			auto itr = begin();
+			itr = itr + n;
+			return *itr.value;
 		}
 
 		flat_iterator flat_begin() { return value->flat_begin(); }
@@ -429,9 +498,9 @@ namespace atl
 
 		bool operator<(Ast const& other) const
 		{ return value < other.value; }
+
+		ast_helper::ModifyData modify_data() { return ast_helper::ModifyData(flat_begin(), flat_end()); }
 	};
-
-
 
 
 	// Return an Ast pointing to an AstData `input` which was cast to

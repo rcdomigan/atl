@@ -21,13 +21,13 @@ TEST_F(TestHelpers, test_nested_mk)
 	auto ast = mk(mk(1, mk(), 1))
 		(ast_alloc(arena));
 
-	ASSERT_EQ(tag<AstData>::value, ast[0]._tag);
+	ASSERT_EQ(tag<Ast>::value, ast[0]._tag);
 
 	ASSERT_EQ(tag<Fixnum>::value,
-	          explicit_unwrap<AstData>(ast[0])[0]._tag);
+	          unwrap<Ast>(ast[0])[0]._tag);
 
-	ASSERT_EQ(tag<AstData>::value,
-	          explicit_unwrap<AstData>(ast[0])[1]._tag);
+	ASSERT_EQ(tag<Ast>::value,
+	          unwrap<Ast>(ast[0])[1]._tag);
 }
 
 TEST_F(TestHelpers, test_trivial_pattern_match)
@@ -52,6 +52,23 @@ TEST_F(TestHelpers, test_trivial_pattern_match)
 }
 
 TEST_F(TestHelpers, test_pattern_match_empty_ast)
+{
+	Arena arena;
+	Any ast_expr;
+	{
+		using namespace make_ast;
+		ast_expr = wrap(mk()(ast_alloc(arena)));
+	}
+
+	{
+		using namespace pattern_match;
+
+		ASSERT_TRUE(match(ast(), ast_expr));
+		ASSERT_FALSE(match(ast("foo"), ast_expr));
+	}
+}
+
+TEST_F(TestHelpers, test_pattern_match_capture)
 {
 	Arena arena;
 	Any ast_expr;

@@ -107,7 +107,7 @@ namespace atl
 						if(!ast.empty())
 							{
 								print_type(ast[0], out);
-								for(auto& vv : slice(ast, 1))
+								for(auto vv : slice(ast, 1))
 									{
 										out << ' ';
 										print_type(vv, out);
@@ -145,7 +145,9 @@ namespace atl
 		{
 			Any root;
 
-			PrintAny(Any const& vv) : root(pass_value(vv)) {}
+			PrintAny(Any const& vv)
+				: root(vv)
+			{ assert(!is<AstData>(vv)); }
 
 			std::ostream& _print(Any const& value, std::ostream& out) const
 			{
@@ -157,11 +159,11 @@ namespace atl
 							out << "(";
 							if(!ast.empty())
 								{
-									_print(pass_value(ast[0]), out);
-									for(auto& vv : slice(ast, 1))
+									_print(ast[0], out);
+									for(auto vv : slice(ast, 1))
 										{
 											out << ' ';
-											_print(pass_value(vv), out);
+											_print(vv, out);
 										}
 								}
 							return out << ")";
@@ -185,7 +187,7 @@ namespace atl
 		{
 			Any root;
 
-			PrintWithType(Any const& vv) : root(pass_value(vv)) {}
+			PrintWithType(Any const& vv) : root(vv) { assert(!is<AstData>(vv)); }
 
 			std::ostream& _print(Any const& value, std::ostream& out) const
 			{
@@ -205,7 +207,7 @@ namespace atl
 							if(!ast.empty())
 								{
 									_print(ast[0], out);
-									for(auto& vv : slice(ast, 1))
+									for(auto vv : slice(ast, 1))
 										{
 											out << ' ';
 											_print(vv, out);

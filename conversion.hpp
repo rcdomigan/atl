@@ -61,6 +61,14 @@ namespace atl {
 	static inline T const& unwrap(Any const& input)
 	{ return unwrapping::Any<T>::a(input); }
 
+	template<class T>
+	static inline T& modify(Any const& input)
+	{
+		static_assert(is_pimpl<T>::value,
+		              "Can't modify a const if it's a PIMPL");
+		return unwrapping::Any<T>::a(const_cast<Any&>(input));
+	}
+
 
 	/*********************************/
 	/* __        __                  */

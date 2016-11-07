@@ -83,10 +83,10 @@ TEST_F(TestSubstitution, test_type_substitution_p8)
 
     auto do_sub = [&](Ast& ast) -> Ast
 	    {
-		    return Ast(reinterpret_cast<AstData*>
-		               (inference::substitute_type(ast_alloc(arena),
-		                                           subs,
-		                                           ref_wrap(ast)).value));
+		    return unwrap<Ast>
+		    (inference::substitute_type(ast_alloc(arena),
+		                                subs,
+		                                ref_wrap(ast)));
 	    };
 
     auto first = mk(type('x'),
@@ -424,9 +424,9 @@ TEST_F(Inference, try_nop)
 	sym_a.scheme.type = wrap<Type>(++new_types);
 	sym_b.scheme.type = wrap<Type>(++new_types);
 
-	auto e1 = W(store, new_types, gamma, pass_value(wrap(&sym_a)));
-    auto e2 = W(store, new_types, gamma, pass_value(wrap(&sym_b)));
-	auto e3 = W(store, new_types, gamma, pass_value(wrap(&sym_a)));
+	auto e1 = W(store, new_types, gamma, wrap(&sym_a));
+    auto e2 = W(store, new_types, gamma, wrap(&sym_b));
+	auto e3 = W(store, new_types, gamma, wrap(&sym_a));
 
     ASSERT_NE(e1.type.value, e2.type.value);
     ASSERT_EQ(e1.type.value, e3.type.value);

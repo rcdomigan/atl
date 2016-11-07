@@ -103,7 +103,7 @@ namespace atl
 						    {
 							    new_value = itr->second;
 							    if(is<Ast>(new_value))
-								    { new_value = wrap(*ast_hof::copy(explicit_unwrap<Ast>(new_value),
+								    { new_value = wrap(*ast_hof::copy(unwrap<Ast>(new_value),
 								                                      store)); }
 							    else
 								    { store.push_back(new_value); }
@@ -221,8 +221,8 @@ namespace atl
 				    rval.insert(unwrap<Type>(value).value());
 				    return;
 			    case tag<Ast>::value:
-					    { free_type_variables(rval, pass_value(item)); }
 				    for(auto item : unwrap<Ast>(value))
+					    { free_type_variables(rval, item); }
 				    return;
 			    default:
 				    throw WrongTypeError("Don't know how to find free type of this..");
@@ -232,7 +232,7 @@ namespace atl
 	    Scheme::Quantified free_type_variables(Scheme& scheme)
 	    {
 		    Scheme::Quantified rval;
-		    free_type_variables(rval, pass_value(scheme.type));
+		    free_type_variables(rval, scheme.type);
 		    for(auto& item : scheme.quantified)
 			    { rval.erase(item); }
 		    return rval;
@@ -279,19 +279,19 @@ namespace atl
 				        { return SubstituteMap({{unwrap<Type>(right), left}}); }
 		        }
 
-	        if(!is_astish(right))
-		        { return SubstituteMap({{typify(right), pass_value(left)}}); }
+	        if(!is<Ast>(right))
+		        { return SubstituteMap({{typify(right), left}}); }
 
-	        if(!is_astish(left))
-		        { return SubstituteMap({{typify(left), pass_value(right)}}); }
+	        if(!is<Ast>(left))
+		        { return SubstituteMap({{typify(left), right}}); }
 
-	        auto left_ast = unwrap_astish(left),
-		        right_ast = unwrap_astish(right);
+	        auto left_ast = unwrap<Ast>(left),
+		        right_ast = unwrap<Ast>(right);
 
 	        while(true)
 	            {
 		            auto u1 = most_general_unification
-			            (store, pass_value(left_ast[0]), pass_value(right_ast[0]));
+			            (store, left_ast[0], right_ast[0]);
 
 		            if(left_ast.size() > 1)
 			            {
@@ -304,13 +304,11 @@ namespace atl
 				            if(left_ast.size() != right_ast.size())
 					            { arity_mismatch(wrap(left_ast), wrap(right_ast)); }
 
+				            for(auto inner_itr : slice(left_ast.modify_data(), 1))
+					            { substitute_type(left_store, u1, inner_itr); }
 
-				            for(auto inner_itr : zip(slice(left_ast, 1),
-				                                     slice(right_ast, 1)))
-					            {
-						            substitute_type(left_store, u1, *get<0>(inner_itr));
-						            substitute_type(right_store, u1, *get<1>(inner_itr));
-					            }
+				            for(auto inner_itr : slice(right_ast.modify_data(), 1))
+					            { substitute_type(right_store, u1, inner_itr); }
 
 				            new_left.end_ast();
 				            new_right.end_ast();
@@ -342,7 +340,7 @@ namespace atl
 		    FormalsScope(Gamma& gamma_, Type::value_type& new_types, Ast ast)
 			    : gamma(gamma_)
 		    {
-			    for(auto& var : ast)
+			    for(auto var : ast)
 				    {
 					    auto& sym = unwrap<Symbol>(var);
 
@@ -405,7 +403,7 @@ namespace atl
 					    if(!ast.empty())
 						    {
 							    // Skip the constructor
-							    for(auto& vv : slice(ast, 1))
+							    for(auto vv : slice(ast, 1))
 								    { free_type_variables(rval.quantified, vv); }
 						    }
 					    break;
@@ -433,10 +431,8 @@ namespace atl
 	    };
 
         // Take a stab at the algorithm W
-	    WResult W(AllocatorBase& store, Type::value_type& new_types, Gamma& gamma, Any const& raw_expr)
+	    WResult W(AllocatorBase& store, Type::value_type& new_types, Gamma& gamma, Any expr)
 	    {
-		    auto expr = pass_value(raw_expr);
-
 		    auto new_var = [&](Scheme& scheme)
 			    {
 				    if(is<Undefined>(scheme.type))
@@ -495,7 +491,7 @@ namespace atl
 							    WResult body;
 							    {
 								    FormalsScope scope(gamma, new_types, formals);
-								    body = W(store, new_types, gamma, pass_value(ast[2]));
+								    body = W(store, new_types, gamma, ast[2]);
 							    }
 
 							    if(formals.empty())
@@ -507,9 +503,9 @@ namespace atl
 									    auto tmp = wrap(formals);
 									    apply_substitution(store, gamma, body.subs, tmp);
 
-									    for(auto& raw_sym : formals)
+									    for(auto raw_sym : formals)
 										    {
-											    auto& sym = get_sym(unwrap<Symbol>(raw_sym));
+											    auto& sym = get_sym(modify<Symbol>(raw_sym));
 											    SubsScope scope(body.subs, sym.scheme.quantified);
 											    sym.scheme.type = substitute_type
 												    (store,
@@ -536,7 +532,7 @@ namespace atl
 									                      scheme.quantified.end());
 								    }
 
-							    auto& lambda = unwrap<Lambda>(ast[0]);
+							    auto& lambda = unwrap<Lambda>(ast.reference(0));
 							    if(nullptr == lambda.value)
 								    { lambda.value = store.lambda_metadata(); }
 
@@ -546,12 +542,12 @@ namespace atl
 						    }
 					    else if(is<Define>(ast[0]))
 						    {
-							    auto& sym = get_sym(unwrap<Symbol>(ast[1]));
+							    auto& sym = get_sym(modify<Symbol>(ast[1]));
 
 							    if(gamma.count(sym.name))
 								    { throw RedefinitionError("Can't redefine a symbol at the same scope."); }
 
-							    auto e1 = W(store, new_types, gamma, pass_value(ast[2]));
+							    auto e1 = W(store, new_types, gamma, ast[2]);
 
 							    auto generalize_env = gamma;
 							    for(auto& item : generalize_env)
@@ -569,7 +565,7 @@ namespace atl
 						    {
 							    using namespace make_ast;
 
-							    auto e1 = W(store,  new_types, gamma, pass_value(ast[0]));
+							    auto e1 = W(store,  new_types, gamma, ast[0]);
 
 							    if(ast.size() == 1) // thunk:
 								    {
@@ -599,15 +595,15 @@ namespace atl
 											    item.second.type = substitute_type(store, e1.subs, item.second.type);
 										    }
 
-									    for(auto& arg : slice(ast, 1))
+									    for(auto arg : slice(ast, 1))
 										    {
-											    WResult e2 = W(store, new_types, gamma, pass_value(arg));
+											    WResult e2 = W(store, new_types, gamma, arg);
 
 											    auto beta = Type(++new_types);
 
 											    auto V = most_general_unification
 												    (store,
-												     pass_value(substitute_type(store, e2.subs, e1.type)),
+												     substitute_type(store, e2.subs, e1.type),
 												     wrap(fn_type::fn(e2.type, beta.value())(ast_alloc(store))));
 
 											    auto subbed_beta = substitute_type(store, V, ref_wrap(beta));

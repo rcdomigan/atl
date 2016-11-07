@@ -32,7 +32,7 @@ TEST(TestType, test_ast)
 
 	ASSERT_EQ(3, ast.size());
 	ASSERT_EQ(false, ast.empty());
-	ASSERT_EQ(1, reinterpret_cast<Fixnum&>(ast[0]).value);
+	ASSERT_EQ(1, reinterpret_cast<Fixnum::value_type>(ast[0].value));
 }
 
 TEST(TestType, test_empty_ast)

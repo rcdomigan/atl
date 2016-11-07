@@ -196,9 +196,8 @@ namespace atl
 		switch(value._tag)
 			{
 			case tag<Ast>::value:
-			case tag<AstData>::value:
 				{
-					for(auto& item : unwrap_astish(value))
+					for(auto& item : unwrap<Ast>(value).modify_data())
 						{ assign_forms(env, item); }
 				}
 			case tag<Symbol>::value:
@@ -252,38 +251,38 @@ namespace atl
 		switch(value._tag)
 			{
 			case tag<Ast>::value:
-			case tag<AstData>::value:
 				{
-					auto ast = unwrap_astish(value);
-					auto& head = ast[0];
+					auto ast = unwrap<Ast>(value).modify_data();
+					auto head = ast.begin();
 
-					if(is<Symbol>(head))
-						{ assign_symbol(env, backpatch, head); }
+					if(is<Symbol>(*head))
+						{ assign_symbol(env, backpatch, *head); }
 
-					switch(head._tag)
+					switch(head->_tag)
 						{
 						case tag<Define>::value:
 							{
-								auto &sym = unwrap<Symbol>(ast[1]);
+								auto &sym = modify<Symbol>(ast.peek(1));
 
 								{
 									using namespace pattern_match;
+
 									Lambda func;
-									if(match(pattern_match::ast(capture(func), astish, astish),
+									if(match(pattern_match::ast(capture(func), tag<Ast>::value, tag<Ast>::value),
 									         ast[2]))
 										{
 											auto& metadata = *func.value;
 
 											env.define(sym, wrap<CallLambda>(&metadata));
-											assign_free(env, store, backpatch, ast[2]);
+											assign_free(env, store, backpatch, ast.peek(2));
 										}
 									else
 										{
-											assign_free(env, store, backpatch, ast[2]);
-											if(is_astish(ast[2]))
+											assign_free(env, store, backpatch, ast.peek(2));
+											if(is<Ast>(ast[2]))
 												{ env.define(sym, wrap<Undefined>()); }
 											else
-												{ env.define(sym, pass_value(ast[2])); }
+												{ env.define(sym, ast[2]); }
 										}
 								}
 
@@ -304,16 +303,16 @@ namespace atl
 								// created by the type inference
 								SymbolMap inner_map(&env);
 
-								auto formals = unwrap_astish(ast[1]);
+								auto formals = unwrap<Ast>(ast[1]);
+
 								size_t count = formals.size();
-								for(auto& sym : formals)
+								for(auto sym : formals)
 									{
 										assert(is<Symbol>(sym));
-										inner_map.formal(unwrap<Symbol>(sym),
-										                 --count);
+										inner_map.formal(unwrap<Symbol>(sym), --count);
 									}
 
-								assign_free(inner_map, store, backpatch, ast[2]);
+								assign_free(inner_map, store, backpatch, ast.peek(2));
 							}
 							return;
 						default:
