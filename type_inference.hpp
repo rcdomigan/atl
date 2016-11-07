@@ -117,11 +117,10 @@ namespace atl
 					    return new_value;
 				    }
 			    case tag<Ast>::value:
-			    case tag<AstData>::value:
 				    {
 					    ast_hof::NestAst nest(store);
 
-					    for(auto& vv : unwrap_astish(value))
+					    for(auto& vv : unwrap<Ast>(value).modify_data())
 						    {
 							    // values goes to `store`
 							    substitute_type(store, subs, vv);
@@ -183,9 +182,8 @@ namespace atl
 					    break;
 				    }
 			    case tag<Ast>::value:
-			    case tag<AstData>::value:
 				    {
-					    for(auto& item : unwrap_astish(value))
+					    for(auto& item : unwrap<Ast>(value).modify_data())
 						    { apply_substitution(store, gamma, subs, item); }
 					    break;
 				    }
@@ -222,10 +220,9 @@ namespace atl
 			    case tag<Type>::value:
 				    rval.insert(unwrap<Type>(value).value());
 				    return;
-			    case tag<AstData>::value:
 			    case tag<Ast>::value:
-				    for(auto& item : unwrap_astish(value))
 					    { free_type_variables(rval, pass_value(item)); }
+				    for(auto item : unwrap<Ast>(value))
 				    return;
 			    default:
 				    throw WrongTypeError("Don't know how to find free type of this..");
@@ -401,9 +398,8 @@ namespace atl
 					    break;
 				    }
 			    case tag<Ast>::value:
-			    case tag<AstData>::value:
 				    {
-					    auto ast = unwrap_astish(type);
+					    auto ast = unwrap<Ast>(type);
 					    rval.type = type;
 
 					    if(!ast.empty())
@@ -483,7 +479,7 @@ namespace atl
 
 			    case tag<Ast>::value:
 				    {
-					    auto ast = explicit_unwrap<Ast>(expr);
+					    auto ast = unwrap<Ast>(expr);
 
 					    if(is<Lambda>(ast[0]))
 						    {
@@ -491,7 +487,7 @@ namespace atl
 							    if(ast.size() != 3)
 								    { throw ArityError("Lambda accepts only a formals and body lists"); }
 
-							    auto formals = unwrap_astish(ast[1]);
+							    auto formals = unwrap<Ast>(ast[1]);
 
 							    Scheme::Quantified quantified;
 							    Ast result_type;

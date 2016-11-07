@@ -78,9 +78,6 @@ namespace atl
 			}
 		};
 
-		bool astish(Match& _match_state, Any const& input)
-		{ return ::atl::is_astish(input); }
-
 		template<class T>
 		Matcher capture(T& passed_hold)
 		{
@@ -121,13 +118,6 @@ namespace atl
 
 					switch(expr._tag)
 						{
-						case tag<AstData>::value:
-							{
-								auto const& ast = reinterpret_cast<AstData const&>(expr);
-								begin = ast.begin();
-								end = ast.end();
-								break;
-							}
 						case tag<Ast>::value:
 							{
 								auto const& ast = reinterpret_cast<Ast const&>(expr);

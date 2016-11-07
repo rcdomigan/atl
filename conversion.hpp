@@ -52,8 +52,8 @@ namespace atl {
 		// If you checked the tag and know something is an Ast or
 		// AstData, use explicit_unwrap. Otherwise use unwrap_slice
 		// (which does the dispatching for you).
-		static_assert(!(std::is_same<Ast, T>::value || std::is_same<AstData, T>::value),
-		              "Ast and Ast data types requires special handling");
+		static_assert(!std::is_same<AstData, T>::value,
+		              "AstData type requires special handling");
 		return unwrapping::Any<T>::a(input);
 	}
 

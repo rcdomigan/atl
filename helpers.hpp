@@ -11,44 +11,6 @@
 
 namespace atl
 {
-	bool is_astish(Any const& input)
-	{
-		switch(input._tag)
-			{
-			case tag<AstData>::value:
-			case tag<Ast>::value:
-				return true;
-			default:
-				return false;
-			}
-	}
-
-	Ast unwrap_astish(Any const& const_astish)
-	{
-		auto& astish = const_cast<Any&>(const_astish);
-		switch(astish._tag)
-			{
-			case tag<AstData>::value:
-				return Ast(&reinterpret_cast<AstData&>(astish));
-			case tag<Ast>::value:
-				return explicit_unwrap<Ast>(astish);
-			default:
-				throw WrongTypeError(std::string("Cannot make ")
-				                     .append(type_name(astish))
-				                     .append(" into an Ast."));
-			}
-	}
-
-	/* Find a representation of the input Any that can safely be
-	   passed by value.  Right now that just means wrapping an AstData
-	   in an Ast. */
-	Any pass_value(Any const& input)
-	{
-		if(is<AstData>(input))
-			{ return wrap<Ast>(const_cast<AstData*>(&unwrap<AstData>(input))); }
-		return input;
-	}
-
 	typedef Range<Any*> AnyRange;
 
 	namespace byte_code
@@ -203,7 +165,7 @@ namespace atl
 		MovableAstPointer map(Fn&& fn, Ast const& input, AstAllocator store)
 		{
 			NestAst nest(store);
-			for(auto& vv : input)
+			for(auto vv : input)
 				{ nest.store.push_back(fn(vv)); }
 			return nest.ast;
 		}
@@ -212,10 +174,10 @@ namespace atl
 		MovableAstPointer copy(Ast const& input, AstAllocator store)
 		{
 			NestAst nest(store);
-			for(auto& vv : input)
+			for(auto vv : input)
 				{
-					if(is_astish(vv))
-						{ copy(unwrap_astish(vv), store); }
+					if(is<Ast>(vv))
+						{ copy(unwrap<Ast>(vv), store); }
 					else
 						{ nest.store.push_back(vv); }
 				}
@@ -264,7 +226,7 @@ namespace atl
 					case tag<AstData>::value:
 						{
 							// assume it's a nested function:
-							ast_hof::copy(unwrap_astish(tt), space);
+							ast_hof::copy(unwrap<Ast>(tt), space);
 							break;
 						}
 					default:
@@ -372,12 +334,14 @@ namespace atl
 	struct AstSubscripter
 	{
 		Any value;
-		AstSubscripter(Any const& in) : value(pass_value(in)) {}
+		AstSubscripter(Any const& in)
+			: value(in)
+		{ assert(!is<AstData>(in)); }
 		AstSubscripter(Ast& value_) : value(wrap(value_)) {}
 		AstSubscripter() = delete;
 
 		AstSubscripter operator[](off_t pos)
-		{ return AstSubscripter(unwrap_astish(value)[pos]); }
+		{ return AstSubscripter(unwrap<Ast>(value)[pos]); }
 	};
 
 	template<class T>
@@ -517,7 +481,6 @@ namespace atl
 				}
 
 			case tag<Ast>::value:
-			case tag<AstData>::value:
 				break;
 
 			default:

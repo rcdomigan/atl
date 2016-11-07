@@ -432,14 +432,7 @@ namespace atl
 	};
 
 
-	typedef Range<Ast::iterator> AstRange;
-	typedef Range<Ast::const_iterator> ConstAstRange;
 
-	AstRange slice_ast(Ast& ast, size_t off)
-	{ return make_range(ast.begin() + off, ast.end()); }
-
-	ConstAstRange slice_ast(Ast const& ast, size_t off)
-	{ return make_range(ast.begin() + off, ast.end()); }
 
 	// Return an Ast pointing to an AstData `input` which was cast to
 	// Any.

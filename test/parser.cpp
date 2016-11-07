@@ -41,7 +41,7 @@ TEST_F(ParserTest, test_simple_int_list) {
 
     auto expected = mk(1, 2, 3)(ast_alloc(store));
 
-    for(auto& vv : zip(unwrap_astish(parsed), expected))
+    for(auto& vv : zip(unwrap<Ast>(parsed), expected))
 	    {
 #ifdef DEBUGGING
 		    cout << "parsed: " << printer::print(*get<0>(vv)) << "\nexpected: " << printer::print(*get<1>(vv)) << endl;

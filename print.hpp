@@ -101,9 +101,8 @@ namespace atl
 			switch(value._tag)
 				{
 				case tag<Ast>::value:
-				case tag<AstData>::value:
 					{
-						auto ast = unwrap_astish(value);
+						auto ast = unwrap<Ast>(value);
 						out << "(";
 						if(!ast.empty())
 							{
@@ -152,10 +151,9 @@ namespace atl
 			{
 				switch(value._tag)
 					{
-					case tag<AstData>::value:
 					case tag<Ast>::value:
 						{
-							auto ast = unwrap_astish(value);
+							auto ast = unwrap<Ast>(value);
 							out << "(";
 							if(!ast.empty())
 								{
@@ -200,10 +198,9 @@ namespace atl
 
 				switch(value._tag)
 					{
-					case tag<AstData>::value:
 					case tag<Ast>::value:
 						{
-							auto ast = unwrap_astish(value);
+							auto ast = unwrap<Ast>(value);
 							out << "(";
 							if(!ast.empty())
 								{
