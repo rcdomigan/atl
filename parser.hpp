@@ -177,9 +177,8 @@ namespace atl
 			//_gc.mark_callback( [this](GC &gc) { _gc.mark(_mark); });
 		}
 
-
 		/* parse one S-expression from a string into an ast */
-		PassByValue string_(const std::string& input)
+		Any string_(const std::string& input)
 		{
 			auto& vec = _gc.sequence();
 
@@ -194,11 +193,13 @@ namespace atl
 				                            .append(input)
 				                            .append("`"));
 
-			return PassByValue(*vec.begin());
+			if(vec.begin()->_tag == tag<AstData>::value)
+				{ return Any(tag<Ast>::value, reinterpret_cast<AstData*>(&*vec.begin())); }
+			return *vec.begin();
 		}
 
 		/* parse one S-expression from a stream into an ast */
-		PassByValue stream(istream &stream)
+		Any stream(istream &stream)
 		{
 			auto initial_flags = stream.flags();
 			noskipws(stream);
@@ -214,7 +215,11 @@ namespace atl
 			skip_ws_and_comments(itr, end);
 
 			stream.flags(initial_flags);
-			return PassByValue(*vec.begin());
+
+			if(vec.begin()->_tag == tag<AstData>::value)
+				{ return Any(tag<Ast>::value, reinterpret_cast<AstData*>(&*vec.begin())); }
+			return *vec.begin();
+
 		}
 
 		void reset_line_number() { _line = 1; }

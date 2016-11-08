@@ -325,7 +325,7 @@ namespace atl
 			return *this;
 		}
 
-		AssembleCode& pointer(void* cc) { return constant(reinterpret_cast<value_type>(cc)); }
+		AssembleCode& pointer(void const* cc) { return constant(reinterpret_cast<value_type>(cc)); }
 
 		AssembleCode& push_tagged(const Any& aa)
 		{

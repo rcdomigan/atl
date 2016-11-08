@@ -52,14 +52,22 @@ namespace atl {
 		// If you checked the tag and know something is an Ast or
 		// AstData, use explicit_unwrap. Otherwise use unwrap_slice
 		// (which does the dispatching for you).
-		static_assert(!(std::is_same<Ast, T>::value || std::is_same<AstData, T>::value),
-		              "Ast and Ast data types requires special handling");
+		static_assert(!std::is_same<AstData, T>::value,
+		              "AstData type requires special handling");
 		return unwrapping::Any<T>::a(input);
 	}
 
 	template<class T>
 	static inline T const& unwrap(Any const& input)
 	{ return unwrapping::Any<T>::a(input); }
+
+	template<class T>
+	static inline T& modify(Any const& input)
+	{
+		static_assert(is_pimpl<T>::value,
+		              "Can't modify a const if it's a PIMPL");
+		return unwrapping::Any<T>::a(const_cast<Any&>(input));
+	}
 
 
 	/*********************************/

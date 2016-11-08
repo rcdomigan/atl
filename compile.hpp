@@ -199,10 +199,10 @@ namespace atl
         struct _Form
         {
             // result from 'form'
-            PassByValue applicable;
+            Any applicable;
             FormTag form_tag;
 
-            _Form(PassByValue applicable_,
+            _Form(Any applicable_,
                   FormTag form_tag_)
 	            : applicable(applicable_),
                   form_tag(form_tag_)
@@ -213,22 +213,21 @@ namespace atl
         /// \internal
         /// Evaluates the application position of an s-expression and
         /// returns a _Form structure with information for _compile.
-        _Form form(Slice ast, Context context)
+        _Form form(Ast ast, Context context)
         {
             using namespace std;
 
-            PassByValue head = pass_value(ast[0]);
+            Any head = ast[0];
 
-            auto compile_tail = [&](Any& input)
+            auto compile_tail = [&](Any const& input)
                 {
-	                return _compile(pass_value(input),
-                                    Context(context.tail, false));
+	                return _compile(input, Context(context.tail, false));
                 };
 
             switch(head._tag)
                 {
                 case tag<CxxMacro>::value:
-	                return _Form(pass_value(unwrap<CxxMacro>(head).fn(slice(ast, 1))),
+	                return _Form(unwrap<CxxMacro>(head).fn(slice(ast, 1)),
 	                             FormTag::macro_expansion);
 
                 case tag<Lambda>::value:
@@ -238,7 +237,7 @@ namespace atl
                         auto compile_body = [&]()
                             {
                                 metadata.body_address = assemble.pos_end();
-                                auto comp_val = _compile(pass_value(ast[2]), context);
+                                auto comp_val = _compile(ast[2], context);
 
                                 assemble.return_(metadata.pad_to);
                                 return comp_val;
@@ -252,20 +251,20 @@ namespace atl
                                 compile_body();
                             }
 
-                        return _Form(pass_value(wrap<CallLambda>(&metadata)),
+                        return _Form(wrap<CallLambda>(&metadata),
                                      FormTag::done);
                     }
                 case tag<Quote>::value:
                     {
                         // TODO: copy?  Not sure how to handle this with GC.
-                        assemble.pointer(&ast[1]);
-                        return _Form(pass_value(wrap<Null>()),
+	                    assemble.pointer(ast.address(1));
+                        return _Form(wrap<Null>(),
                                      FormTag::done);
                     }
                 case tag<DeclareType>::value:
 	                {
 		                Compile::any(ast[1]);
-		                return _Form(pass_value(wrap<Null>()),
+		                return _Form(wrap<Null>(),
 		                             FormTag::declare_type);
 		           }
                 case tag<If>::value:
@@ -276,7 +275,7 @@ namespace atl
                         };
 
                         auto alt_address = will_jump();
-                        _compile(pass_value(ast[1]),  Context(false, false)); // get the predicate
+                        _compile(ast[1],  Context(false, false)); // get the predicate
                         assemble.if_();
 
                         // consiquent
@@ -291,16 +290,16 @@ namespace atl
 
                         assemble[after_alt] = assemble.pos_end();
 
-                        return _Form(pass_value<Null>(), FormTag::done);
+                        return _Form(wrap<Null>(), FormTag::done);
                     }
-                case tag<Slice>::value:
+                case tag<Ast>::value:
                     {
                         auto compiled = _compile(head, Context(false, false));
-                        return _Form(pass_value(compiled), FormTag::function);
+                        return _Form(compiled, FormTag::function);
                     }
                 case tag<Define>::value:
                     {
-	                    auto& sym = unwrap<Symbol>(ast[1]);
+	                    auto& sym = modify<Symbol>(ast[1]);
 	                    auto const& value = ast[2];
 
                         // Just assign the function location if
@@ -309,12 +308,12 @@ namespace atl
                         {
 	                        using namespace pattern_match;
 	                        Lambda func;
-	                        if(match(pattern_match::ast(capture(func), astish, astish),
+	                        if(match(pattern_match::ast(capture(func), tag<Ast>::value, tag<Ast>::value),
 	                                 value))
 		                        {
 			                        auto& metadata = *func.value;
 
-			                        _compile(pass_value(value), Context(true, true));
+			                        _compile(value, Context(true, true));
 
 			                        sym.value = wrap<CallLambda>(&metadata);
 		                        }
@@ -323,7 +322,7 @@ namespace atl
                         assemble.add_label(sym.name);
                         assemble.patch(sym);
 
-                        return _Form(pass_value<Null>(),
+                        return _Form(wrap<Null>(),
                                      FormTag::done);
                     }
 
@@ -337,7 +336,7 @@ namespace atl
 
 		                if(is<CallLambda>(sym.value))
 			                {
-				                return _Form(pass_value(sym.value),
+				                return _Form(sym.value,
 				                             FormTag::function);
 			                }
 
@@ -346,7 +345,7 @@ namespace atl
                 default:
 	                throw WrongTypeError
 		                (std::string("Dunno how to use ")
-		                 .append(type_name(head.any))
+		                 .append(type_name(head))
 		                 .append(" as a function"));
                 }
         }
@@ -357,20 +356,20 @@ namespace atl
 	    /// @param assemble: the "AssembleCode" helper we're using
 	    /// @param context: relavent context, ie are we in a tail call
 	    /// @return: Type information and other things a calling _compile needs to know about.
-        Any _compile(PassByValue input, Context context)
+        Any _compile(Any input, Context context)
 	    {
             using namespace std;
 
         compile_value:
             switch(input._tag) {
-            case tag<Slice>::value:
+            case tag<Ast>::value:
                 {
-                    auto ast = unwrap<Slice>(input);
+                    auto ast = unwrap<Ast>(input);
                     auto form = this->form(ast, context);
 
                     switch(form.form_tag) {
                     case FormTag::done:
-	                    return form.applicable.any;
+	                    return form.applicable;
 
                     case FormTag::macro_expansion:
 	                    {
@@ -379,7 +378,7 @@ namespace atl
 	                    }
                     case FormTag::declare_type:
 	                    {
-		                    return _compile(pass_value(ast[2]), context);
+		                    return _compile(ast[2], context);
 	                    }
                     case FormTag::function:
                         {
@@ -400,8 +399,8 @@ namespace atl
 	                            }
 
                             // Compile the args:
-                            for(auto& vv : rest)
-	                            { _compile(pass_value(vv), Context(false, false)); }
+                            for(auto vv : rest)
+	                            { _compile(vv, Context(false, false)); }
 
                             if(is_procedure)
                                 {
@@ -422,24 +421,23 @@ namespace atl
                     assert(0);
                 }
             default:
-                { compile_atom(assemble, input.any); }}
+                { compile_atom(assemble, input); }}
             return wrap<Null>();
         }
 
 	    void ast(Ast const& ast)
-	    { _compile(pass_value(ast), Context(false, false)); }
+	    { _compile(wrap(ast), Context(false, false)); }
 
         // For most external use.  The generated code can be passed to
         // the VM for evaluation.
         void any(Any ast)
 	    {
-		    assert(!is<AstData>(ast));
-		    value(pass_value(ast));
+		    value(ast);
         }
 
         // For most external use.  The generated code can be passed to
         // the VM for evaluation.
-        void value(PassByValue ast)
+        void value(Any ast)
 	    { _compile(ast, Context(false, false)); }
 
         void dbg();

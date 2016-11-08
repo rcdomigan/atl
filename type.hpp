@@ -85,7 +85,7 @@ namespace atl
 
 
 #define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(CallLambda)(DeclareType)(Type)(Ast)(AstData)(Undefined)(FunctionConstructor)
-#define ATL_PIMPL_SEQ (Slice)(String)(Symbol)(Struct)(CxxFunctor)(CxxMacro)(Scheme)(LambdaMetadata)(Bound)
+#define ATL_PIMPL_SEQ (String)(Symbol)(Struct)(CxxFunctor)(CxxMacro)(Scheme)(LambdaMetadata)(Bound)
 #define ATL_TYPES_SEQ ATL_REINTERPERABLE_SEQ ATL_PIMPL_SEQ
 
 #define M(r, _, i, elem)						\
@@ -106,7 +106,7 @@ namespace atl
 #undef M
 
 
-    typedef mpl::vector26< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
+    typedef mpl::vector25< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
 
 	const static tag_t LAST_CONCRETE_TYPE = mpl::size<TypesVec>::value;
 
@@ -281,6 +281,14 @@ namespace atl
 
 	namespace ast_helper
 	{
+		template<class Itr>
+		Itr add_iters(Itr itr, size_t n)
+		{
+			for(size_t i = 0; i < n; ++i)
+				++itr;
+			return itr;
+		}
+
 		// This is really a special iterator for when I have nested
 		// arrays.  I don't know when that would happen other than in
 		// generating ASTs.
@@ -289,11 +297,17 @@ namespace atl
 		{
 			// Should by Any or Any const
 			Value *value;
+
 			IteratorBase(Value* vv) : value(vv) {}
 			IteratorBase() = default;
 
-			Value& operator*() { return *value; }
-			Value const& operator*() const { return *value; }
+			Any operator*() const
+			{
+				if(value->_tag == tag<AstData>::value)
+					{ return Any(tag<Ast>::value,
+					             reinterpret_cast<void*>(const_cast<Any*>(value))); }
+				return *value;
+			}
 
 			Value* operator->() { return value; }
 			Value const* operator->() const { return value; }
@@ -314,12 +328,7 @@ namespace atl
 			}
 
 			IteratorBase operator+(size_t n) const
-			{
-				IteratorBase itr = *this;
-				for(size_t i = 0; i < n; ++i)
-					++itr;
-				return itr;
-			}
+			{ return add_iters(*this, n); }
 
 			size_t operator-(IteratorBase other) const
 			{
@@ -333,6 +342,58 @@ namespace atl
 			bool operator==(const IteratorBase<Value>& j) const {return j.value == value;}
 
 			std::ostream& print(std::ostream& out) const { return out << value; }
+		};
+
+
+		/* Modify the values of an Ast, but not its structure.  This
+		   iterator is suitable for traversal, but Ast references
+		   returned by it will be invalid after an increment.
+		 */
+		struct ModifyDataIterator
+			: public IteratorBase<Any>
+		{
+			typedef IteratorBase<Any> Base;
+			Any _data_wrapper;
+
+			ModifyDataIterator(Any *vv) : Base(vv) {}
+
+			/* Returns a reference to the data of an Ast.  For nested AstData, return a reference to an instance Ast. */
+			Any& operator*()
+			{
+				if(value->_tag == tag<AstData>::value)
+					{
+						_data_wrapper = Any(tag<Ast>::value,
+						                    reinterpret_cast<void*>(value));
+						return _data_wrapper;
+					}
+				return *value;
+			}
+
+			ModifyDataIterator operator+(size_t n) const
+			{ return add_iters(*this, n); }
+		};
+
+		struct ModifyData
+		{
+			typedef ModifyDataIterator iterator;
+			iterator _begin, _end, _peek;
+
+			ModifyData(Any *bb, Any *ee)
+				: _begin(bb), _end(ee), _peek(nullptr)
+			{}
+
+			iterator begin() { return _begin; }
+			iterator end() { return _end; }
+
+			Any& peek(size_t n)
+			{
+				_peek = begin() + n;
+				return *_peek;
+			}
+
+			Any operator[](size_t n) const {
+				return *(_begin + n);
+			}
 		};
 	}
 
@@ -363,13 +424,7 @@ namespace atl
 
 		bool empty() const { return value == 0; }
 
-		Any& operator[](size_t n) {
-			auto itr = begin();
-			itr = itr + n;
-			return *itr;
-		}
-
-		Any const& operator[](size_t n) const {
+		Any operator[](size_t n) const {
 			auto itr = begin();
 			itr = itr + n;
 			return *itr;
@@ -397,17 +452,31 @@ namespace atl
 		friend std::ostream& operator<<(std::ostream& out, const iterator& itr) { return itr.print(out); }
 		friend std::ostream& operator<<(std::ostream& out, const const_iterator& itr) { return itr.print(out); }
 
-		Any& operator[](size_t n) {
+		/* The operator[] behavior doesn't return a reference because
+		   nested AstData should be wrapped before return so it can be
+		   passed by value (and I'd like to avoid having two Ast types
+		   (Ast and AstData) to deal with everywhere).  The
+		   'reference' method exists if something in the Ast needs to
+		   be set. */
+		Any operator[](size_t n) const
+		{
 			auto itr = begin();
 			itr = itr + n;
 			return *itr;
 		}
 
-		Any const& operator[](size_t n) const
+		Any const* address(size_t n) const
 		{
 			auto itr = begin();
 			itr = itr + n;
-			return *itr;
+			return itr.value;
+		}
+
+		Any& reference(size_t n)
+		{
+			auto itr = begin();
+			itr = itr + n;
+			return *itr.value;
 		}
 
 		flat_iterator flat_begin() { return value->flat_begin(); }
@@ -429,17 +498,10 @@ namespace atl
 
 		bool operator<(Ast const& other) const
 		{ return value < other.value; }
+
+		ast_helper::ModifyData modify_data() { return ast_helper::ModifyData(flat_begin(), flat_end()); }
 	};
 
-
-	typedef Range<Ast::iterator> AstRange;
-	typedef Range<Ast::const_iterator> ConstAstRange;
-
-	AstRange slice_ast(Ast& ast, size_t off)
-	{ return make_range(ast.begin() + off, ast.end()); }
-
-	ConstAstRange slice_ast(Ast const& ast, size_t off)
-	{ return make_range(ast.begin() + off, ast.end()); }
 
 	// Return an Ast pointing to an AstData `input` which was cast to
 	// Any.
@@ -546,14 +608,14 @@ namespace atl
 		{}
 	};
 
-    struct String {
-	std::string value;
+	struct String {
+		std::string value;
 
-	String() : value() {}
+		String() : value() {}
 
-	template<class T>
-	String(T init) : value(init) {}
-    };
+		template<class T>
+		String(T init) : value(init) {}
+	};
 
     template<> struct
     Name<std::string*> : public Name<String> {};
@@ -603,73 +665,6 @@ namespace atl
     /** / \_|_|_  _ ._  **/
     /** \_/ |_| |(/_|   **/
     /*********************/
-    struct Slice
-    {
-	    typedef typename Ast::iterator iterator;
-	    typedef typename Ast::const_iterator const_iterator;
-
-	    typedef typename Ast::flat_iterator flat_iterator;
-	    typedef typename Ast::const_flat_iterator const_flat_iterator;
-
-
-	    Any *_begin, *_end;
-
-	    Slice() : _begin(nullptr), _end(nullptr) {}
-	    explicit Slice(Any *begin, Any *end)
-		    : _begin(begin), _end(end)
-	    {}
-
-	    explicit Slice(Ast const& ast)
-		    : _begin(ast.value->flat_begin()),
-		      _end(ast.value->flat_end())
-	    {}
-
-	    explicit Slice(AstData& ast)
-		    : _begin(ast.flat_begin()),
-		      _end(ast.flat_end())
-	    {}
-
-	    /* Ug.  Maybe Slice should be read-only.  Not changing that today though. */
-	    explicit Slice(AstData const& ast)
-		    : _begin(const_cast<AstData::flat_iterator>(ast.flat_begin())),
-		      _end(const_cast<AstData::flat_iterator>(ast.flat_end()))
-	    {}
-
-	    template<class Itr>
-	    explicit Slice(Itr begin, Itr end)
-		    : _begin(&*begin), _end(&*end) {}
-
-	    template<class Range>
-	    explicit Slice(Range&& range)
-		    : _begin(&*range.begin()), _end(&*range.end()) {}
-
-	    Slice(Slice const&) = default;
-
-	    Any& operator[](size_t n) { return *(begin() + n); }
-	    Any const& operator[](size_t n) const { return *(begin() + n); }
-
-	    Any& back() { return *(_end - 1); }
-
-	    iterator begin() { return iterator(_begin); }
-	    const_iterator begin() const { return const_iterator(_begin); }
-
-	    iterator end() { return iterator(_end); }
-	    const_iterator end() const { return const_iterator(_end); }
-
-	    size_t size() const { return end() - begin(); }
-	    bool empty() const { return _begin == _end; }
-
-	    flat_iterator flat_begin() { return _begin; }
-	    flat_iterator flat_end() { return _end; }
-
-	    const_flat_iterator flat_begin() const { return _begin; }
-	    const_flat_iterator flat_end() const { return _end; }
-
-	    size_t flat_size() const { return flat_end() - flat_begin(); }
-
-	    Slice slice(size_t off, size_t end_off=0) { return Slice(_begin + off, _end - end_off); }
-    };
-
 
     /**
      * For a container wrapping Ast::iterator types, what is size

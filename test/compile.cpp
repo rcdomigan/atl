@@ -48,9 +48,9 @@ struct CompilerTest
 		add = wrap(wrapped_add);
 		sub = wrap(wrapped_sub);
 
-		lexical.define(*store.symbol("equal2"), pass_value(equal));
-		lexical.define(*store.symbol("add2"), pass_value(add));
-		lexical.define(*store.symbol("sub2"), pass_value(sub));
+		lexical.define(*store.symbol("equal2"), equal);
+		lexical.define(*store.symbol("add2"), add);
+		lexical.define(*store.symbol("sub2"), sub);
 	}
 
 	pcode::value_type run()

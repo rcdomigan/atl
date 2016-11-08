@@ -21,13 +21,13 @@ TEST_F(TestHelpers, test_nested_mk)
 	auto ast = mk(mk(1, mk(), 1))
 		(ast_alloc(arena));
 
-	ASSERT_EQ(tag<AstData>::value, ast[0]._tag);
+	ASSERT_EQ(tag<Ast>::value, ast[0]._tag);
 
 	ASSERT_EQ(tag<Fixnum>::value,
-	          explicit_unwrap<AstData>(ast[0])[0]._tag);
+	          unwrap<Ast>(ast[0])[0]._tag);
 
-	ASSERT_EQ(tag<AstData>::value,
-	          explicit_unwrap<AstData>(ast[0])[1]._tag);
+	ASSERT_EQ(tag<Ast>::value,
+	          unwrap<Ast>(ast[0])[1]._tag);
 }
 
 TEST_F(TestHelpers, test_trivial_pattern_match)
@@ -52,6 +52,23 @@ TEST_F(TestHelpers, test_trivial_pattern_match)
 }
 
 TEST_F(TestHelpers, test_pattern_match_empty_ast)
+{
+	Arena arena;
+	Any ast_expr;
+	{
+		using namespace make_ast;
+		ast_expr = wrap(mk()(ast_alloc(arena)));
+	}
+
+	{
+		using namespace pattern_match;
+
+		ASSERT_TRUE(match(ast(), ast_expr));
+		ASSERT_FALSE(match(ast("foo"), ast_expr));
+	}
+}
+
+TEST_F(TestHelpers, test_pattern_match_capture)
 {
 	Arena arena;
 	Any ast_expr;
@@ -148,7 +165,7 @@ TEST_F(TestHelpers, test_hof_map)
 
 	auto post = *ast_hof::map
 		([](Any const& vv) { return wrap<Fixnum>(unwrap<Fixnum>(vv).value + 2); },
-		 Slice(pre),
+		 pre,
 		 ast_alloc(store));
 
 	ASSERT_EQ(post, mk(3, 4)(ss()));
@@ -167,6 +184,7 @@ TEST_F(TestHelpers, test_ast_hof_copy)
 	auto post = *ast_hof::copy(pre, make_ast::ast_alloc(store));
 
 	ASSERT_EQ(pre, post);
+	ASSERT_NE(&pre, &post);
 }
 
 TEST_F(TestHelpers, test_ast_hof_nested_copy)
@@ -184,21 +202,6 @@ TEST_F(TestHelpers, test_ast_hof_nested_copy)
 	auto post = *ast_hof::copy(pre, make_ast::ast_alloc(store));
 
 	ASSERT_EQ(pre, post);
-}
-
-TEST_F(TestHelpers, test_pass_value)
-{
-	using namespace make_ast;
-	Arena store;
-	auto ss = [&]() { return ast_alloc(store); };
-
-	auto ast = mk(1, mk(2, 3), 4)(ss());
-	Slice slice(ast);
-
-	AstSubscripter sub(pass_value(slice));
-
-	ASSERT_EQ(3, unwrap<Fixnum>(sub[1][1].value).value);
-	ASSERT_EQ(4, unwrap<Fixnum>(sub[2].value).value);
 }
 
 TEST_F(TestHelpers, test_fn_type)
@@ -259,22 +262,16 @@ TEST_F(TestHelpers, test_fn_type_thunk)
 	}
 }
 
-TEST_F(TestHelpers, test_unwrap_slice)
+TEST_F(TestHelpers, test_subscript)
 {
 	using namespace make_ast;
 	Arena arena;
 
 	auto expr = mk("define",
-	               "main",
-	               mk(wrap<Lambda>(),
-	                  mk(),
-	                  mk("my-add3", 2, 3, 7)))
+	               mk(wrap<Lambda>(), 1))
 		(ast_alloc(arena));
 
-	auto& value = expr[2];
-	auto slice = unwrap_slice(value);
-
-	ASSERT_EQ(tag<Lambda>::value, slice[0]._tag);
-	ASSERT_EQ(tag<AstData>::value, slice[1]._tag);
-	ASSERT_EQ(tag<AstData>::value, slice[2]._tag);
+	ASSERT_TRUE(is<Symbol>(subscript(expr, 0)));
+	ASSERT_TRUE(is<Lambda>(subscript(expr, 1, 0)));
+	ASSERT_TRUE(is<Fixnum>(subscript(expr, 1, 1)));
 }

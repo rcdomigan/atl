@@ -47,9 +47,9 @@ struct AnalyzeAndCompile
 
 		setup_basic_definitions(store, lexical);
 
-		lexical.define(*store.symbol("equal2"), pass_value(wrap(cxx_fns.weq)));
-		lexical.define(*store.symbol("add2"), pass_value(wrap(cxx_fns.wadd)));
-		lexical.define(*store.symbol("sub2"), pass_value(wrap(cxx_fns.wsub)));
+		lexical.define(*store.symbol("equal2"), wrap(cxx_fns.weq));
+		lexical.define(*store.symbol("add2"), wrap(cxx_fns.wadd));
+		lexical.define(*store.symbol("sub2"), wrap(cxx_fns.wsub));
 	}
 
 	/**
@@ -63,7 +63,7 @@ struct AnalyzeAndCompile
 
 		assign_forms(lexical, expr);
 
-		auto type_info = inference::W(store, new_types, gamma, pass_value(expr));
+		auto type_info = inference::W(store, new_types, gamma, expr);
 
 		inference::apply_substitution(store,
 		                              gamma,

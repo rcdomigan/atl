@@ -47,16 +47,16 @@ namespace atl
 			{}
 		};
 
-		size_t assign_padding(Any& input);
+		size_t assign_padding(Any input);
 
 		/// \internal
 		/// Evaluates the application position of an s-expression and
 		/// returns a _Form structure with information for _compile.
 		_Form examine_form(Ast ast)
 		{
-			Any& head = ast[0];
+			Any head = ast[0];
 
-			if(is_astish(head))
+			if(is<Ast>(head))
 				{ return _Form(assign_padding(head),
 				               FormTag::function); }
 
@@ -65,7 +65,7 @@ namespace atl
 				case tag<Lambda>::value:
 					{
 						auto& metadata = *unwrap<Lambda>(head).value;
-						Slice formals = unwrap_slice(ast[1]);
+						auto formals = unwrap<Ast>(ast[1]);
 
 						auto formals_size = formals.size();
 						auto body_size  = assign_padding(ast[2]);
@@ -122,11 +122,11 @@ namespace atl
 				}
 		}
 
-		size_t assign_padding(Any& input)
+		size_t assign_padding(Any input)
 		{
-			if(is_astish(input))
+			if(is<Ast>(input))
 				{
-					auto ast = unwrap_astish(input);
+					auto ast = unwrap<Ast>(input);
 					auto form = examine_form(ast);
 
 					switch(form.form_tag) {
@@ -138,7 +138,7 @@ namespace atl
 
 					case FormTag::function:
 						{
-							for(auto& vv : slice(ast, 1)) { assign_padding(vv); }
+							for(auto vv : slice(ast, 1)) { assign_padding(vv); }
 							return form.pad_to;
 						}
 					}

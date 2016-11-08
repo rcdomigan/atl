@@ -138,8 +138,7 @@ TEST_F(TestToplevelMap, test_define_form)
 		using namespace pattern_match;
 
 		ASSERT_TRUE(match(ast(tag<Define>::value, tag<Symbol>::value,
-		                      ast(tag<Lambda>::value, ast(),
-		                          astish)),
+		                      ast(tag<Lambda>::value, ast(), tag<Ast>::value)),
 		                  wrapped))
 			<< "got: " << printer::print(wrapped) << std::endl;
 	}

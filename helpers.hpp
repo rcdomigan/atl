@@ -7,7 +7,6 @@
 #include "./type.hpp"
 #include "./conversion.hpp"
 #include "./utility.hpp"
-#include "./pass_value.hpp"
 #include "./type_testing.hpp"
 
 namespace atl
@@ -80,12 +79,6 @@ namespace atl
 			AstAllocator& push_back(Any value)
 			{
 				buffer.push_back(value);
-				return *this;
-			}
-
-			AstAllocator& push_back(PassByValue value)
-			{
-				buffer.push_back(value.any);
 				return *this;
 			}
 
@@ -169,65 +162,27 @@ namespace atl
 		 *   is resized.
 		 */
 		template<class Fn>
-		MovableAstPointer map(Fn&& fn, Slice const& input, AstAllocator store)
+		MovableAstPointer map(Fn&& fn, Ast const& input, AstAllocator store)
 		{
 			NestAst nest(store);
-			for(auto& vv : input)
+			for(auto vv : input)
 				{ nest.store.push_back(fn(vv)); }
 			return nest.ast;
 		}
 
 
-		template<class Astish>
-		MovableAstPointer copy(Astish const& input, AstAllocator store)
+		MovableAstPointer copy(Ast const& input, AstAllocator store)
 		{
 			NestAst nest(store);
-			for(auto& vv : input)
+			for(auto vv : input)
 				{
-					auto value = pass_value(vv);
-					if(is<Slice>(value))
-						{
-							copy(value.slice,
-							     store);
-						}
+					if(is<Ast>(vv))
+						{ copy(unwrap<Ast>(vv), store); }
 					else
 						{ nest.store.push_back(vv); }
 				}
 			return nest.ast;
 		}
-	}
-
-	void copy_into(PassByValue input, ast_hof::AstAllocator store)
-	{
-		if(is<Slice>(input))
-			{ ast_hof::copy(unwrap<Slice>(input), store); }
-		else
-			{ store.push_back(input); }
-	}
-
-	/* Pass through a Slice or wrap an ast or AstData */
-	Slice unwrap_slice(Any& input)
-	{
-		switch(input._tag)
-			{
-			case tag<AstData>::value:
-				{
-					auto& ast = explicit_unwrap<AstData>(input);
-					return Slice(ast.flat_begin(), ast.flat_end());
-				}
-			case tag<Ast>::value:
-				{
-					auto& ast = explicit_unwrap<Ast>(input);
-					return Slice(ast.flat_begin(), ast.flat_end());
-				}
-			case tag<Slice>::value:
-				{
-					return unwrap<Slice>(input);
-				}
-			default:
-				throw WrongTypeError
-					("unwrap_slice can only deal with Ast-ish objects!");
-			}
 	}
 
 	namespace make_type
@@ -239,8 +194,6 @@ namespace atl
 		template<class T>
 		Any tt() { return wrap<Type>(tag<T>::value); }
 	}
-
-
 
 	namespace fn_type
 	{
@@ -269,13 +222,11 @@ namespace atl
 			{
 				switch(tt._tag)
 					{
-					case tag<Slice>::value:
 					case tag<Ast>::value:
 					case tag<AstData>::value:
 						{
 							// assume it's a nested function:
-							ast_hof::copy(pass_value(tt).slice,
-							              space);
+							ast_hof::copy(unwrap<Ast>(tt), space);
 							break;
 						}
 					default:
@@ -380,58 +331,33 @@ namespace atl
 		}
 	}
 
-
 	struct AstSubscripter
 	{
-		PassByValue value;
-		AstSubscripter(PassByValue const& in) : value(in) {}
-		AstSubscripter(Ast& value_) : value(pass_value(value_)) {}
+		Any value;
+		AstSubscripter(Any const& in)
+			: value(in)
+		{ assert(!is<AstData>(in)); }
+		AstSubscripter(Ast& value_) : value(wrap(value_)) {}
 		AstSubscripter() = delete;
 
 		AstSubscripter operator[](off_t pos)
-		{ return AstSubscripter(pass_value(unwrap<Slice>(value)[pos])); }
+		{ return AstSubscripter(unwrap<Ast>(value)[pos]); }
 	};
-
-
-	AstSubscripter subscripter(PassByValue const& value)
-	{ return AstSubscripter(value); }
 
 	template<class T>
 	AstSubscripter subscripter(T&& ast)
-	{ return AstSubscripter(pass_value(ast)); }
+	{ return AstSubscripter(ast); }
 
+	AstSubscripter inner_subscript(AstSubscripter ast, size_t pos)
+	{ return ast[pos]; }
 
-	struct RefSubscripter
-	{
-		Any *value;
-		RefSubscripter(Any& value_) : value(&value_) {}
-		RefSubscripter(Ast& value_) : value(reinterpret_cast<Any*>(&value_)) {}
+	template<class ... Args>
+	AstSubscripter inner_subscript(AstSubscripter ast, size_t pos, Args ... rest)
+	{ return inner_subscript(ast[pos], rest...); }
 
-		RefSubscripter() = delete;
-
-		RefSubscripter operator[](off_t pos)
-		{
-			switch(value->_tag)
-				{
-				case tag<Ast>::value:
-					return RefSubscripter(explicit_unwrap<Ast>(*value)[pos]);
-
-				case tag<AstData>::value:
-					return RefSubscripter(explicit_unwrap<AstData>(*value)[pos]);
-
-				case tag<Slice>::value:
-					return RefSubscripter(unwrap<Slice>(*value)[pos]);
-
-				default:
-					throw WrongTypeError("Can't subscript given type");
-				}
-		}
-
-		template<class T>
-		T& a()
-		{ return unwrap<T>(*value); }
-	};
-
+	template<class T, class ... Args>
+	Any subscript(T&& ast, Args ... args)
+	{ return inner_subscript(ast, args...).value; }
 
 	template<class T>
 	struct Unwrapped
@@ -450,12 +376,6 @@ namespace atl
 		return Type(input._tag);
 	}
 
-	Type typify(PassByValue const& input)
-	{
-		if(is<Type>(input)) { return unwrap<Type>(input); }
-		return Type(input._tag);
-	}
-
 	template<class T>
 	Type typify(T const& input)
 	{
@@ -464,18 +384,9 @@ namespace atl
 		return Type(input._tag);
 	}
 
-	template<class Tree>
-	typename std::enable_if<(std::is_same<Tree, Ast>::value
-	                         || std::is_same<Tree, Slice>::value),
-	                        bool>::type
-	operator!=(Tree const& aa_tree, Tree const& bb_tree)
-	{ return !(aa_tree == bb_tree); }
+	bool operator!=(Ast const& aa_tree, Ast const& bb_tree);
 
-	template<class Tree>
-	typename std::enable_if<(std::is_same<Tree, Ast>::value
-	                         || std::is_same<Tree, Slice>::value),
-	                        bool>::type
-	operator==(Tree const& aa_tree, Tree const& bb_tree)
+	bool operator==(Ast const& aa_tree, Ast const& bb_tree)
 	{
 		auto aa = aa_tree.begin(),
 			bb = bb_tree.begin();
@@ -501,13 +412,6 @@ namespace atl
 								{ return false; }
 							break;
 						}
-					case tag<Slice>::value:
-						{
-							if(*reinterpret_cast<Slice const*>(aa.value)
-							   != *reinterpret_cast<Slice const*>(bb.value))
-								{ return false; }
-							break;
-						}
 					case tag<Symbol>::value:
 						{
 							if(reinterpret_cast<Symbol*>(aa->value)->name
@@ -529,19 +433,8 @@ namespace atl
 		return true;
 	}
 
-	/* For Slices this means copying into an Ast, otherwise pass through the
-	   existing value.  */
-	Any de_slice(make_ast::AstAllocator store,
-	             PassByValue value)
-	{
-		if(is<Slice>(value))
-			{
-				return wrap(*ast_hof::copy(unwrap<Slice>(value),
-				                           store));
-			}
-		else
-			{ return value.any; }
-	}
+	bool operator!=(Ast const& aa_tree, Ast const& bb_tree)
+	{ return !(aa_tree == bb_tree); }
 
 	/** Assign `sym` a constant `value`. */
 	void symbol_assign(Symbol& sym, Any value)
@@ -558,8 +451,6 @@ namespace atl
 				}
 
 			case tag<Ast>::value:
-			case tag<AstData>::value:
-			case tag<Slice>::value:
 				break;
 
 			default:
@@ -571,34 +462,6 @@ namespace atl
 			}
 
 		sym.value = value;
-	}
-
-	bool is_astish(Any const& input)
-	{
-		switch(input._tag)
-			{
-			case tag<AstData>::value:
-			case tag<Ast>::value:
-			case tag<Slice>::value:
-				return true;
-			default:
-				return false;
-			}
-	}
-
-	Ast unwrap_astish(Any& astish)
-	{
-		switch(astish._tag)
-			{
-			case tag<AstData>::value:
-				return Ast(&reinterpret_cast<AstData&>(astish));
-			case tag<Ast>::value:
-				return explicit_unwrap<Ast>(astish);
-			default:
-				throw WrongTypeError(std::string("Cannot make ")
-				                     .append(type_name(astish))
-				                     .append(" into an Ast."));
-			}
 	}
 }
 

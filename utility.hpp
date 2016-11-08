@@ -564,12 +564,12 @@ Range<typename GetIterator<Container>::type > make_range(Container& cc) {
 }
 
 template<class T>
-Range<typename GetIterator<T>::type >  slice(T& container, size_t begin) {
+Range<typename GetIterator<T>::type >  slice(T&& container, size_t begin) {
     return begin_end_to_range<typename GetIterator<T>::type>(container.begin() + begin, container.end());
 }
 
 template<class T>
-Range<typename GetIterator<T>::type > slice(T& tt, int begin, int end) {
+Range<typename GetIterator<T>::type > slice(T&& tt, int begin, int end) {
     if(end < 0) return T(tt.begin() + begin, tt.end() + end);
     else return T(tt.begin() + begin, tt.begin() + end);
 }
