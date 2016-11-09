@@ -64,47 +64,8 @@ namespace atl
 
 	namespace make_ast
 	{
-		struct AstAllocator
-		{
-			AllocatorBase &allocator;
-			AstSubstrate &buffer;
-
-			AstAllocator(AllocatorBase &aa)
-				: allocator(aa), buffer(aa.sequence())
-			{}
-
-			Symbol* symbol(std::string const& name)
-			{ return allocator.symbol(name); }
-
-			AstAllocator& push_back(Any value)
-			{
-				buffer.push_back(value);
-				return *this;
-			}
-
-			MovableAstPointer nest_ast()
-			{ return push_nested_ast(buffer); }
-
-			size_t size()
-			{ return buffer.size(); }
-		};
-
-		struct NestAst
-		{
-			AstAllocator& store;
-			MovableAstPointer ast;
-
-			NestAst(AstAllocator& store_)
-				: store(store_), ast(store.nest_ast())
-			{}
-
-			~NestAst() { ast.end_ast(); }
-		};
-
 		AstAllocator ast_alloc(AllocatorBase& aa)
 		{ return AstAllocator(aa); }
-
-		typedef std::function<void (AstAllocator)> ast_composer;
 
 		/* _Run which automatically wraps a number and assumes a bare string is a sym. */
 		struct _SRun
@@ -113,10 +74,10 @@ namespace atl
 			_SRun(AstAllocator ss) : space(ss) {}
 
 			void operator()(std::string const& ss)
-			{ space.push_back(wrap(space.symbol(ss))); }
+			{ space.push_back(wrap(space.store.symbol(ss))); }
 
 			void operator()(char const* ss)
-			{ space.push_back(wrap(space.symbol(std::string(ss)))); }
+			{ space.push_back(wrap(space.store.symbol(std::string(ss)))); }
 
 			void operator()(long ss)
 			{ space.push_back(wrap<Fixnum>(ss)); }
@@ -150,9 +111,6 @@ namespace atl
 	/* higher order functions for Asts */
 	namespace ast_hof
 	{
-		using make_ast::AstAllocator;
-		using make_ast::NestAst;
-
 		/** Builds a new Ast in `store` by mapping `fn` over `ast`
 		 * @tparam Fn: -> Any Any
 		 * @param store: an AstAllocator
@@ -197,10 +155,7 @@ namespace atl
 
 	namespace fn_type
 	{
-		using make_ast::AstAllocator;
-		using make_ast::NestAst;
 		using make_ast::ast_alloc;
-		using make_ast::ast_composer;
 		using make_type::tt;
 
 		/** Make a function declartion like (-> a (-> b c)) from arguments like (a b c).
@@ -259,7 +214,7 @@ namespace atl
 
 			/* Note: this is useful for the "shape_check" used in testing, but won't produce a proper type. */
 			void operator()(std::string const& ss)
-			{ arg_type(wrap(space.symbol(ss))); }
+			{ arg_type(wrap(space.store.symbol(ss))); }
 
 			void operator()(long ss)
 			{ arg_type(wrap<Type>(ss)); }
@@ -315,8 +270,7 @@ namespace atl
 		};
 
 		template<class ... Args>
-		std::function<Ast (make_ast::AstAllocator)>
-		fn(Args ... args)
+		ast_composer fn(Args ... args)
 		{
 			typedef std::tuple<Args...> Tuple;
 

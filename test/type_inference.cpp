@@ -174,7 +174,7 @@ struct Unification
 	Unification()
 	{ init_types(); }
 
-	make_ast::AstAllocator aalloc() { return make_ast::ast_alloc(store); }
+	AstAllocator aalloc() { return make_ast::ast_alloc(store); }
 	Any type(size_t tt) { return wrap<Type>(tt); }
 };
 

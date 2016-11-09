@@ -198,6 +198,8 @@ namespace atl
 		return MovableAstPointer(&substrate, pos);
 	}
 
+	struct AstAllocator;
+	typedef std::function<Ast (AstAllocator)> ast_composer;
 
 	// I would like some Asts generating functions to be able to use
 	// either the GC or an Arena at runtime,
@@ -212,8 +214,50 @@ namespace atl
 		virtual Symbol* symbol(std::string const&, Scheme const& type) = 0;
 
 		virtual void free(Any any) = 0;
+
+		Ast operator()(ast_composer const& func);
 	};
 
+	struct AstAllocator
+	{
+		AllocatorBase &store;
+		AstSubstrate &buffer;
+
+		AstAllocator(AllocatorBase &aa)
+			: store(aa), buffer(aa.sequence())
+		{}
+
+		AstAllocator& push_back(Any value)
+		{
+			buffer.push_back(value);
+			return *this;
+		}
+
+		MovableAstPointer nest_ast()
+		{ return push_nested_ast(buffer); }
+
+		size_t size()
+		{ return buffer.size(); }
+	};
+
+	Ast AllocatorBase::operator()(ast_composer const& func)
+	{
+		auto backer = AstAllocator(*this);
+		func(backer);
+		return Ast(reinterpret_cast<AstData*>(&backer.buffer.root()));
+	}
+
+	struct NestAst
+	{
+		AstAllocator& store;
+		MovableAstPointer ast;
+
+		NestAst(AstAllocator& store_)
+			: store(store_), ast(store.nest_ast())
+		{}
+
+		~NestAst() { ast.end_ast(); }
+	};
 
 	// A mark-and-sweep GC. STUB
 	class GC : public AllocatorBase

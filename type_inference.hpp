@@ -19,7 +19,6 @@ namespace atl
 {
     namespace inference
     {
-	    using ast_hof::AstAllocator;
 	    typedef std::map<Type, Any> SubstituteMap;
 
 
@@ -118,7 +117,7 @@ namespace atl
 				    }
 			    case tag<Ast>::value:
 				    {
-					    ast_hof::NestAst nest(store);
+					    NestAst nest(store);
 
 					    for(auto& vv : unwrap<Ast>(value).modify_data())
 						    {
