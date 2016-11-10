@@ -199,8 +199,6 @@ namespace atl
 	        : _tag(tag<Lambda>::value),
 	          value(value_)
 	    {}
-
-	    Lambda() : Lambda(nullptr) {}
     };
 
     struct CallLambda
