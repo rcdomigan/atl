@@ -1,6 +1,6 @@
 CXXFLAGS=$(CFLAGS) $(COMMON_FLAGS)
 
-GCC_INCLUDE=-I./
+GCC_INCLUDE=-I./ -fuse-ld=gold
 CLANG_INCLUDE=$(GCC_INCLUDE) -isystem /usr/lib/clang/3.5/include
 
 IWYU=iwyu -std=c++11 $(CLANG_INCLUDE)
