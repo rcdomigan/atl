@@ -50,16 +50,20 @@ namespace atl
 
 		Map local;
 		SymbolMap *up;
+		LambdaMetadata *closure;
 
 		AllocatorBase& store;
 
 		explicit SymbolMap(AllocatorBase& store_)
 			: up(nullptr)
+			, closure(nullptr)
 			, store(store_)
 		{}
 
-		explicit SymbolMap(SymbolMap *up_)
+		explicit SymbolMap(SymbolMap *up_,
+		                   LambdaMetadata *closure_)
 			: up(up_)
+			, closure(closure_)
 			, store(up->store)
 		{}
 
@@ -74,14 +78,11 @@ namespace atl
 				{ return *this; }
 		}
 
-		/* offset is from the frame pointer; reverse of the formal order (for
-		   `(\ (a b) (...))` the offset of `a` would be 1 and `b` would be 0)
-		*/
 		void formal(Symbol& sym,
 		            size_t offset)
 		{
 			sym.subtype = Symbol::Subtype::variable;
-			sym.value = wrap(store.bound(&sym, Bound::Subtype::is_local, offset));
+			sym.value = wrap<Parameter>(offset);
 
 			auto rval = local.emplace(sym.name, &sym);
 
@@ -97,17 +98,24 @@ namespace atl
 				{ return local.end(); }
 		}
 
-		all_iterator find(std::string const& k)
+		/* returns <found, closure, from_closure> (from_closure indicating
+		   that it's from a different closure than the current 'top'.
+		   */
+		std::tuple<all_iterator, LambdaMetadata*, bool> find(std::string const& k)
 		{
 			auto itr = local.find(k);
 			if(itr == end())
 				{
 					if(up)
-						{ return up->find(k); }
+						{
+							auto rval = up->find(k);
+							std::get<2>(rval) = true;
+							return rval;
+						}
 					else
-						{ return all_iterator(itr); }
+						{ return std::make_tuple(all_iterator(itr), nullptr, true); }
 				}
-			return itr;
+			return std::make_tuple(all_iterator(itr), closure, false);
 		}
 		size_t size() const { return local.size(); }
 		size_t count(std::string const& key) const { return local.count(key); }
@@ -127,7 +135,7 @@ namespace atl
 
 		size_t count(std::string const& key)
 		{
-			if(find(key) != very_end())
+			if(std::get<0>(find(key)) != very_end())
 				{ return 1; }
 			return 0;
 		}
@@ -151,7 +159,7 @@ namespace atl
 			if(is<Symbol>(key))
 				{
 					auto& sym = unwrap<Symbol>(key);
-					auto found = find(sym.name);
+					all_iterator found = std::get<0>(find(sym.name));
 
 					if(found != very_end())
 						{ return std::make_pair(found->second->value, true); }
@@ -242,9 +250,21 @@ namespace atl
 	{
 		auto& sym = unwrap<Symbol>(value);
 
-		auto found_def = env.find(sym.name);
+		SymbolMap::all_iterator found_def(env.local.end());
+		LambdaMetadata *closure;
+		bool from_closure;
+
+		std::tie(found_def, closure, from_closure) = env.find(sym.name);
+
 		if(found_def != env.very_end())
-			{ value = found_def->second->value; }
+			{
+				value = found_def->second->value;
+				if(from_closure && is<Parameter>(value))
+					{
+						auto& sym = unwrap<Symbol>(closure->formals[unwrap<Parameter>(value).value]);
+						value = wrap(env.closure->closure_parameter(&sym));
+					}
+			}
 		else
 			{
 				/* If we haven't found the symbol at all, it must be backpatched at the toplevel later. */
@@ -285,7 +305,7 @@ namespace atl
 								{
 									using namespace pattern_match;
 
-									Lambda func;
+									Lambda func(nullptr);
 									if(match(pattern_match::ast(capture(func), tag<Ast>::value, tag<Ast>::value),
 									         ast[2]))
 										{
@@ -317,9 +337,7 @@ namespace atl
 
 						case tag<Lambda>::value:
 							{
-								// function metadata should have been
-								// created by the type inference
-								SymbolMap inner_map(&env);
+								SymbolMap inner_map(&env, unwrap<Lambda>(*head).value);
 
 								auto formals = unwrap<Ast>(ast[1]);
 

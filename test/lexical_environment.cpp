@@ -213,4 +213,34 @@ TEST_F(TestToplevelMap, test_lambda_with_if)
     }
 }
 
+TEST_F(TestToplevelMap, test_closure_params)
+{
+	using namespace make_ast;
 
+	auto expr = do_assign
+		(store
+		 (mk
+		  (wrap<Lambda>(),
+		   mk("a"),
+		   mk(wrap<Lambda>(), mk("b"), mk("a", "b")))));
+
+    {
+	    using namespace pattern_match;
+
+	    Symbol const *a, *b;
+	    ClosureParameter param_a(-1);
+	    Parameter param_b(-1);
+
+	    ASSERT_TRUE
+		    (match(ast(tag<Lambda>::value,
+		               ast(capture_ptr(a)),
+		               ast(tag<Lambda>::value,
+		                   ast(capture_ptr(b)),
+		                   ast(capture(param_a), capture(param_b)))),
+		           wrap(expr)))
+		    << printer::print(expr);
+
+	    ASSERT_EQ(0, param_a.value);
+	    ASSERT_EQ(0, param_b.value);
+    }
+}

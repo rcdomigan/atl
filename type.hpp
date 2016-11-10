@@ -84,8 +84,8 @@ namespace atl
     struct is_pimpl : public std::false_type {};
 
 
-#define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(CallLambda)(DeclareType)(Type)(Ast)(AstData)(Undefined)(FunctionConstructor)
-#define ATL_PIMPL_SEQ (String)(Symbol)(Struct)(CxxFunctor)(CxxMacro)(Scheme)(LambdaMetadata)(Bound)
+#define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(CallLambda)(DeclareType)(Type)(Ast)(AstData)(Undefined)(FunctionConstructor)(ClosureParameter)(Parameter)
+#define ATL_PIMPL_SEQ (String)(Symbol)(Struct)(CxxFunctor)(CxxMacro)(Scheme)(LambdaMetadata)
 #define ATL_TYPES_SEQ ATL_REINTERPERABLE_SEQ ATL_PIMPL_SEQ
 
 #define M(r, _, i, elem)						\
@@ -106,7 +106,7 @@ namespace atl
 #undef M
 
 
-    typedef mpl::vector25< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
+    typedef mpl::vector26< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
 
 	const static tag_t LAST_CONCRETE_TYPE = mpl::size<TypesVec>::value;
 
@@ -571,24 +571,25 @@ namespace atl
 	    {}
     };
 
-	struct Bound
+	struct Parameter
 	{
-		/* Refers to my formal or toplevel definition */
-		Symbol *sym;
+		tag_t _tag;
+		size_t value;
 
-		enum Subtype {is_local, is_closure};
-		Subtype subtype;
-		size_t offset;
+		Parameter(size_t offset)
+			: _tag(tag<Parameter>::value)
+			, value(offset)
+		{}
+	};
 
-		LambdaMetadata *closure;
+	struct ClosureParameter
+	{
+		tag_t _tag;
+		size_t value;
 
-		Bound(Symbol *vv=nullptr
-		      , Subtype subtype_=Subtype::is_local
-		      , size_t offset_=0)
-			: sym(vv)
-			, subtype(subtype_)
-			, offset(offset_)
-			, closure(nullptr)
+		ClosureParameter(size_t offset)
+			: _tag(tag<ClosureParameter>::value)
+			, value(offset)
 		{}
 	};
 

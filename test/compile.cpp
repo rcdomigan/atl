@@ -11,7 +11,6 @@
 
 #include <vm.hpp>
 #include <print.hpp>
-#include <lexical_environment.hpp>
 #include <compile.hpp>
 #include <test/trivial_functions.hpp>
 
@@ -23,7 +22,6 @@ struct CompilerTest
 	: public ::testing::Test
 {
 	GC store;
-	SymbolMap lexical;
 
 	Compile compile;
 	TinyVM vm;
@@ -32,7 +30,6 @@ struct CompilerTest
 	CxxFunctor::value_type *fn_equal, *fn_add, *fn_sub;
 
 	CompilerTest()
-		: lexical(store)
 	{
 		init_types();
 
@@ -47,10 +44,6 @@ struct CompilerTest
 		equal = wrap(wrapped_equal);
 		add = wrap(wrapped_add);
 		sub = wrap(wrapped_sub);
-
-		lexical.define(*store.symbol("equal2"), equal);
-		lexical.define(*store.symbol("add2"), add);
-		lexical.define(*store.symbol("sub2"), sub);
 	}
 
 	pcode::value_type run()
@@ -173,22 +166,20 @@ TEST_F(CompilerTest, test_basic_lambda)
 	Symbol a = Symbol("a"),
 		b = Symbol("b");
 
-	Bound bound_a = Bound(&a, Bound::Subtype::is_local, 1),
-		bound_b = Bound(&b, Bound::Subtype::is_local, 0);
+	Parameter param_a(0), param_b(1);
 
-	a.value = wrap(&bound_a);
-	b.value = wrap(&bound_b);
+	a.value = wrap(param_a);
+	b.value = wrap(param_b);
 
-	// note: currently the compiler just sets the LambdaMetadata body
-	// position; it doesn't need much else
 	LambdaMetadata metadata;
 	metadata.pad_to = 2;
 	metadata.return_type = wrap<Type>(tag<Fixnum>::value);
+	metadata.formals = mk(wrap(&a), wrap(&b))(ast_alloc(store));
 
 	auto expr = mk
 		(mk(wrap<Lambda>(&metadata),
 		    mk(wrap(&a), wrap(&b)),
-		    mk(add, wrap(&bound_a), wrap(&bound_b))),
+		    mk(add, wrap(param_a), wrap(param_b))),
 		 4, 7)
 		(ast_alloc(store));
 

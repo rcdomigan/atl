@@ -52,8 +52,11 @@ namespace atl
 				case tag<Symbol>::value:
 					return out << "'" << unwrap<Symbol>(any).name;
 
-				case tag<Bound>::value:
-					return out << "#<Bound " << unwrap<Bound>(any).sym->name << ">";
+				case tag<Parameter>::value:
+					return out << "#<Paremeter " << unwrap<Parameter>(any).value << ">";
+
+				case tag<ClosureParameter>::value:
+					return out << "#<ClosureParameter " << unwrap<ClosureParameter>(any).value << ">";
 
 				case tag<Type>::value:
 					return _print_type_atom(any, out);
@@ -215,11 +218,17 @@ namespace atl
 								}
 							return out << ")";
 						}
-					case tag<Bound>::value:
+					case tag<Parameter>::value:
 						{
-							out << "[Bound";
-							print_sym(*unwrap<Bound>(value).sym);
-							return out << "]";
+							return out << "[Parameter "
+							           << unwrap<Parameter>(value).value
+							           << "]";
+						}
+					case tag<ClosureParameter>::value:
+						{
+							return out << "[ClosureParameter "
+							           << unwrap<ClosureParameter>(value).value
+							           << "]";
 						}
 					case tag<Symbol>::value:
 						{

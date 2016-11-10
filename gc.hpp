@@ -209,7 +209,6 @@ namespace atl
 
 		virtual AstSubstrate& sequence() = 0;
 		virtual Symbol* symbol(std::string const&) = 0;
-		virtual Bound* bound(Symbol*, Bound::Subtype, size_t) = 0;
 		virtual LambdaMetadata* lambda_metadata() = 0;
 		virtual Symbol* symbol(std::string const&, Scheme const& type) = 0;
 
@@ -274,7 +273,6 @@ namespace atl
 		memory_pool::Pool< String > _string_heap;
 		memory_pool::Pool< CxxFunctor > _primitive_recursive_heap;
 		memory_pool::Pool< Symbol > _symbol_heap;
-		memory_pool::Pool< Bound > _bound_heap;
 
 		template< class T,  memory_pool::Pool<T> GC::*member >
 		struct MemberPtr {
@@ -288,7 +286,6 @@ namespace atl
 		                  , mpl::pair< CxxFunctor,
 		                               MemberPtr<CxxFunctor, &GC::_primitive_recursive_heap > >
 		                  , mpl::pair< Symbol,	MemberPtr<Symbol, &GC::_symbol_heap > >
-		                  , mpl::pair< Bound,	MemberPtr<Bound, &GC::_bound_heap > >
 		                  > PoolMap;
 
 		template<class T>
@@ -372,9 +369,6 @@ namespace atl
 		virtual Symbol* symbol(std::string const& name, Scheme const& type) override
 		{ return make<Symbol>(name, type); }
 
-		virtual Bound* bound(Symbol* sym, Bound::Subtype subtype, size_t offset) override
-		{ return make<Bound>(sym, subtype, offset); }
-
 		virtual void free(Any any) override { /* stub */ }
 	};
 
@@ -421,9 +415,6 @@ namespace atl
 
 		virtual Symbol* symbol(std::string const& name, Scheme const& type) override
 		{ return make<Symbol>(name, type); }
-
-		virtual Bound* bound(Symbol* sym, Bound::Subtype subtype, size_t offset) override
-		{ return make<Bound>(sym, subtype, offset); }
 
 		virtual void free(Any any) override { /* stub */ }
 	};

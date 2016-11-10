@@ -10,7 +10,6 @@
 #include "./vm.hpp"
 #include "./byte_code.hpp"
 #include "./type.hpp"
-#include "./lexical_environment.hpp"
 #include "./utility.hpp"
 #include "./helpers/pattern_match.hpp"
 
@@ -101,11 +100,16 @@ namespace atl
 
         struct Context
         {
+	        LambdaMetadata *closure;
             bool tail;
             bool definition;
 
-            Context(bool t, bool d)
-                : tail(t)
+	        Context just_closure()
+	        { return Context(closure, false, false); }
+
+	        Context(LambdaMetadata *cc, bool t, bool d)
+		        : closure(cc)
+		        , tail(t)
                 , definition(d)
             {}
         };
@@ -143,7 +147,7 @@ namespace atl
 
             auto compile_tail = [&](Any const& input)
                 {
-	                return _compile(input, Context(context.tail, false));
+	                return _compile(input, Context(context.closure, context.tail, false));
                 };
 
             switch(head._tag)
@@ -159,7 +163,10 @@ namespace atl
                         auto compile_body = [&]()
                             {
                                 metadata.body_address = assemble.pos_end();
-                                auto comp_val = _compile(ast[2], context);
+                                auto comp_val = _compile(ast[2],
+                                                         Context(&metadata,
+                                                                 true,
+                                                                 context.definition));
 
                                 assemble.return_(metadata.pad_to);
                                 return comp_val;
@@ -197,7 +204,7 @@ namespace atl
                         };
 
                         auto alt_address = will_jump();
-                        _compile(ast[1],  Context(false, false)); // get the predicate
+                        _compile(ast[1], context.just_closure()); // get the predicate
                         assemble.if_();
 
                         // consiquent
@@ -216,7 +223,7 @@ namespace atl
                     }
                 case tag<Ast>::value:
                     {
-                        auto compiled = _compile(head, Context(false, false));
+	                    auto compiled = _compile(head, context.just_closure());
                         return _Form(compiled, FormTag::function);
                     }
                 case tag<Define>::value:
@@ -229,13 +236,14 @@ namespace atl
                         // should have been set by assign_free
                         {
 	                        using namespace pattern_match;
-	                        Lambda func;
+	                        Lambda func(nullptr);
 	                        if(match(pattern_match::ast(capture(func), tag<Ast>::value, tag<Ast>::value),
 	                                 value))
 		                        {
 			                        auto& metadata = *func.value;
 
-			                        _compile(value, Context(true, true));
+			                        _compile(value,
+			                                 Context(context.closure, true, true));
 
 			                        sym.value = wrap<CallLambda>(&metadata);
 		                        }
@@ -322,7 +330,7 @@ namespace atl
 
                             // Compile the args:
                             for(auto vv : rest)
-	                            { _compile(vv, Context(false, false)); }
+	                            { _compile(vv, context.just_closure()); }
 
                             if(is_procedure)
                                 {
@@ -333,7 +341,7 @@ namespace atl
 	                                    { assemble.call_procedure(metadata->body_address); }
                                 }
                             else
-	                            { _compile(form.applicable, Context(false, false)); }
+	                            { _compile(form.applicable, context.just_closure()); }
 
                             // Todo: need to gather tail info for
                             // return type of function returning
@@ -400,7 +408,7 @@ namespace atl
         }
 
 	    void ast(Ast const& ast)
-	    { _compile(wrap(ast), Context(false, false)); }
+	    { _compile(ast, Context(nullptr, false, false)); }
 
         // For most external use.  The generated code can be passed to
         // the VM for evaluation.
@@ -412,7 +420,7 @@ namespace atl
         // For most external use.  The generated code can be passed to
         // the VM for evaluation.
         void value(Any ast)
-	    { _compile(ast, Context(false, false)); }
+	    { _compile(ast, Context(nullptr, false, false)); }
 
         void dbg();
     };
