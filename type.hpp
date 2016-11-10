@@ -263,20 +263,6 @@ namespace atl
 	/** | _|_|  ||  |_  **/
 	/**           pimpl **/
 	/*********************/
-    struct LambdaMetadata
-    {
-	    typedef std::map<std::string, Symbol*> Closure;
-	    Closure closure;
-
-	    // Amount of stack space to leave for Params + padding for the
-	    // paramaters of a tail call.
-	    size_t pad_to;
-
-	    pcode::Offset body_address;
-
-	    Any return_type;
-    };
-
 	namespace ast_helper
 	{
 		template<class Itr>
@@ -605,6 +591,40 @@ namespace atl
 			, closure(nullptr)
 		{}
 	};
+
+    struct LambdaMetadata
+    {
+	    typedef std::vector<Symbol const*> Closure;
+	    Closure closure;
+	    Ast formals;
+
+	    // Amount of stack space to leave for Params + padding for the
+	    // paramaters of a tail call.
+	    size_t pad_to;
+
+	    pcode::Offset body_address;
+
+	    Any return_type;
+
+	    LambdaMetadata()
+		    : pad_to(0)
+	    {}
+
+	    bool is_closure()
+	    { return !closure.empty(); }
+
+	    ClosureParameter closure_parameter(Symbol const* sym)
+	    {
+		    size_t idx = 0;
+		    for(auto cc : closure)
+			    {
+				    if(cc->name == sym->name) { return ClosureParameter(idx); }
+				    ++idx;
+			    }
+		    closure.push_back(sym);
+		    return ClosureParameter(idx);
+	    }
+    };
 
 	struct String {
 		std::string value;
