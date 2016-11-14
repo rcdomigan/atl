@@ -256,3 +256,25 @@ TEST_F(VmTest, test_bound_non_locals)
 
 	ASSERT_EQ(8, vm.stack[0]);
 }
+
+TEST_F(VmTest, test_make_closure)
+{
+	assemble
+		.constant(7) // body
+		.constant(3)
+		.constant(5)
+		.make_closure(2)
+		.finish();
+	std::cout << "Code:" << std::endl;
+	assemble.dbg();
+
+	run_code(vm, code_store);
+
+	ASSERT_EQ(1, vm.size());
+
+	auto closure = reinterpret_cast<TinyVM::value_type*>(vm.stack[0]);
+	ASSERT_EQ(2, closure[0]); // number of args
+	ASSERT_EQ(7, closure[1]); // body
+	ASSERT_EQ(3, closure[2]);
+	ASSERT_EQ(5, closure[3]);
+}

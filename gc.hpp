@@ -215,6 +215,15 @@ namespace atl
 		virtual void free(Any any) = 0;
 
 		Ast operator()(ast_composer const& func);
+
+		pcode::value_type* closure(pcode::value_type body_location,
+		                           size_t num_args)
+		{
+			auto rval = new pcode::value_type[num_args + 2];
+			rval[0] = num_args;
+			rval[1] = body_location;
+			return rval;
+		}
 	};
 
 	struct AstAllocator

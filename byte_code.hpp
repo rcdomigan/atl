@@ -39,10 +39,11 @@
 //   tail_call          : [arg0]..[argN][N][procedure-address]
 //   call_closure       : [arg0]..[argN][closure-address]
 //   closure_argument   : [arg-offset]
+//   make_closure       : [arg1]...[argN][N]
 //   finish             : -
 
 
-#define ATL_NORMAL_BYTE_CODES (nop)(push)(pop)(if_)(std_function)(jump)(return_)(call_procedure)(argument)(nested_argument)(tail_call)(call_closure)(closure_argument)
+#define ATL_NORMAL_BYTE_CODES (nop)(push)(pop)(if_)(std_function)(jump)(return_)(call_procedure)(argument)(nested_argument)(tail_call)(call_closure)(closure_argument)(make_closure)
 #define ATL_BYTE_CODES (finish)(push_word)ATL_NORMAL_BYTE_CODES
 
 #define ATL_VM_SPECIAL_BYTE_CODES (finish)      // Have to be interpreted specially by the run/switch statement
@@ -344,17 +345,17 @@ namespace atl
 			return call_procedure();
 		}
 
-		AssembleCode& call_closure(Closure& closure)
-		{
-			constant(reinterpret_cast<value_type>(&closure));
-			return call_closure();
-		}
-
 		/* The `offset`th element from the end.  Last element is 0. */
 		AssembleCode& closure_argument(size_t offset)
 		{
 			constant(offset);
 			return closure_argument();
+		}
+
+		AssembleCode& make_closure(size_t count)
+		{
+			constant(count);
+			return make_closure();
 		}
 
 		/* Counts back from the function. Offset 0 is the first argument. */

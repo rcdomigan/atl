@@ -127,6 +127,34 @@ namespace atl
 			top += 3;
 		}
 
+		/**
+		 * Pre call stack:
+		 *   [body-addr][arg1]...[argN][N]
+		 *                           top -^
+		 * Post call stack:
+		 *   [pointer-to-closure]
+		 *                  top -^
+		 */
+		void make_closure()
+		{
+			print_stack();
+			auto N = *(top - 1);
+
+			// the closure its self will be [N][body_address][arg1]...
+			value_type *closure = new value_type[N + 2];
+			auto out_itr = closure;
+
+			out_itr[0] = N;
+			for(auto itr = top-N-2, out_itr = closure+1;
+			    itr < top;
+			    ++itr, ++out_itr)
+				{ *out_itr = *itr; }
+
+			top -= (N + 1);
+			*(top - 1) = reinterpret_cast<value_type>(closure);
+			++pc;
+		}
+
 		/** Gets the `arg-offset` value from this frame's closure.
 		 * pre: [arg-offset]<- top
 		 * post: [value]<-top
@@ -305,6 +333,7 @@ namespace atl
 
 		iterator begin() { return stack; }
 		iterator end() { return top; }
+		size_t size() { return end() - begin(); }
 
 		value_type result()
 		{ return *(top - 1); }
