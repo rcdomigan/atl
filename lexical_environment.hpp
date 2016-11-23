@@ -198,42 +198,58 @@ namespace atl
 	 * setup back-patches or lexical scope, it's just meant to define
 	 * the special forms (like Lambda) before type inference occurs.
 	 */
-	void assign_forms(SymbolMap& env,
-	                  AllocatorBase& store,
-	                  Any& value)
+	Any assign_forms(SymbolMap& env,
+	                 AstAllocator store,
+	                 Any value)
 	{
 		switch(value._tag)
 			{
 			case tag<Ast>::value:
 				{
-					for(auto& item : unwrap<Ast>(value).modify_data())
-						{ assign_forms(env, store, item); }
+					NestAst nesting(store);
 
 					{
 						using namespace pattern_match;
 						namespace pm = pattern_match;
-						Lambda const* lambda;
-						AstData const* formals;
+						Lambda lambda(nullptr);
+						Ast formals;
 
-						if(match(pm::ast(capture_ptr(lambda), capture_ptr(formals), astish),
+						if(match(pm::ast(capture(lambda), capture(formals), tag<Ast>::value),
 						         value))
 							{
-								auto metadata = store.lambda_metadata();
-								const_cast<Lambda*>(lambda)->value = metadata;
+								auto metadata = store.store.lambda_metadata();
+								metadata->formals = *ast_hof::copy
+									(formals, make_ast::ast_alloc(store.store));
 
-								for(auto& item : *formals)
-									{ metadata->formals.push_back(&unwrap<Symbol>(item)); }
+								store.push_back(wrap<Lambda>(metadata));
+
+								for(auto item : slice(unwrap<Ast>(value), 1))
+									{ assign_forms(env, store, item); }
+							}
+						else
+							{
+								for(auto item : unwrap<Ast>(value))
+									{ assign_forms(env, store, item); }
 							}
 					}
-					break;
+					return wrap(*nesting.ast);
 				}
 			case tag<Symbol>::value:
-				/* Just assign forms; ints and other atoms are also safe.  Just no Asts. */
-				auto sym_value = env.current_value(value);
+				{
+					/* Just assign forms; ints and other atoms are also safe.  Just no Asts. */
+					auto sym_value = env.current_value(value);
 
-				if(sym_value.second && !is<Ast>(sym_value.first))
-					{ value = sym_value.first; }
-				break;
+					Any rval;
+					if(sym_value.second && !is<Ast>(sym_value.first))
+						{ rval = sym_value.first; }
+					else
+						{ rval = value; }
+					store.push_back(rval);
+					return rval;
+				}
+			default:
+				store.push_back(value);
+				return value;
 			}
 	}
 
@@ -341,11 +357,12 @@ namespace atl
 
 								auto formals = unwrap<Ast>(ast[1]);
 
-								size_t count = formals.size();
+								size_t idx = 0;
 								for(auto sym : formals)
 									{
 										assert(is<Symbol>(sym));
-										inner_map.formal(unwrap<Symbol>(sym), --count);
+										inner_map.formal(unwrap<Symbol>(sym),
+										                 idx++);
 									}
 
 								assign_free(inner_map, store, backpatch, ast.peek(2));
