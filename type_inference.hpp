@@ -152,7 +152,7 @@ namespace atl
 	     */
 	    void apply_substitution(AstAllocator store, Gamma& gamma, SubstituteMap& subs, Any& value)
 	    {
-		    switch(value._tag)
+	    switch(value._tag)
 			    {
 				    // Subbing for the Symbol also takes care of
 				    // anything Bound to it.
@@ -491,8 +491,7 @@ namespace atl
 								    {
 									    fn_type::FnBuilder rtype_builder(ast_alloc(store));
 
-									    auto tmp = wrap(formals);
-									    apply_substitution(store, gamma, body.subs, tmp);
+									    apply_substitution(store, gamma, body.subs, ref_wrap(formals));
 
 									    for(auto raw_sym : formals)
 										    {

@@ -398,11 +398,14 @@ struct Inference
 {
 	Type::value_type new_types;
 	inference::Gamma gamma;
+	LambdaMetadata* enclosing;
 
-	SymbolMap symbols;
+	template<class T>
+	inference::WResult infer(T&& expr)
+	{ return inference::W(store, new_types, gamma, wrap(expr)); }
 
 	Inference()
-		: Unification(), new_types(LAST_CONCRETE_TYPE), symbols(store)
+		: Unification(), new_types(LAST_CONCRETE_TYPE)
 	{}
 };
 
@@ -424,9 +427,9 @@ TEST_F(Inference, try_nop)
 	sym_a.scheme.type = wrap<Type>(++new_types);
 	sym_b.scheme.type = wrap<Type>(++new_types);
 
-	auto e1 = W(store, new_types, gamma, wrap(&sym_a));
-    auto e2 = W(store, new_types, gamma, wrap(&sym_b));
-	auto e3 = W(store, new_types, gamma, wrap(&sym_a));
+	auto e1 = infer(wrap(&sym_a));
+	auto e2 = infer(wrap(&sym_b));
+	auto e3 = infer(wrap(&sym_a));
 
     ASSERT_NE(e1.type.value, e2.type.value);
     ASSERT_EQ(e1.type.value, e3.type.value);
@@ -437,16 +440,20 @@ TEST_F(Inference, test_lambda)
     using namespace inference;
     using namespace make_ast;
 
-    auto e1 = mk(wrap<Lambda>(),
+    LambdaMetadata foo;
+
+    auto e1 = mk(wrap<Lambda>(&foo),
                    mk("a"),
                    "a")(aalloc());
 
-    auto We1 = W(store, new_types, gamma, ref_wrap(e1));
+    auto We1 = infer(e1);
 
     ASSERT_EQ(tag<Ast>::value, We1.type._tag);
 
     auto type = explicit_unwrap<Ast>(We1.type);
-    ASSERT_EQ(type[0], wrap<Type>(tag<FunctionConstructor>::value));
+    ASSERT_EQ(type[0], wrap<Type>(tag<FunctionConstructor>::value))
+	    << "Got: " << printer::print(type);
+
     ASSERT_EQ(type[1], type[2]);
 }
 
@@ -455,11 +462,12 @@ TEST_F(Inference, test_multi_arg_lambda)
     using namespace inference;
     using namespace make_ast;
 
-    auto e1 = mk(wrap<Lambda>(),
+    LambdaMetadata metadata;
+    auto e1 = mk(wrap<Lambda>(&metadata),
                    mk("a", "b"),
                    "a")(aalloc());
 
-    auto We1 = W(store, new_types, gamma, ref_wrap(e1));
+    auto We1 = infer(e1);
 
     {
 	    using namespace pattern_match;
@@ -476,14 +484,15 @@ TEST_F(Inference, test_simple_lambda)
 	using namespace inference;
 	using namespace make_ast;
 
-	auto expr = mk(wrap<Lambda>(),
+	LambdaMetadata metadata;
+	auto expr = mk(wrap<Lambda>(&metadata),
 	               mk("a", "b"),
 	               mk("add2", "a", "b"))
 		(aalloc());
 
 	std::cout << printer::with_type(expr) << std::endl;
 
-	auto inferred = W(store, new_types, gamma, ref_wrap(expr));
+	auto inferred = infer(expr);
 	apply_substitution(store, gamma, inferred.subs, ref_wrap(expr));
 
 	{
@@ -500,10 +509,11 @@ TEST_F(Inference, test_application)
     using namespace make_ast;
     using namespace inference;
 
-    auto e1 = mk(wrap<Lambda>(),
+	LambdaMetadata metadata;
+    auto e1 = mk(wrap<Lambda>(&metadata),
                  mk("x", "y"),
                  mk("x", "y"))(aalloc());
-    auto We1 = W(store, new_types, gamma, ref_wrap(e1));
+    auto We1 = infer(e1);
 
     /* Check the body: */
     {
@@ -523,7 +533,7 @@ TEST_F(Inference, test_define)
     auto e1 = mk(wrap<Define>(), "a", "b")(aalloc());
     auto wrapped = wrap(e1);
 
-    auto We1 = W(store, new_types, gamma, ref_wrap(e1));
+    auto We1 = infer(e1);
 
     apply_substitution(store, gamma, We1.subs, wrapped);
 
@@ -542,11 +552,12 @@ TEST_F(Inference, test_apply_defined)
     using namespace inference;
 
     // id function
+    LambdaMetadata metadata;
     auto e1 = mk(wrap<Define>(), "id",
-                   mk(wrap<Lambda>(), mk("x"), "x"))(aalloc());
+                   mk(wrap<Lambda>(&metadata), mk("x"), "x"))(aalloc());
     auto wrapped = wrap(e1);
 
-    auto We1 = W(store, new_types, gamma, ref_wrap(e1));
+    auto We1 = infer(e1);
 
     ASSERT_TRUE(is<Scheme>(We1.type));
 
@@ -565,7 +576,7 @@ TEST_F(Inference, test_apply_defined)
 
     // Now see if we can apply the newly defined "id"
     auto e2 = mk("id", "y")(aalloc());
-    auto We2 = W(store, new_types, gamma, ref_wrap(e2));
+    auto We2 = infer(e2);
 
     ASSERT_EQ(2, We2.subs.size());
     ASSERT_TRUE(is<Type>(We2.type));
@@ -592,12 +603,13 @@ TEST_F(Inference, test_nested_application)
     using namespace make_ast;
     using namespace inference;
 
-    auto e1 = mk(wrap<Lambda>(),
+    LambdaMetadata metadata;
+    auto e1 = mk(wrap<Lambda>(&metadata),
                  mk("x", "y", "z"),
                  mk("x", mk("y", "z")))
 	    (aalloc());
 
-    auto We1 = W(store, new_types, gamma, ref_wrap(e1));
+    auto We1 = infer(e1);
 
     {
 	    using namespace pattern_match;
@@ -613,12 +625,13 @@ TEST_F(Inference, test_multi_arg_application)
     using namespace make_ast;
     using namespace inference;
 
-    auto e1 = mk(wrap<Lambda>(),
+    LambdaMetadata metadata;
+    auto e1 = mk(wrap<Lambda>(&metadata),
                  mk("x", "y", "z"),
                  mk("x", "y", "z"))
 	    (aalloc());
 
-    auto We1 = W(store, new_types, gamma, ref_wrap(e1));
+    auto We1 = infer(e1);
 
     {
 	    using namespace pattern_match;
@@ -667,12 +680,13 @@ TEST_F(Inference, test_recursive_fn)
     using namespace make_ast;
     using namespace inference;
 
+    LambdaMetadata metadata;
     auto rec = mk(wrap<Define>(),
-                  "rec", mk(wrap<Lambda>(),
+                  "rec", mk(wrap<Lambda>(&metadata),
                             mk("x"),
                             mk("rec", "x")))
 	    (aalloc());
-    auto Wrec = W(store, new_types, gamma, wrap(rec));
+    auto Wrec = infer(rec);
     {
 	    using namespace pattern_match;
 	    ASSERT_TRUE
@@ -694,7 +708,7 @@ TEST_F(Inference, test_cxx_functor)
 
 	auto expr = mk(wrap(add), "x", "y")(aalloc());
 
-	auto inferred = W(store, new_types, gamma, wrap(expr));
+	auto inferred = infer(expr);
 
 	ASSERT_TRUE(is<Type>(inferred.type));
 	ASSERT_EQ(tag<Bool>::value
@@ -732,7 +746,7 @@ TEST_F(Inference, test_if_scheme)
 
 	auto expr = mk(wrap(&foo), "x", wrap<Type>(tag<Fixnum>::value), "y")(aalloc());
 
-	auto inferred = W(store, new_types, gamma, wrap(expr));
+	auto inferred = infer(expr);
 
 	apply_substitution(store, gamma, inferred.subs, ref_wrap(expr));
 
@@ -763,11 +777,12 @@ TEST_F(Inference, test_thunk)
 	Symbol fn("add2");
 	symbol_assign(fn, wrap(add));
 
-	auto expr = mk(wrap<Lambda>(),
+    LambdaMetadata metadata;
+	auto expr = mk(wrap<Lambda>(&metadata),
 	               mk(),
 	               mk(wrap(&fn), "foo", "foo"))(ast_alloc(store));
 
-	auto inferred = W(store, new_types, gamma, wrap(expr));
+	auto inferred = infer(expr);
 
 	{
 		using namespace pattern_match;
@@ -784,16 +799,17 @@ TEST_F(Inference, test_applying_defined_lambda)
 	using namespace make_ast;
 	using namespace inference;
 
+    LambdaMetadata metadata;
 	auto def = mk(wrap<Define>(), "foo", 3)(ast_alloc(store)),
 
 		expr = mk(wrap<Define>(), "main",
-	               mk(wrap<Lambda>(),
+	               mk(wrap<Lambda>(&metadata),
 	                  mk(),
 	                  mk("add2", "foo", "foo")))(ast_alloc(store));
 
 	// Test that defining a constant works
-	W(store, new_types, gamma, wrap(def));
-	auto inferred = W(store, new_types, gamma, wrap(expr));
+	infer(def);
+	auto inferred = infer(expr);
 
 	{
 		using namespace pattern_match;
