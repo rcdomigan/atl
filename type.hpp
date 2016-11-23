@@ -48,7 +48,7 @@ namespace atl
 	typedef size_t tag_t;
 	namespace pcode
 	{
-		typedef uintptr_t  value_type;
+		typedef uintptr_t value_type;
 		// todo: switch iterator use to Offset so it remains valid if
 		// the structure being pointed into resizes
 		typedef value_type* iterator;
@@ -599,17 +599,9 @@ namespace atl
 	    Closure closure;
 	    Ast formals;
 
-	    // Amount of stack space to leave for Params + padding for the
-	    // paramaters of a tail call.
-	    size_t pad_to;
-
 	    pcode::Offset body_address;
 
 	    Any return_type;
-
-	    LambdaMetadata()
-		    : pad_to(0)
-	    {}
 
 	    bool is_closure()
 	    { return !closure.empty(); }

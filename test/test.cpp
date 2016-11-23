@@ -12,7 +12,6 @@
 #include "./vm.cpp"
 #include "./parser.cpp"
 #include "./lexical_environment.cpp"
-#include "./passes.cpp"
 #include "./compile.cpp"
 #include "./type_inference.cpp"
 #include "./analyze_and_compile.cpp"

@@ -7,19 +7,21 @@
 #include <vm.hpp>
 #include "./trivial_functions.hpp"
 #include "./testing_utils.hpp"
-
 #include <gtest/gtest.h>
+
 
 using namespace atl;
 
 struct VmTest : public ::testing::Test
 {
 	Code code_store;
-    AssembleCode assemble;
+	AssembleCode assemble;
+	Arena store;
+
 	TinyVM vm;
 	TrivialFunctions fns;
 
-	VmTest() : assemble(&code_store) {}
+	VmTest() : assemble(&code_store), vm(store) {}
 };
 
 TEST_F(VmTest, TestCxxFn2)
@@ -183,19 +185,21 @@ TEST_F(VmTest, TestIfFalse)
 
 TEST_F(VmTest, test_simple_function)
 {
+	auto closure = store.closure(0, 2);
+
 	//  ((\ (a b) (sub a b)) 5 3)
 	assemble.constant(5)
 		.constant(3)
-		.add_label("function")
-		.call_procedure(0)
+		.pointer(closure)
+		.call_closure()
 		.finish()
-		.constant_patch_label("function")
+		.add_label("function")
 		.argument(1)
 		.argument(0)
-		.std_function(&fns.wsub->fn,
-		              2)
-		.constant(2) // # args
+		.std_function(&fns.wsub->fn, 2)
 		.return_();
+
+	reinterpret_cast<Closure*>(closure)->body = assemble.label_pos("function");
 
 	run_code(vm, code_store);
 
@@ -212,21 +216,21 @@ TEST_F(VmTest, test_move_n)
     auto after_defs = assemble.pos_last(); // skip over function definitions
     assemble.jump();
 
-    auto enter_tail_call = assemble.pos_end();
+	auto tail_closure = store.closure(assemble.pos_end(), 3);
     assemble.finish();
 
     auto enter_setup = assemble.pos_end();
     assemble.constant(2)
         .constant(3)
         .constant(4)
-        .tail_call(3, enter_tail_call);
+	    .pointer(tail_closure)
+	    .tail_call();
 
     assemble[after_defs] = assemble.pos_end();
     assemble.constant(1)
-        .constant(0)
-        .constant(0)
-        .constant(0)
-        .call_procedure(enter_setup);
+	    .constant(2)
+	    .pointer(store.closure(enter_setup, 1))
+	    .call_closure();
 
     run_code(vm, code_store);
 
@@ -237,20 +241,22 @@ TEST_F(VmTest, test_move_n)
 /** Try accessing parameters from a closure. */
 TEST_F(VmTest, test_bound_non_locals)
 {
-	Closure my_closure;
-	my_closure.body = 0;
-	my_closure.values = {3, 5};
+	auto* closure_pointer = store.closure(0, 0);
+	Closure& closure = *reinterpret_cast<Closure*>(closure_pointer);
+	closure.args()[0] = 3;
+	closure.args()[1] = 5;
 
 	assemble
-		.call_closure(my_closure)
+		.pointer(closure_pointer)
+		.call_closure()
 		.finish();
-	my_closure.body = assemble.pos_end();
+	closure.body = assemble.pos_end();
 
 	assemble
 		.closure_argument(0)
 		.closure_argument(1)
 		.std_function(&fns.wadd->fn, 2)
-		.return_(0);
+		.return_();
 
 	run_code(vm, code_store);
 
@@ -265,7 +271,6 @@ TEST_F(VmTest, test_make_closure)
 		.constant(5)
 		.make_closure(2)
 		.finish();
-	std::cout << "Code:" << std::endl;
 	assemble.dbg();
 
 	run_code(vm, code_store);
@@ -278,3 +283,26 @@ TEST_F(VmTest, test_make_closure)
 	ASSERT_EQ(3, closure[2]);
 	ASSERT_EQ(5, closure[3]);
 }
+
+TEST_F(VmTest, test_simple_closure)
+{
+	assemble
+		.constant(7) // body
+		.constant(3)
+		.constant(5)
+		.make_closure(2)
+		.finish();
+	assemble.dbg();
+
+	run_code(vm, code_store);
+
+	ASSERT_EQ(1, vm.size());
+
+	auto closure = reinterpret_cast<TinyVM::value_type*>(vm.stack[0]);
+	ASSERT_EQ(2, closure[0]); // number of args
+	ASSERT_EQ(7, closure[1]); // body
+	ASSERT_EQ(3, closure[2]);
+	ASSERT_EQ(5, closure[3]);
+}
+
+

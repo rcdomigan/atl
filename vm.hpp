@@ -23,16 +23,35 @@
 #include "./exception.hpp"
 
 #include "./byte_code.hpp"
-
+#include "./gc.hpp"
 
 namespace atl
 {
+	struct Closure
+	{
+		pcode::value_type num_args;
+		pcode::value_type body;
+
+		pcode::iterator args()
+		{ return reinterpret_cast<pcode::iterator>(this) + 2; }
+	};
+
+	void dbg_closure(uintptr_t* closure)
+	{
+		auto N = closure[0];
+		std::cout << "number args: " << N << std::endl;
+		std::cout << "Body       : " << closure[1] << std::endl;
+		for(size_t i = 0; i < N; ++i)
+			{ std::cout << "    " << closure[i] << std::endl; }
+	}
+
 	struct TinyVM
 	{
 		typedef uintptr_t value_type;
 		typedef value_type* iterator;
 		static const size_t stack_size = 100;
 
+		AllocatorBase& store;
 		CodeBacker const* code;	// just the byte code
 
 		vm_stack::Offset pc;
@@ -41,7 +60,9 @@ namespace atl
 
 		value_type stack[stack_size]; // the function argument and adress stack
 
-		TinyVM() : top(stack), call_stack(stack) {}
+		TinyVM(AllocatorBase& store_)
+			: store(store_), top(stack), call_stack(stack)
+		{}
 
 		value_type back() { return *(top - 1); }
 
@@ -87,44 +108,36 @@ namespace atl
 
 		void jump() { --top; pc = *top; }
 
-		/** Use the top of the stack as a procedure address and call it.
-		 * Pre call stack:
-		 *   [arg1]...[argN][next-instruction]
-		 *                                    ^- top
-		 * Post call:
-		 *   [arg1]...[argN][old-call-stack][return-address]
-		 *                   ^                              ^- top
-		 *                   ^- call_stack
-		 */
-		void call_procedure()
-		{
-			*top        = reinterpret_cast<value_type>(pc + 1);
-			pc          = back();
-			*(top - 1)  = reinterpret_cast<uintptr_t>(call_stack);
-			call_stack  = top - 1;
-			++top;
-		}
-
 		/** Assume the top of the stack is a closure and call it
 		 * Pre call stack:
 		 *   [arg1]...[argN][closure]
 		 *                           ^- top
 		 * Post call:
-		 *   [arg1]...[argN][old-call-stack][return-address][bound-vars]
-		 *                   ^                                     top -^
-		 *                   ^- call_stack
+		 *   [arg1]...[argN][old-call-stack][N][return-address][closure-vars]
+		 *                  ^                                           top -^
+		 *                  ^- call_stack
 		 */
 		void call_closure()
 		{
 			--top;
+			//   [arg1]...[argN][closure]
+			//                  ^- top
 			auto closure	= reinterpret_cast<Closure*>(top[0]);
-			top[0]			= reinterpret_cast<value_type>(call_stack);
-			top[1]			= reinterpret_cast<value_type>(pc + 1);
-			top[2]			= reinterpret_cast<value_type>(&closure->values);
-			pc				= closure->body;
-			*top			= reinterpret_cast<uintptr_t>(call_stack);
-			call_stack		= top;
-			top += 3;
+
+			*top = reinterpret_cast<value_type>(call_stack);      // old-call-stack
+			call_stack = top;
+			++top;
+
+			*top = closure->num_args;                             // N
+			++top;
+
+			*top = reinterpret_cast<value_type>(pc + 1);          // return-address
+			++top;
+
+			*top = reinterpret_cast<value_type>(closure->args()); // closure
+			++top;
+
+			pc = closure->body;
 		}
 
 		/**
@@ -137,15 +150,12 @@ namespace atl
 		 */
 		void make_closure()
 		{
-			print_stack();
 			auto N = *(top - 1);
 
 			// the closure its self will be [N][body_address][arg1]...
-			value_type *closure = new value_type[N + 2];
-			auto out_itr = closure;
+			value_type *closure = store.closure(*(top-N-2), N);
 
-			out_itr[0] = N;
-			for(auto itr = top-N-2, out_itr = closure+1;
+			for(auto itr = top-N-1, out_itr = closure+2;
 			    itr < top;
 			    ++itr, ++out_itr)
 				{ *out_itr = *itr; }
@@ -153,6 +163,10 @@ namespace atl
 			top -= (N + 1);
 			*(top - 1) = reinterpret_cast<value_type>(closure);
 			++pc;
+
+#ifdef DEBUGGING
+			dbg_closure(closure);
+#endif
 		}
 
 		/** Gets the `arg-offset` value from this frame's closure.
@@ -161,7 +175,7 @@ namespace atl
 		 * */
 		void closure_argument()
 		{
-			*(top - 1) = (*reinterpret_cast<Closure::Values*>(call_stack[2]))[*(top - 1)];
+			*(top - 1) = reinterpret_cast<pcode::iterator>(call_stack[3])[*(top - 1)];
 			++pc;
 		}
 
@@ -195,18 +209,21 @@ namespace atl
 			++top;
 		}
 
-		/** [return-value][number-of-arguments-to-procedure]
-		 *                                                  ^- top
+		/** [arg0]...[argN][frame][N][return-address]...[return-value]
+		 *                 ^- call-stack                              ^- top
+		 *  [return-value]
+		 *                ^- top
 		 */
 		void return_()
 		{
-			auto num_args = back();
-			auto result   = *(top - 2);
+			auto num_args = call_stack[1];
+			auto result   = *(top - 1);
 			top           = call_stack - num_args;
-			pc            = call_stack[1];
+			pc            = call_stack[2];
 			call_stack    = reinterpret_cast<iterator>(call_stack[0]);
 
-			*top = result; ++top;
+			*top = result;
+			++top;
 		}
 
 		/** Replace the current function's stack frame with arg0-argN
@@ -218,33 +235,43 @@ namespace atl
 		 *  @caller's frame
 		 *   [caller's args...]
 		 *   [old-call-stack]	<- call_stack
+		 *   [caller's arg count]
 		 *   [return-address]
 		 *   ...
 		 *   [my args...]
-		 *   [N]
-		 *   [procedure-address]
+		 *   [closure]
 		 *						<- top
 		 * Post call:
 		 *
 		 *  @caller's frame
-		 *   [my-args...]
+		 *   [my args...]
 		 *   [old-call-stack]	<- call_stack
+		 *   [my arg count]
 		 *   [return-address]
+		 *   [closure-vars]
 		 *                      <- top
 		 */
 		void tail_call()
 		{
-			top -= 2;
-			auto num_args = top[0];
-			pc = top[1];
+			auto enclosing_frame = call_stack[0];
+			auto enclosing_arg_count = call_stack[1];
+			auto pc_continue = call_stack[2];
 
-			for(auto iitr = top - num_args,
-				    dest = call_stack - num_args;
+			auto closure = reinterpret_cast<Closure*>(*(top - 1));
+
+			call_stack -= enclosing_arg_count;
+			for(auto iitr = top - closure->num_args - 1;
 			    iitr != top;
-			    ++iitr, ++dest)
-				*dest = *iitr;
+			    ++iitr, ++call_stack)
+				{ *call_stack = *iitr; }
 
-			top = call_stack + 2;
+			*call_stack = closure->num_args;
+			call_stack[0] = enclosing_frame;
+			call_stack[1] = pc_continue;
+			call_stack[2] = reinterpret_cast<value_type>(closure->args());
+
+			top = call_stack + 3;
+			pc = closure->body;
 		}
 
 		bool step(CodeBacker const& code)

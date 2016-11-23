@@ -32,8 +32,7 @@
 //   push               : [word]
 //   pop                : [out-going]
 //   jump               : [destination address]
-//   call_procedure     : [arg1]...[argN][procedure-address]
-//   return_            : [return-value][number-of-arguments-to-procedure]
+//   return_            : [return-value]
 //   argument           : [offset]
 //   nested_argument    : [offset][hops]
 //   tail_call          : [arg0]..[argN][N][procedure-address]
@@ -43,7 +42,7 @@
 //   finish             : -
 
 
-#define ATL_NORMAL_BYTE_CODES (nop)(push)(pop)(if_)(std_function)(jump)(return_)(call_procedure)(argument)(nested_argument)(tail_call)(call_closure)(closure_argument)(make_closure)
+#define ATL_NORMAL_BYTE_CODES (nop)(push)(pop)(if_)(std_function)(jump)(return_)(argument)(nested_argument)(tail_call)(call_closure)(closure_argument)(make_closure)
 #define ATL_BYTE_CODES (finish)(push_word)ATL_NORMAL_BYTE_CODES
 
 #define ATL_VM_SPECIAL_BYTE_CODES (finish)      // Have to be interpreted specially by the run/switch statement
@@ -55,13 +54,6 @@
 
 namespace atl
 {
-	struct Closure
-	{
-		typedef std::vector<pcode::value_type> Values;
-		Values values;
-		pcode::Offset body;
-	};
-
 	namespace vm_codes
 	{
 		template<class T> struct Name;
@@ -337,14 +329,6 @@ namespace atl
 		pcode::Offset pos_last() { return code->size() - 1;}
 		pcode::Offset pos_end() { return code->size(); }
 
-
-		// Takes the offset to the body
-		AssembleCode& call_procedure(pcode::Offset body)
-		{
-			constant(reinterpret_cast<value_type>(body));
-			return call_procedure();
-		}
-
 		/* The `offset`th element from the end.  Last element is 0. */
 		AssembleCode& closure_argument(size_t offset)
 		{
@@ -372,18 +356,11 @@ namespace atl
 			return nested_argument();
 		}
 
-		AssembleCode& return_(size_t num_args)
-		{
-			constant(num_args);
-			return return_();
-		}
-
-		AssembleCode& tail_call(size_t num_args, size_t proc)
-		{
-			constant(num_args);
-			constant(proc);
-			return tail_call();
-		}
+		/* AssembleCode& tail_call(size_t proc) */
+		/* { */
+		/* 	constant(proc); */
+		/* 	return tail_call(); */
+		/* } */
 
 		AssembleCode& std_function(CxxFunctor::value_type* fn, size_t arity)
 		{
@@ -393,6 +370,9 @@ namespace atl
 		}
 
 		value_type& operator[](off_t pos) { return *(code->begin() + pos); }
+
+		size_t label_pos(std::string const& name)
+		{ return code->offset_table[name]; }
 
 		/* Add a label to the current pos_last. */
 		AssembleCode& add_label(std::string const& name)
@@ -408,6 +388,10 @@ namespace atl
 			      pos_end());
 			return *this;
 		}
+
+		/* Insert label's value as a constant */
+		AssembleCode& get_label(std::string const& name)
+		{ return constant(code->offset_table[name]); }
 
 		// implementation requires the compiler
 		virtual AssembleCode& needs_patching(Symbol&)

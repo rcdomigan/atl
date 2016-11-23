@@ -11,7 +11,6 @@
 #include <vm.hpp>
 #include <print.hpp>
 #include <lexical_environment.hpp>
-#include <passes.hpp>
 #include <type_inference.hpp>
 #include <compile.hpp>
 #include <gc.hpp>
@@ -74,8 +73,6 @@ struct AnalyzeAndCompile
 		            store,
 		            backpatch,
 		            expr);
-
-		assign_padding(expr);
 
 		return type_info.type;
 	}
