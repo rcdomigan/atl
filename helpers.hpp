@@ -67,6 +67,14 @@ namespace atl
 		AstAllocator ast_alloc(AllocatorBase& aa)
 		{ return AstAllocator(aa); }
 
+		template<class T,
+		         bool is_atl=tmpl::Apply<is_atl_type,
+		                                 tmpl::Apply<std::remove_pointer,
+		                                             RemoveConstReference<T> >
+		                                 >::type::value
+		         >
+		struct _TypeDispatched;
+
 		/* _Run which automatically wraps a number and assumes a bare string is a sym. */
 		struct _SRun
 		{
@@ -87,9 +95,24 @@ namespace atl
 
 			void operator()(Any const& value) { space.push_back(value); }
 
-			template<class Fn>
-			void operator()(Fn &fn) { fn(space); }
+			template<class Thing>
+			void operator()(Thing const& thing) { _TypeDispatched<Thing>::a(*this, thing); }
 		};
+
+		template<class Type>
+		struct _TypeDispatched <Type, true>
+		{
+			static void a(_SRun& runner, Type const& thing)
+			{ runner(wrap(thing)); }
+		};
+
+		template<class Fn>
+		struct _TypeDispatched <Fn, false>
+		{
+			static void a(_SRun& runner, Fn const& fn)
+			{ fn(runner.space); }
+		};
+
 
 		template<class ... Args>
 		std::function<Ast (AstAllocator)>
