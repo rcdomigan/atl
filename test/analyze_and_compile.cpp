@@ -80,23 +80,16 @@ struct AnalyzeAndCompile
 	void compile(Any expr)
 	{
 		annotate(expr);
+
 		compiler.any(expr);
-
-		// execute the main entry point (if applicable)
-		if(compiler.code_store.has_main())
-			{
-				using namespace make_ast;
-				compiler.assemble.add_label("__call-main__");
-
-				auto call_main = wrap(mk("main")(ast_alloc(store)));
-				annotate(call_main);
-				compiler.any(call_main);
-			}
 	}
 
 	template<class T>
 	void compile(T expr)
 	{ compile(wrap(expr)); }
+
+	void compile(make_ast::BuilderFn expr)
+	{ compile(store(expr)); }
 
 	pcode::value_type run()
 	{

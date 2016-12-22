@@ -301,10 +301,6 @@ namespace atl
 		void enter_code(Code const& input)
 		{
 			call_stack = nullptr;
-			if(input.has_main())
-				pc = input.main_entry_point();
-			else
-				pc = 0;
 		}
 
 		// Take code and run it.  Prints the stack and pc after each
