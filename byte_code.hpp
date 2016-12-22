@@ -143,31 +143,51 @@ namespace atl
 	    code.
 	 */
 	typedef std::vector<pcode::value_type> CodeBacker;
-	struct WrapCodeForAssembler
+	struct Code
 	{
-		typedef CodeBacker::iterator iterator;
+		typedef typename pcode::value_type value_type;
+		typedef typename CodeBacker::iterator iterator;
+		typedef typename CodeBacker::const_iterator const_iterator;
 
 		OffsetTable offset_table;
+		size_t slots;
 
-		virtual void push_back(uintptr_t cc)=0;
-		virtual size_t size() const=0;
-		virtual iterator begin()=0;
-		virtual iterator end()=0;
+		CodeBacker code;
+
+		Code() : slots(0) {};
+		Code(size_t initial_size) : slots(0), code(initial_size) {}
+
+		iterator begin() { return code.begin(); }
+		iterator end() { return code.end(); }
+
+		const_iterator begin() const { return code.begin(); }
+		const_iterator end() const { return code.end(); }
+
+		void push_back(uintptr_t cc) { code.push_back(cc); }
+
+		size_t size() const { return code.size(); }
+
+		void pop_back() { code.pop_back(); }
+
+		bool operator==(Code const& other) const
+		{ return code == other.code; }
+
+		bool operator==(Code& other)
+		{ return code == other.code; }
 	};
-
 
 	struct CodePrinter
 	{
 		typedef CodeBacker::iterator iterator;
 		typedef CodeBacker::value_type value_type;
 
-		WrapCodeForAssembler& code;
+		Code& code;
 
 		int pushing;
 		size_t pos;
 		value_type vv;
 
-		CodePrinter(WrapCodeForAssembler& code_)
+		CodePrinter(Code& code_)
 			: code(code_)
 			, pushing(0)
 			, pos(0)
@@ -217,86 +237,32 @@ namespace atl
 		void dbg() { print(std::cout); }
 	};
 
-
-	struct Code
-		: public WrapCodeForAssembler
-	{
-		typedef typename pcode::value_type value_type;
-		typedef typename CodeBacker::iterator iterator;
-		typedef typename CodeBacker::const_iterator const_iterator;
-
-
-		CodeBacker code;
-
-		Code() = default;
-		Code(size_t initial_size) : code(initial_size) {}
-
-		bool has_main() const { return offset_table.table.count("main") != 0; }
-		size_t main_entry_point() const
-		{ return offset_table.table.at("__call-main__"); }
-
-		virtual iterator begin() override { return code.begin(); }
-		virtual iterator end() override { return code.end(); }
-
-		const_iterator begin() const { return code.begin(); }
-		const_iterator end() const { return code.end(); }
-
-		virtual void push_back(uintptr_t cc) override
-		{ code.push_back(cc); }
-
-		virtual size_t size() const override { return code.size(); }
-
-		void pop_back() { code.pop_back(); }
-
-		bool operator==(Code const& other) const
-		{ return code == other.code; }
-
-		bool operator==(Code& other)
-		{ return code == other.code; }
-	};
-
-
-	struct WrapCodeItr
-		: public WrapCodeForAssembler
-	{
-		typedef WrapCodeForAssembler::iterator iterator;
-		iterator _begin, _end, itr;
-
-		WrapCodeItr(iterator begin_, iterator end_)
-			: _begin(begin_)
-			, _end(end_)
-			, itr(begin_)
-		{}
-
-		WrapCodeItr(WrapCodeForAssembler& other)
-			: WrapCodeItr(other.begin(), other.end())
-		{}
-
-		void set_position(size_t offset)
-		{ itr = _begin + offset; }
-
-		virtual void push_back(uintptr_t cc) override
-		{
-			assert(itr < _end);
-			*itr = cc;
-			++itr;
-		}
-
-		virtual size_t size() const override { return itr - _begin; }
-
-		virtual iterator begin() override { return _begin; }
-		virtual iterator end() override { return _end; }
-	};
-
  	struct AssembleCode
 	{
 		typedef uintptr_t value_type;
 		typedef Code::const_iterator const_iterator;
 
-		WrapCodeForAssembler *code;
+		std::unordered_map<std::string, size_t> slots;
+
+		Code *code;
+
+		size_t get_slot(std::string const& key)
+		{
+			auto found = slots.find(key);
+			if(found == slots.end())
+				{
+					auto slot = slots.size();
+					code->slots = slot + 1;
+
+					slots[key] = slot;
+					return slot;
+				}
+			else
+				{ return found->second; }
+		}
 
 		AssembleCode() = default;
-		AssembleCode(WrapCodeForAssembler *code_) : code(code_) {}
+		AssembleCode(Code *code_) : code(code_) {}
 
 #define M(r, data, instruction) AssembleCode& instruction() {             \
 			_push_back(vm_codes::Tag<vm_codes::instruction>::value); \
@@ -338,7 +304,6 @@ namespace atl
 			return closure_argument();
 		}
 
-		AssembleCode& make_closure(size_t count)
 		AssembleCode& define(std::string const& key)
 		{
 			constant(get_slot(key));
@@ -353,8 +318,10 @@ namespace atl
 			return *this;
 		}
 
+		AssembleCode& make_closure(size_t formals, size_t captured)
 		{
-			constant(count);
+			constant(formals);
+			constant(captured);
 			return make_closure();
 		}
 
@@ -371,12 +338,6 @@ namespace atl
 			constant(hops);
 			return nested_argument();
 		}
-
-		/* AssembleCode& tail_call(size_t proc) */
-		/* { */
-		/* 	constant(proc); */
-		/* 	return tail_call(); */
-		/* } */
 
 		AssembleCode& std_function(CxxFunctor::value_type* fn, size_t arity)
 		{
@@ -408,13 +369,6 @@ namespace atl
 		/* Insert label's value as a constant */
 		AssembleCode& get_label(std::string const& name)
 		{ return constant(code->offset_table[name]); }
-
-		// implementation requires the compiler
-		virtual AssembleCode& needs_patching(Symbol&)
-		{ throw WrongTypeError("Basic AssembleCode can't patch"); }
-
-		virtual AssembleCode& patch(Symbol&)
-		{ throw WrongTypeError("Basic AssembleCode can't patch"); }
 
 		void dbg();
 	};

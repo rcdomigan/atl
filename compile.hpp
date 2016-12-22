@@ -17,61 +17,13 @@
 
 namespace atl
 {
-	struct PatchingAssembler
-		: public AssembleCode
-	{
-		typedef std::map<Symbol*, std::vector<pcode::Offset> > Backpatches;
-		Backpatches backpatches;
-
-		PatchingAssembler() = default;
-		PatchingAssembler(WrapCodeForAssembler *code_) : AssembleCode(code_) {}
-
-		PatchingAssembler& needs_patching(Symbol& sym) override
-		{
-			auto position = pos_end();
-			auto patch = backpatches.find(&sym);
-			if(patch == backpatches.end())
-				{ backpatches[&sym] = std::vector<pcode::Offset>{position}; }
-			else
-				{ patch->second.push_back(position); }
-
-			if(sym.scheme.is_function())
-				{ call_procedure(0xdeadbeef); }
-			else
-				{ constant(0xfeed); }
-			return *this;
-		}
-
-		PatchingAssembler& patch(Symbol& sym) override
-		{
-			auto patch = backpatches.find(&sym);
-			if(patch != backpatches.end())
-				{
-					WrapCodeItr wrapped_code(code->begin(),
-					                         code->end());
-					PatchingAssembler assemble(&wrapped_code);
-					for(auto pos : patch->second)
-						{
-							wrapped_code.itr = wrapped_code._begin + pos;
-							if(is<CallLambda>(sym.value))
-								{ assemble.call_procedure
-										(unwrap<CallLambda>(sym.value).value->body_address); }
-							else
-								{ throw WrongTypeError("Can only backpatch functions"); }
-						}
-					backpatches.erase(patch);
-				}
-			return *this;
-		}
-	};
-
 	struct Compile
 	{
 		typedef AssembleCode::const_iterator iterator;
 		typedef pcode::Offset Offset;
 
 		Code code_store;
-		PatchingAssembler assemble;
+		AssembleCode assemble;
 
 		Compile()
 			: assemble(&code_store)
