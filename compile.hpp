@@ -54,183 +54,15 @@ namespace atl
 		{
 			LambdaMetadata *closure;
 			bool tail;
-			bool definition;
 
 			Context just_closure()
-			{ return Context(closure, false, false); }
+			{ return Context(closure, false); }
 
-			Context(LambdaMetadata *cc, bool t, bool d)
+			Context(LambdaMetadata *cc, bool t)
 				: closure(cc)
 				, tail(t)
-				, definition(d)
 			{}
 		};
-
-		// done            : The form has been evaluated, _compile can return
-		// function        : The form was a function, _compile should call
-		// declare_type    : The form declares the type of a nested form
-		// macro_expansion : A new expression yielded by a macro
-		enum class FormTag
-		{ done, function, declare_type, macro_expansion };
-
-		// Describe the thing-to-apply in an expression
-		struct _Form
-		{
-			// result from 'form'
-			Any applicable;
-			FormTag form_tag;
-
-			_Form(Any applicable_,
-			      FormTag form_tag_)
-				: applicable(applicable_),
-				  form_tag(form_tag_)
-			{}
-		};
-
-
-		/// \internal
-		/// Evaluates the application position of an s-expression and
-		/// returns a _Form structure with information for _compile.
-		_Form form(Ast ast, Context context)
-		{
-			using namespace std;
-
-			Any head = ast[0];
-
-			auto compile_tail = [&](Any const& input)
-				{
-					return _compile(input, Context(context.closure, context.tail, false));
-				};
-
-			switch(head._tag)
-				{
-				case tag<CxxMacro>::value:
-					return _Form(unwrap<CxxMacro>(head).fn(slice(ast, 1)),
-					             FormTag::macro_expansion);
-
-				case tag<Lambda>::value:
-					{
-						auto& metadata = *unwrap<Lambda>(head).value;
-
-						auto compile_body = [&]()
-							{
-								metadata.body_address = assemble.pos_end();
-								auto comp_val = _compile(ast[2],
-								                         Context(&metadata,
-								                                 true,
-								                                 context.definition));
-
-								assemble.return_(metadata.pad_to);
-								return comp_val;
-							};
-
-						if(context.definition)
-							{ compile_body(); }
-						else
-							{
-								SkipBlock my_def(assemble);
-								compile_body();
-							}
-
-						return _Form(wrap<CallLambda>(&metadata),
-						             FormTag::done);
-					}
-				case tag<Quote>::value:
-					{
-						// TODO: copy?  Not sure how to handle this with GC.
-						assemble.pointer(ast.address(1));
-						return _Form(wrap<Null>(),
-						             FormTag::done);
-					}
-				case tag<DeclareType>::value:
-					{
-						Compile::any(ast[1]);
-						return _Form(wrap<Null>(),
-						             FormTag::declare_type);
-					}
-				case tag<If>::value:
-					{
-						auto will_jump = [&]() -> pcode::Offset {
-							assemble.pointer(nullptr);
-							return assemble.pos_last();
-						};
-
-						auto alt_address = will_jump();
-						_compile(ast[1], context.just_closure()); // get the predicate
-						assemble.if_();
-
-						// consiquent
-						compile_tail(ast[2]);
-
-						auto after_alt = will_jump();
-						assemble.jump();
-
-						// alternate
-						assemble[alt_address] = assemble.pos_end();
-						compile_tail(ast[3]);
-
-						assemble[after_alt] = assemble.pos_end();
-
-						return _Form(wrap<Null>(), FormTag::done);
-					}
-				case tag<Ast>::value:
-					{
-						auto compiled = _compile(head, context.just_closure());
-						return _Form(compiled, FormTag::function);
-					}
-				case tag<Define>::value:
-					{
-						auto& sym = modify<Symbol>(ast[1]);
-						auto const& value = ast[2];
-
-						// Just assign the function location if
-						// required; for other cases symbol's value
-						// should have been set by assign_free
-						{
-							using namespace pattern_match;
-							Lambda func(nullptr);
-							if(match(pattern_match::ast(capture(func), tag<Ast>::value, tag<Ast>::value),
-							         value))
-								{
-									auto& metadata = *func.value;
-
-									_compile(value,
-									         Context(context.closure, true, true));
-
-									sym.value = wrap<CallLambda>(&metadata);
-								}
-						}
-
-						assemble.add_label(sym.name);
-						assemble.patch(sym);
-
-						return _Form(wrap<Null>(),
-						             FormTag::done);
-					}
-
-				case tag<CallLambda>::value:
-				case tag<CxxFunctor>::value:
-					{ return _Form(head, FormTag::function); }
-
-				case tag<Symbol>::value:
-					{
-						auto& sym = unwrap<Symbol>(head);
-
-						if(is<CallLambda>(sym.value))
-							{
-								return _Form(sym.value,
-								             FormTag::function);
-							}
-
-						throw WrongTypeError("Symbol found which is not part of a closure or recursive definition");
-					}
-				default:
-					throw WrongTypeError
-						(std::string("Dunno how to use ")
-						 .append(type_name(head))
-						 .append(" as a function"));
-				}
-		}
 
 		/// \internal Take an input and generate byte-code.
 		///
@@ -242,64 +74,135 @@ namespace atl
 		{
 			using namespace std;
 
-		compile_value:
 			switch(input._tag) {
 			case tag<Ast>::value:
 				{
 					auto ast = unwrap<Ast>(input);
-					auto form = this->form(ast, context);
+					auto head = ast[0];
 
-					switch(form.form_tag) {
-					case FormTag::done:
-						return form.applicable;
-
-					case FormTag::macro_expansion:
+					/******************/
+					/* special forms: */
+                    /******************/
+					switch(head._tag)
 						{
-							input = form.applicable;
-							goto compile_value;
-						}
-					case FormTag::declare_type:
-						{
-							return _compile(ast[2], context);
-						}
-					case FormTag::function:
-						{
-							auto fn = form.applicable;
-							auto rest = slice(ast, 1);
+						case tag<If>::value:
+							{
+								auto will_jump = [&]() -> pcode::Offset {
+									assemble.pointer(nullptr);
+									return assemble.pos_last();
+								};
 
-							auto is_procedure = is<CallLambda>(fn);
-							LambdaMetadata* metadata = nullptr;
+								auto alt_address = will_jump();
+								_compile(ast[1], context.just_closure()); // get the predicate
+								assemble.if_();
 
-							if(is_procedure)
+								// consiquent
+								_compile(ast[2], context);
+
+								auto after_alt = will_jump();
+								assemble.jump();
+
+								// alternate
+								assemble[alt_address] = assemble.pos_end();
+								_compile(ast[3], context);
+
+								assemble[after_alt] = assemble.pos_end();
+
+								return wrap<Null>();
+							}
+						case tag<Define>::value:
+							{
+								auto& sym = modify<Symbol>(ast[1]);
+								auto const& value = ast[2];
+
+								// Just assign the function location if
+								// required; for other cases symbol's value
+								// should have been set by assign_free
 								{
-									metadata = unwrap<CallLambda>(fn).value;
-
-									// pad out so a tail call can use this call's frame
-									auto padding = metadata->pad_to - rest.size();
-									for(size_t i=0; i < padding; ++i)
-										{ assemble.constant(8); }
+									using namespace pattern_match;
+									Lambda func(nullptr);
+									if(match(pattern_match::ast(capture(func), tag<Ast>::value, tag<Ast>::value),
+									         value))
+										{
+											_compile(value,
+											         Context(context.closure, true));
+											assemble.define(sym.name);
+										}
 								}
 
-							// Compile the args:
-							for(auto vv : rest)
-								{ _compile(vv, context.just_closure()); }
+								assemble.add_label(sym.name);
 
-							if(is_procedure)
+								return wrap<Null>();
+							}
+						case tag<Lambda>::value:
+							{
+								auto& metadata = *unwrap<Lambda>(head).value;
 								{
-									if(context.tail)
-										{ assemble.tail_call(metadata->pad_to,
-										                     metadata->body_address); }
-									else
-										{ assemble.call_procedure(metadata->body_address); }
-								}
-							else
-								{ _compile(form.applicable, context.just_closure()); }
+									SkipBlock my_def(assemble);
 
-							// Todo: need to gather tail info for
-							// return type of function returning
-							// function...
+									metadata.body_address = assemble.pos_end();
+									_compile(ast[2], Context(&metadata,
+									                         true));
+									assemble.return_();
+								}
+
+								assemble.constant(metadata.body_address);
+
+								for(auto item : metadata.closure)
+									{ _compile(item->value, context.just_closure()); }
+
+								assemble.make_closure(metadata.formals.size(),
+								                      metadata.closure.size());
+
+								return head;
+							}
+						case tag<Quote>::value:
+							{
+								// TODO: copy?  Not sure how to handle this with GC.
+								assemble.pointer(ast.address(1));
+								return wrap<Null>();
+							}
+						}
+
+					/*****************/
+					/* normal order: */
+                    /*****************/
+					// Compile the args:
+					for(auto vv : slice(ast, 1)) { _compile(vv, context.just_closure()); }
+
+					switch(head._tag)
+						{
+						case tag<Ast>::value:
+						{
+							// The Ast must return a closure.
+							// TODO: wrap primitive functions in a
+							// closure if they're getting returned
+
+							_compile(head, context.just_closure());
+							assemble.call_closure();
 							return wrap<Null>();
-						}}
+						}
+						case tag<CxxFunctor>::value:
+							{
+								auto& fn = unwrap<CxxFunctor>(head);
+								assemble.std_function(&fn.fn, fn.arity);
+								return wrap<Null>();
+							}
+						case tag<Symbol>::value:
+							{
+								auto& sym = unwrap<Symbol>(head);
+								assemble
+									.deref_slot(sym.name)
+									.call_closure();
+								return sym.value;
+							}
+						default:
+							throw WrongTypeError
+								(std::string("Dunno how to use ")
+								 .append(type_name(head))
+								 .append(" as a function"));
+						}
+
 					assert(0);
 				}
 
@@ -319,29 +222,10 @@ namespace atl
 				assemble.pointer(&unwrap<String>(input));
 				return wrap<Null>();
 
-			case tag<CxxFunctor>::value:
-				{
-					auto& fn = unwrap<CxxFunctor>(input);
-					assemble.std_function(&fn.fn, fn.arity);
-					return wrap<Null>();
-				}
-			case tag<CallLambda>::value:
-				{
-					auto& metadata = *unwrap<CallLambda>(input).value;
-
-					if(metadata.closure.empty())
-						{ assemble.call_procedure(metadata.body_address); }
-					else
-						{
-							assemble.call_closure();
-						}
-					return input;
-				}
 			case tag<Parameter>::value:
 				{
-					/* The frame we're computing from comes after the parameters on the stack */
 					assemble.argument
-						(context.closure->formals.size() - unwrap<Parameter>(input).value - 1);
+						(context.closure->formals.size() - 1 - unwrap<Parameter>(input).value);
 					return wrap<Null>();
 				}
 			case tag<ClosureParameter>::value:
@@ -360,7 +244,7 @@ namespace atl
 		}
 
 		void ast(Ast const& ast)
-		{ _compile(ast, Context(nullptr, false, false)); }
+		{ _compile(wrap(ast), Context(nullptr, false)); }
 
 		// For most external use.  The generated code can be passed to
 		// the VM for evaluation.
@@ -372,7 +256,9 @@ namespace atl
 		// For most external use.  The generated code can be passed to
 		// the VM for evaluation.
 		void value(Any ast)
-		{ _compile(ast, Context(nullptr, false, false)); }
+		{
+			_compile(ast, Context(nullptr, false));
+		}
 
 		void dbg();
 	};

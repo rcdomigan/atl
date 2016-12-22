@@ -39,6 +39,7 @@ struct AnalyzeAndCompile
 	AnalyzeAndCompile()
 		: store(cxx_fns.store)
 		, lexical(store)
+		, vm(store)
 	{
 		init_types();
 
@@ -46,9 +47,9 @@ struct AnalyzeAndCompile
 
 		setup_basic_definitions(store, lexical);
 
-		lexical.define(*store.symbol("equal2"), wrap(cxx_fns.weq));
-		lexical.define(*store.symbol("add2"), wrap(cxx_fns.wadd));
-		lexical.define(*store.symbol("sub2"), wrap(cxx_fns.wsub));
+		lexical.define("equal2", wrap(cxx_fns.weq));
+		lexical.define("add2", wrap(cxx_fns.wadd));
+		lexical.define("sub2", wrap(cxx_fns.wsub));
 	}
 
 	/**
@@ -60,11 +61,11 @@ struct AnalyzeAndCompile
 	{
 		BackPatch backpatch;
 
-		assign_forms(lexical, store, expr);
+		expr = assign_forms(lexical, AstAllocator(store), expr);
 
 		auto type_info = inference::W(store, new_types, gamma, expr);
 
-		inference::apply_substitution(store,
+		inference::apply_substitution(AstAllocator(store),
 		                              gamma,
 		                              type_info.subs,
 		                              expr);
@@ -175,20 +176,17 @@ TEST_F(AnalyzeAndCompile, test_basic_define)
 TEST_F(AnalyzeAndCompile, test_applying_defined_lambda)
 {
 	using namespace make_ast;
-	auto define_add3 = mk("define",
-	                      "my-add3",
-	                      mk(wrap<Lambda>(), mk("a", "b", "c"),
-	                         mk("add2",
-	                            "a",
-	                            mk("add2", "b", "c"))))
-		(ast_alloc(store)),
+	auto define_add3 = store
+		(mk("define",
+		    "my-add3",
+		    mk(wrap<Lambda>(), mk("a", "b", "c"),
+		       mk("add2",
+		          "a",
+		          mk("add2", "b", "c"))))),
 
-		apply_add3 = mk("my-add3", 2, 3, 7)(ast_alloc(store));
+		apply_add3 = store(mk("my-add3", 2, 3, 7));
 
-	{
-		Compile::SkipBlock skip_definition(compiler.assemble);
-		compile(define_add3);
-	}
+	compile(define_add3);
 	compile(apply_add3);
 
 	ASSERT_EQ(12, run());
@@ -197,21 +195,20 @@ TEST_F(AnalyzeAndCompile, test_applying_defined_lambda)
 TEST_F(AnalyzeAndCompile, test_nested_functions)
 {
 	using namespace make_ast;
-	auto simple_recur = mk
-		("define", "foo", mk(wrap<Lambda>(),
-		                     mk("a"),
-		                     mk("add2", "a", 3)))
-		(ast_alloc(store));
+	compile(store
+	        (mk
+	         ("define", "foo", mk(wrap<Lambda>(),
+	                              mk("a"),
+	                              mk("add2", "a", 3)))));
 
-	auto atl_main = mk
-		("define", "main",
-		 mk(wrap<Lambda>(),
-		    mk(),
-		    mk("foo", 2)))
-		(ast_alloc(store));
+	compile(store
+	        (mk
+	         ("define", "bar",
+	          mk(wrap<Lambda>(),
+	             mk(),
+	             mk("foo", 2)))));
 
-	compile(simple_recur);
-	compile(atl_main);
+	compile(store(mk("bar")));
 
 	ASSERT_EQ(5, run());
 }
@@ -219,31 +216,29 @@ TEST_F(AnalyzeAndCompile, test_nested_functions)
 TEST_F(AnalyzeAndCompile, test_nested_function_results)
 {
 	using namespace make_ast;
-	auto foo = mk
-		("define", "foo",
-		 mk(wrap<Lambda>(), mk("a"), mk("add2", "a", 3)))
-		(ast_alloc(store));
+	compile(store
+	        (mk
+	         ("define", "foo",
+	          mk(wrap<Lambda>(), mk("a"), mk("add2", "a", 3)))));
 
-	auto bar = mk
-		("define", "bar",
-		 mk(wrap<Lambda>(),
-		    mk("a", "b"),
-		    mk("add2", "a", "b")))
-		(ast_alloc(store));
+	compile(store
+	        (mk
+	         ("define", "bar",
+	          mk(wrap<Lambda>(),
+	             mk("a", "b"),
+	             mk("add2", "a", "b")))));
 
-	auto atl_main = mk
-		("define", "main",
-		 mk
-		 (wrap<Lambda>(),
-		  mk(),
-		  mk("bar",
-		     mk("foo", 2),
-		     mk("foo", 3))))
-		(ast_alloc(store));
+	compile(store
+	        (mk
+	         ("define", "main",
+	          mk
+	          (wrap<Lambda>(),
+	           mk(),
+	           mk("bar",
+	              mk("foo", 2),
+	              mk("foo", 3))))));
 
-	compile(foo);
-	compile(bar);
-	compile(atl_main);
+	compile(store(mk("main")));
 
 	ASSERT_EQ(11, run());
 }
@@ -251,26 +246,23 @@ TEST_F(AnalyzeAndCompile, test_nested_function_results)
 TEST_F(AnalyzeAndCompile, test_simple_recursion)
 {
 	using namespace make_ast;
-	auto simple_recur = mk
-		("define", "simple-recur",
-		 mk(wrap<Lambda>(),
-		    mk("a", "b"),
-		    mk("if",
-		       mk("equal2", 0, "a"),
-		       "b",
-		       mk("simple-recur",
-		          mk("sub2", "a", 1),
-		          mk("add2", "b", 1)))))
-		(ast_alloc(store)),
+	compile(mk
+	        ("define", "simple-recur",
+	         mk(wrap<Lambda>(),
+	            mk("a", "b"),
+	            mk("if",
+	               mk("equal2", 0, "a"),
+	               "b",
+	               mk("simple-recur",
+	                  mk("sub2", "a", 1),
+	                  mk("add2", "b", 1))))));
 
-		main = mk(wrap<Define>(), "main",
-		          mk(wrap<Lambda>(),
-		             mk(),
-		             mk("simple-recur", 3, 2)))
-		(ast_alloc(store));
+	compile(mk(wrap<Define>(), "main",
+	           mk(wrap<Lambda>(),
+	              mk(),
+	              mk("simple-recur", 3, 2))));
 
-	compile(simple_recur);
-	compile(main);
+	compile(mk("main"));
 
 	ASSERT_EQ(5, run());
 }
@@ -279,34 +271,29 @@ TEST_F(AnalyzeAndCompile, test_simple_recursion_results)
 {
 	using namespace make_ast;
 
-	auto foo = mk
-		("define", "foo",
-		 mk(wrap<Lambda>(),
-		    mk("a"),
-		    mk("add2", "a", 3)))
-		(ast_alloc(store)),
+	compile(mk
+	        ("define", "foo",
+	         mk(wrap<Lambda>(),
+	            mk("a"),
+	            mk("add2", "a", 3))));
 
-		simple_recur = mk
-		("define", "simple-recur",
-		 mk(wrap<Lambda>(),
-		    mk("a", "b"),
-		    mk("if",
-		       mk("equal2", 0, "a"),
-		       "b",
-		       mk("simple-recur",
-		          mk("sub2", "a", 1),
-		          mk("foo", "b")))))
-		(ast_alloc(store)),
+	compile(mk
+	        ("define", "simple-recur",
+	         mk(wrap<Lambda>(),
+	            mk("a", "b"),
+	            mk("if",
+	               mk("equal2", 0, "a"),
+	               "b",
+	               mk("simple-recur",
+	                  mk("sub2", "a", 1),
+	                  mk("foo", "b"))))));
 
-		main = mk(wrap<Define>(), "main",
-		          mk(wrap<Lambda>(),
-		             mk(),
-		             mk("simple-recur", 2, 2)))
-		(ast_alloc(store));
+	compile(mk(wrap<Define>(), "main",
+	           mk(wrap<Lambda>(),
+	              mk(),
+	              mk("simple-recur", 2, 2))));
 
-	compile(foo);
-	compile(simple_recur);
-	compile(main);
+	compile(mk("main"));
 
 	ASSERT_EQ(8, run());
 }

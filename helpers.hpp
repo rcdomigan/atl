@@ -114,9 +114,11 @@ namespace atl
 		};
 
 
+		typedef std::function<Ast (AstAllocator)> BuilderFn;
+
+
 		template<class ... Args>
-		std::function<Ast (AstAllocator)>
-		mk(Args ... args)
+		BuilderFn mk(Args ... args)
 		{
 			auto tup = make_tuple(args...);
 			return [tup](AstAllocator space) -> Ast

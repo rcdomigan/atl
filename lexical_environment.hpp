@@ -26,8 +26,7 @@ namespace atl
 	 */
 	struct SymbolMap
 	{
-		/* The value_type::second may have literals or things computable from literals at compile time. */
-		typedef Symbol* value_type;
+		typedef Any value_type;
 		typedef std::map<std::string, value_type> Map;
 		typedef Map::iterator iterator;
 		typedef Map::const_iterator const_iterator;
@@ -84,7 +83,7 @@ namespace atl
 			sym.subtype = Symbol::Subtype::variable;
 			sym.value = wrap<Parameter>(offset);
 
-			auto rval = local.emplace(sym.name, &sym);
+			auto rval = local.emplace(sym.name, sym.value);
 
 			if(!rval.second)
 				{ throw RedefinitionError(std::string("Can't redefine ").append(sym.name)); }
@@ -126,12 +125,7 @@ namespace atl
 		const_iterator end() const { return local.end(); }
 		const_iterator begin() const { return local.begin(); }
 
-		void define(Symbol& sym,
-		            Any const& value)
-		{
-			symbol_assign(sym, value);
-			local.emplace(sym.name, &sym);
-		}
+		void define(std::string const& name, Any value) { local.emplace(name, value); }
 
 		size_t count(std::string const& key)
 		{
@@ -148,7 +142,7 @@ namespace atl
 				{
 					std::cout << pair.first
 					          << " = (: "
-					          << printer::print(pair.second->value)
+					          << printer::print(pair.second)
 					          << ")"
 					          << std::endl;
 				}
@@ -162,7 +156,7 @@ namespace atl
 					all_iterator found = std::get<0>(find(sym.name));
 
 					if(found != very_end())
-						{ return std::make_pair(found->second->value, true); }
+						{ return std::make_pair(found->second, true); }
 					else
 						{ return std::make_pair(key, false); }
 				}
@@ -174,25 +168,17 @@ namespace atl
 	{
 		using namespace fn_type;
 
-		toplevel.define(*store.symbol("__\\__"), wrap<Lambda>());
-		toplevel.define(*store.symbol(":"), wrap<DeclareType>());
-		toplevel.define(*store.symbol("quote"), wrap<Quote>());
-
-		toplevel.define
-			(*store.symbol
-			 ("if",
-			  Scheme(std::unordered_set<Type::value_type>({0}),
-			         wrap(fn(tt<Bool>(), 0, 0, 0)(ast_alloc(store))))),
-			 wrap<If>());
-
-		toplevel.define(*store.symbol("#f"), atl_false());
-		toplevel.define(*store.symbol("#t"), atl_true());
-		toplevel.define(*store.symbol("define"), wrap<Define>());
+		toplevel.define("__\\__", wrap<Lambda>());
+		toplevel.define(":", wrap<DeclareType>());
+		toplevel.define("quote", wrap<Quote>());
+		toplevel.define("if", wrap<If>());
+		toplevel.define("#f", atl_false());
+		toplevel.define("#t", atl_true());
+		toplevel.define("define", wrap<Define>());
 	}
 
-	typedef std::map<std::string, std::vector<Any*> > BackPatch;
 	typedef std::set<std::string> closure;
-
+	typedef std::map<std::string, std::vector<Any*> > BackPatch;
 
 	/** Replace symbols in `value` with their values.  This doesn't
 	 * setup back-patches or lexical scope, it's just meant to define
@@ -274,7 +260,8 @@ namespace atl
 
 		if(found_def != env.very_end())
 			{
-				value = found_def->second->value;
+				value = found_def->second;
+
 				if(from_closure && is<Parameter>(value))
 					{
 						auto& sym = unwrap<Symbol>(closure->formals[unwrap<Parameter>(value).value]);
@@ -325,29 +312,26 @@ namespace atl
 									if(match(pattern_match::ast(capture(func), tag<Ast>::value, tag<Ast>::value),
 									         ast[2]))
 										{
-											auto& metadata = *func.value;
-
-											env.define(sym, wrap<CallLambda>(&metadata));
+											symbol_assign(sym, wrap(func));
+											env.define(sym.name, wrap(&sym));
 											assign_free(env, store, backpatch, ast.peek(2));
 										}
 									else
 										{
 											assign_free(env, store, backpatch, ast.peek(2));
 											if(is<Ast>(ast[2]))
-												{ env.define(sym, wrap<Undefined>()); }
+												{
+													symbol_assign(sym, wrap<Undefined>());
+													env.define(sym.name, wrap<Undefined>());
+												}
 											else
-												{ env.define(sym, ast[2]); }
+												{
+													symbol_assign(sym, ast[2]);
+													env.define(sym.name, ast[2]);
+												}
 										}
 								}
 
-								auto found = backpatch.find(sym.name);
-								if(found != backpatch.end())
-									{
-										// back-patch
-										for(auto ptr : found->second)
-											{ *ptr = wrap(&sym); }
-										backpatch.erase(found);
-									}
 								return;
 							}
 

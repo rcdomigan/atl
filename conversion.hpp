@@ -85,13 +85,13 @@ namespace atl {
 		{
 			static_assert(atl::is_reinterperable<T>::value, "Cannot wrap T");
 
-			static inline constexpr Any a(T const& aa)
+			static inline Any a(T const& aa)
 			{ return Any(aa._tag, (void*)aa.value); }
 		};
 
 		template<>
 		struct Reinterpret<Type>
-		{ static inline constexpr Any a(Type const& aa) { return Any(aa._tag, (void*)aa._value); } };
+		{ static inline Any a(Type const& aa) { return Any(aa._tag, (void*)aa._value); } };
 
 		template<class T>
 		struct Pimpl
@@ -100,7 +100,7 @@ namespace atl {
 			static_assert(type_mapping::unwrappable_type<Bare>::value,
 			              "Cannot wrap type T");
 
-			static inline constexpr Any a(T aa)
+			static inline Any a(T aa)
 			{ return Any(tag<Bare>::value, aa); }
 		};
 

@@ -38,54 +38,6 @@ TEST_F(VmTest, TestCxxFn2)
     ASSERT_EQ(vm.stack[0], 5);
 }
 
-TEST_F(VmTest, test_over_write_constant)
-{
-	assemble.constant(2);
-
-	auto patch = assemble.pos_end();
-
-	assemble
-        .constant(3)
-        .std_function(&fns.wadd->fn, 2)
-        .finish();
-
-    WrapCodeItr overwrite_code(*assemble.code);
-    AssembleCode overwrite(&overwrite_code);
-
-    overwrite_code.set_position(patch);
-
-    overwrite.constant(4);
-
-    run_code(vm, code_store);
-
-    ASSERT_EQ(vm.stack[0], 6);
-}
-
-TEST_F(VmTest, test_over_write_function)
-{
-
-	assemble
-        .constant(3)
-		.constant(2);
-
-	auto patch = assemble.pos_end();
-
-	assemble
-        .std_function(&fns.wadd->fn, 2)
-        .finish();
-
-    WrapCodeItr overwrite_code(*assemble.code);
-    AssembleCode overwrite(&overwrite_code);
-
-    overwrite_code.set_position(patch);
-
-    overwrite.std_function(&fns.wsub->fn, 2);
-
-    run_code(vm, code_store);
-
-    ASSERT_EQ(vm.stack[0], 1);
-}
-
 TEST_F(VmTest, TestSimpleCxxStdFunction)
 {
     GC gc;
@@ -185,7 +137,7 @@ TEST_F(VmTest, TestIfFalse)
 
 TEST_F(VmTest, test_simple_function)
 {
-	auto closure = store.closure(0, 2);
+	auto closure = store.closure(0, 2, 0);
 
 	//  ((\ (a b) (sub a b)) 5 3)
 	assemble.constant(5)
@@ -216,7 +168,7 @@ TEST_F(VmTest, test_move_n)
     auto after_defs = assemble.pos_last(); // skip over function definitions
     assemble.jump();
 
-	auto tail_closure = store.closure(assemble.pos_end(), 3);
+    auto tail_closure = store.closure(assemble.pos_end(), 3, 0);
     assemble.finish();
 
     auto enter_setup = assemble.pos_end();
@@ -229,7 +181,7 @@ TEST_F(VmTest, test_move_n)
     assemble[after_defs] = assemble.pos_end();
     assemble.constant(1)
 	    .constant(2)
-	    .pointer(store.closure(enter_setup, 1))
+	    .pointer(store.closure(enter_setup, 1, 0))
 	    .call_closure();
 
     run_code(vm, code_store);
@@ -241,10 +193,10 @@ TEST_F(VmTest, test_move_n)
 /** Try accessing parameters from a closure. */
 TEST_F(VmTest, test_bound_non_locals)
 {
-	auto* closure_pointer = store.closure(0, 0);
+	auto* closure_pointer = store.closure(0, 0, 2);
 	Closure& closure = *reinterpret_cast<Closure*>(closure_pointer);
-	closure.args()[0] = 3;
-	closure.args()[1] = 5;
+	closure.captured()[0] = 3;
+	closure.captured()[1] = 5;
 
 	assemble
 		.pointer(closure_pointer)
@@ -269,7 +221,7 @@ TEST_F(VmTest, test_make_closure)
 		.constant(7) // body
 		.constant(3)
 		.constant(5)
-		.make_closure(2)
+		.make_closure(0, 2)
 		.finish();
 	assemble.dbg();
 
@@ -278,31 +230,43 @@ TEST_F(VmTest, test_make_closure)
 	ASSERT_EQ(1, vm.size());
 
 	auto closure = reinterpret_cast<TinyVM::value_type*>(vm.stack[0]);
-	ASSERT_EQ(2, closure[0]); // number of args
-	ASSERT_EQ(7, closure[1]); // body
-	ASSERT_EQ(3, closure[2]);
-	ASSERT_EQ(5, closure[3]);
+	ASSERT_EQ(0, closure[0]); // number of formals
+	ASSERT_EQ(7, closure[1]); // body address
+	ASSERT_EQ(3, closure[2]); // captured arg
+	ASSERT_EQ(5, closure[3]); // captured arg
 }
 
-TEST_F(VmTest, test_simple_closure)
+TEST_F(VmTest, test_define)
 {
+	auto closure = store.closure(0, 2, 0);
+
+	// (function 1 2)
+	// (define function (\ (a b) (sub a b)))
 	assemble
-		.constant(7) // body
+		.add_label("function-end")
+		.constant(0)
+		.jump()
+
+		.add_label("function")
+		.argument(1)
+		.argument(0)
+		.std_function(&fns.wsub->fn, 2)
+		.return_()
+		.constant_patch_label("function-end")
+
+		.get_label("function")
+		.make_closure(2, 0)
+		.define("foo")
+
 		.constant(3)
-		.constant(5)
-		.make_closure(2)
+		.constant(1)
+		.deref_slot("foo")
+		.call_closure()
 		.finish();
-	assemble.dbg();
+
+	reinterpret_cast<Closure*>(closure)->body = assemble.label_pos("function");
 
 	run_code(vm, code_store);
 
-	ASSERT_EQ(1, vm.size());
-
-	auto closure = reinterpret_cast<TinyVM::value_type*>(vm.stack[0]);
-	ASSERT_EQ(2, closure[0]); // number of args
-	ASSERT_EQ(7, closure[1]); // body
-	ASSERT_EQ(3, closure[2]);
-	ASSERT_EQ(5, closure[3]);
+	ASSERT_EQ(vm.stack[0], 2);
 }
-
-

@@ -339,7 +339,7 @@ TEST_F(SpecializeAndGeneralize, test_instantiate)
 	                     wrap<Type>(dd))(ast_alloc(store));
 	Scheme::Quantified expected_subs{ee, ff};
 
-	auto instantiated = instantiate(store, new_types, scheme);
+	auto instantiated = instantiate(AstAllocator(store), new_types, scheme);
 	ASSERT_EQ(tag<Ast>::value, instantiated._tag);
 	ASSERT_NE(expected, explicit_unwrap<Ast>(instantiated));
 
@@ -379,7 +379,7 @@ TEST_F(SpecializeAndGeneralize, test_generalize)
 	                     wrap<Type>(dd))(ast_alloc(store));
 	Scheme::Quantified expected_subs{ee, ff};
 
-	auto instantiated = instantiate(store, new_types, scheme);
+	auto instantiated = instantiate(AstAllocator(store), new_types, scheme);
 	ASSERT_EQ(tag<Ast>::value, instantiated._tag);
 	ASSERT_NE(expected, explicit_unwrap<Ast>(instantiated));
 
@@ -493,7 +493,7 @@ TEST_F(Inference, test_simple_lambda)
 	std::cout << printer::with_type(expr) << std::endl;
 
 	auto inferred = infer(expr);
-	apply_substitution(store, gamma, inferred.subs, ref_wrap(expr));
+	apply_substitution(AstAllocator(store), gamma, inferred.subs, ref_wrap(expr));
 
 	{
 		using namespace pattern_match;
@@ -535,7 +535,7 @@ TEST_F(Inference, test_define)
 
     auto We1 = infer(e1);
 
-    apply_substitution(store, gamma, We1.subs, wrapped);
+    apply_substitution(AstAllocator(store), gamma, We1.subs, wrapped);
 
     ASSERT_TRUE(is<Scheme>(We1.type));
 
@@ -572,7 +572,7 @@ TEST_F(Inference, test_apply_defined)
 
     ASSERT_TRUE(We1.subs.empty());
 
-    apply_substitution(store, gamma, We1.subs, wrapped);
+    apply_substitution(AstAllocator(store), gamma, We1.subs, wrapped);
 
     // Now see if we can apply the newly defined "id"
     auto e2 = mk("id", "y")(aalloc());
@@ -591,7 +591,7 @@ TEST_F(Inference, test_apply_defined)
               unwrap<Type>(unwrap<Symbol>(e2[1]).scheme.type).value());
 
     auto wrapped2 = wrap(e2);
-    apply_substitution(store, gamma, We2.subs, wrapped2);
+    apply_substitution(AstAllocator(store), gamma, We2.subs, wrapped2);
 
     ASSERT_EQ(unwrap<Type>(We2.type).value(),
               unwrap<Type>(unwrap<Symbol>(e2[1]).scheme.type).value());
@@ -641,7 +641,7 @@ TEST_F(Inference, test_multi_arg_application)
 		    << "\n" << printer::print(We1.type);
     }
     auto wrapped = wrap(e1);
-    apply_substitution(store, gamma, We1.subs, wrapped);
+    apply_substitution(AstAllocator(store), gamma, We1.subs, wrapped);
 
     // z should be a non-function type
     {
@@ -714,7 +714,7 @@ TEST_F(Inference, test_cxx_functor)
 	ASSERT_EQ(tag<Bool>::value
 	          , unwrap<Type>(inferred.type).value());
 
-	apply_substitution(store, gamma, inferred.subs, ref_wrap(expr));
+	apply_substitution(AstAllocator(store), gamma, inferred.subs, ref_wrap(expr));
 
 	{
 		using namespace pattern_match;
@@ -748,7 +748,7 @@ TEST_F(Inference, test_if_scheme)
 
 	auto inferred = infer(expr);
 
-	apply_substitution(store, gamma, inferred.subs, ref_wrap(expr));
+	apply_substitution(AstAllocator(store), gamma, inferred.subs, ref_wrap(expr));
 
 	{
 		using namespace pattern_match;

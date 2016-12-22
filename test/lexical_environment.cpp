@@ -98,9 +98,6 @@ TEST_F(TestToplevelMap, test_assigning_bound_lambda)
 		   mk("a", "b"),
 		   mk("a", "b", "c"))));
 
-	/* On the toplevel, only "c" should be free */
-    ASSERT_EQ(1, backpatch.size());
-
     {
 	    using namespace pattern_match;
 
@@ -123,46 +120,6 @@ TEST_F(TestToplevelMap, test_assigning_bound_lambda)
 	    ASSERT_EQ(b, &unwrap<Symbol>(fn.value->formals[param_b.value]));
 
 	    ASSERT_TRUE(is<Undefined>(c.value));
-    }
-}
-
-
-TEST_F(TestToplevelMap, test_toplevel_replacements)
-{
-	using namespace make_ast;
-
-	auto expr = mk(wrap<Lambda>(),
-	               mk("a", "b"),
-	               mk("a", "b", "c"))
-		(ast_alloc(gc)),
-
-		assign = mk(wrap<Define>(), "c", 3)(ast_alloc(gc));
-
-	do_assign_forms(ref_wrap(expr));
-	do_assign_free(ref_wrap(expr));
-
-	do_assign_forms(ref_wrap(expr));
-	do_assign_free(ref_wrap(assign));
-
-	ASSERT_EQ(0, backpatch.size());
-
-    {
-	    using namespace pattern_match;
-
-	    Symbol const *a, *b, *c;
-	    Parameter param_a(0), param_b(0);
-
-	    ASSERT_TRUE
-		    (match(ast("fn", ast(capture_ptr(a), capture_ptr(b)),
-		               ast(capture(param_a), capture(param_b), capture_ptr(c))),
-		           wrap(expr)))
-		    << printer::with_type(expr);
-
-	    ASSERT_EQ(0, param_a.value);
-	    ASSERT_EQ(1, param_b.value);
-
-	    ASSERT_TRUE(is<Fixnum>(c->value));
-	    ASSERT_EQ(3, unwrap<Fixnum>(c->value).value);
     }
 }
 
@@ -190,16 +147,12 @@ TEST_F(TestToplevelMap, test_getting_definitions)
 {
 	using namespace make_ast;
 
-	auto expr = mk("define",
-	               "recur",
-	               mk("__\\__",
-	                  mk(),
-	                  mk("recur")))
-		(ast_alloc(gc));
-	auto wrapped = wrap(expr);
-
-	BackPatch backpatch;
-	do_assign_free(wrapped);
+	auto expr = do_assign
+		(gc(mk("define",
+		       "recur",
+		       mk("__\\__",
+		          mk(),
+		          mk("recur")))));
 
 	{
 		using namespace pattern_match;
@@ -208,14 +161,10 @@ TEST_F(TestToplevelMap, test_getting_definitions)
 		ASSERT_TRUE(match(ast(tag<Define>::value, capture_ptr(formal_recur),
 		                      ast(tag<Lambda>::value, ast(),
 		                          ast(capture_ptr(body_recur)))),
-		                  wrapped))
-			<< "got: " << printer::print(wrapped) << std::endl;
+		                  expr))
+			<< "got: " << printer::print(expr) << std::endl;
 
 		ASSERT_EQ(body_recur, formal_recur);
-
-		// No inference occured, so the symbol's type should still be 'Undefined'
-		ASSERT_TRUE(match(tt<Undefined>(), formal_recur->scheme.type))
-			<< "expr: " << printer::print(formal_recur->scheme.type) << std::endl;
 	}
 }
 
@@ -277,5 +226,39 @@ TEST_F(TestToplevelMap, test_closure_params)
 
 	    ASSERT_EQ(0, param_a.value);
 	    ASSERT_EQ(0, param_b.value);
+    }
+}
+
+/* A defined sym can't generally have it's value swapped in for the
+   symbol (at least not yet).
+ */
+TEST_F(TestToplevelMap, test_define_leaves_sym)
+{
+	using namespace make_ast;
+
+	do_assign(store
+	          (mk
+	           (wrap<Define>(),
+	            "id",
+	            mk(wrap<Lambda>(), mk("a"), mk("a")))));
+
+	auto expr = do_assign(store(mk(wrap<Lambda>(),
+	                               mk("b"), mk("id", "b"))));
+
+    {
+	    using namespace pattern_match;
+
+	    Symbol const *id;
+	    Parameter param_b(-1);
+
+	    ASSERT_TRUE
+		    (match(ast(tag<Lambda>::value,
+		               tag<Ast>::value,
+		               ast(capture_ptr(id), capture(param_b))),
+		           wrap(expr)))
+		    << printer::print(expr);
+
+	    ASSERT_EQ(0, param_b.value);
+	    ASSERT_TRUE(is<Lambda>(id->value));
     }
 }

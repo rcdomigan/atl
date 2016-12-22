@@ -217,10 +217,11 @@ namespace atl
 		Ast operator()(ast_composer const& func);
 
 		pcode::value_type* closure(pcode::value_type body_location,
-		                           size_t num_args)
+		                           size_t formals,
+		                           size_t captures)
 		{
-			auto rval = new pcode::value_type[num_args + 2];
-			rval[0] = num_args;
+			auto rval = new pcode::value_type[captures + 2];
+			rval[0] = formals;
 			rval[1] = body_location;
 			return rval;
 		}
@@ -231,7 +232,7 @@ namespace atl
 		AllocatorBase &store;
 		AstSubstrate &buffer;
 
-		AstAllocator(AllocatorBase &aa)
+		explicit AstAllocator(AllocatorBase &aa)
 			: store(aa), buffer(aa.sequence())
 		{}
 

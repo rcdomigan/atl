@@ -35,6 +35,9 @@ namespace atl
                           >::type
     { static_assert(is_atl_type<T>::value, "Can only test tags for ATL types."); };
 
+	template<>
+	struct Is<Any> { static constexpr bool do_it(const Any &_value) { return true; }};
+
     template<class T>
     inline bool is(const Any &a) { return Is<T>::do_it(a); }
 

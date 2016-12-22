@@ -29,21 +29,12 @@ namespace atl
 {
 	struct Closure
 	{
-		pcode::value_type num_args;
+		pcode::value_type formals_count;
 		pcode::value_type body;
 
-		pcode::iterator args()
+		pcode::iterator captured()
 		{ return reinterpret_cast<pcode::iterator>(this) + 2; }
 	};
-
-	void dbg_closure(uintptr_t* closure)
-	{
-		auto N = closure[0];
-		std::cout << "number args: " << N << std::endl;
-		std::cout << "Body       : " << closure[1] << std::endl;
-		for(size_t i = 0; i < N; ++i)
-			{ std::cout << "    " << closure[i] << std::endl; }
-	}
 
 	struct TinyVM
 	{
@@ -148,17 +139,17 @@ namespace atl
 			//                  ^- top
 			auto closure	= reinterpret_cast<Closure*>(top[0]);
 
-			*top = reinterpret_cast<value_type>(call_stack);      // old-call-stack
+			*top = reinterpret_cast<value_type>(call_stack);          // old-call-stack
 			call_stack = top;
 			++top;
 
-			*top = closure->num_args;                             // N
+			*top = closure->formals_count;                            // N
 			++top;
 
-			*top = reinterpret_cast<value_type>(pc + 1);          // return-address
+			*top = reinterpret_cast<value_type>(pc + 1);              // return-address
 			++top;
 
-			*top = reinterpret_cast<value_type>(closure->args()); // closure
+			*top = reinterpret_cast<value_type>(closure->captured()); // closure
 			++top;
 
 			pc = closure->body;
@@ -166,31 +157,31 @@ namespace atl
 
 		/**
 		 * Pre call stack:
-		 *   [body-addr][arg1]...[argN][N]
-		 *                           top -^
+		 *   [body-addr][capture-arg1]...[capture-argN][formals-count][capture-count]
+		 *                                                                      top -^
 		 * Post call stack:
 		 *   [pointer-to-closure]
 		 *                  top -^
 		 */
 		void make_closure()
 		{
-			auto N = *(top - 1);
+			auto formals = *(top - 2);
+			auto captured = *(top - 1);
 
-			// the closure its self will be [N][body_address][arg1]...
-			value_type *closure = store.closure(*(top-N-2), N);
+			// the closure its self will be [formals-count][body_address][arg1]...
+			value_type *closure = store.closure(*(top-captured-3), formals, captured);
 
-			for(auto itr = top-N-1, out_itr = closure+2;
-			    itr < top;
+			auto args_end = top - 2;
+			auto args_begin = args_end - captured;
+
+			for(auto itr = args_begin, out_itr = closure+2;
+			    itr < args_end;
 			    ++itr, ++out_itr)
 				{ *out_itr = *itr; }
 
-			top -= (N + 1);
+			top -= (captured + 2);
 			*(top - 1) = reinterpret_cast<value_type>(closure);
 			++pc;
-
-#ifdef DEBUGGING
-			dbg_closure(closure);
-#endif
 		}
 
 		/** Gets the `arg-offset` value from this frame's closure.
@@ -284,15 +275,15 @@ namespace atl
 			auto closure = reinterpret_cast<Closure*>(*(top - 1));
 
 			call_stack -= enclosing_arg_count;
-			for(auto iitr = top - closure->num_args - 1;
+			for(auto iitr = top - closure->formals_count - 1;
 			    iitr != top;
 			    ++iitr, ++call_stack)
 				{ *call_stack = *iitr; }
 
-			*call_stack = closure->num_args;
+			*call_stack = closure->formals_count;
 			call_stack[0] = enclosing_frame;
 			call_stack[1] = pc_continue;
-			call_stack[2] = reinterpret_cast<value_type>(closure->args());
+			call_stack[2] = reinterpret_cast<value_type>(closure->captured());
 
 			top = call_stack + 3;
 			pc = closure->body;

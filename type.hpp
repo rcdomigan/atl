@@ -84,7 +84,7 @@ namespace atl
     struct is_pimpl : public std::false_type {};
 
 
-#define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(CallLambda)(DeclareType)(Type)(Ast)(AstData)(Undefined)(FunctionConstructor)(ClosureParameter)(Parameter)
+#define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(DeclareType)(Type)(Ast)(AstData)(Undefined)(FunctionConstructor)(ClosureParameter)(Parameter)
 #define ATL_PIMPL_SEQ (String)(Symbol)(Struct)(CxxFunctor)(CxxMacro)(Scheme)(LambdaMetadata)
 #define ATL_TYPES_SEQ ATL_REINTERPERABLE_SEQ ATL_PIMPL_SEQ
 
@@ -106,7 +106,7 @@ namespace atl
 #undef M
 
 
-    typedef mpl::vector26< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
+    typedef mpl::vector25< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
 
 	const static tag_t LAST_CONCRETE_TYPE = mpl::size<TypesVec>::value;
 
@@ -199,19 +199,6 @@ namespace atl
 	        : _tag(tag<Lambda>::value),
 	          value(value_)
 	    {}
-    };
-
-    struct CallLambda
-    {
-        tag_t _tag;
-        LambdaMetadata *value;
-
-        CallLambda(LambdaMetadata *value_)
-	        : _tag(tag<CallLambda>::value),
-	          value(value_)
-	    {}
-
-	    CallLambda() : CallLambda(nullptr) {}
     };
 
     struct DeclareType
@@ -486,7 +473,6 @@ namespace atl
 		ast_helper::ModifyData modify_data() { return ast_helper::ModifyData(flat_begin(), flat_end()); }
 	};
 
-
 	// Return an Ast pointing to an AstData `input` which was cast to
 	// Any.
 	Ast AstData_to_Ast(AstData &input)
@@ -599,9 +585,14 @@ namespace atl
 	    Closure closure;
 	    Ast formals;
 
+	    bool has_slot;
+	    size_t slot;
+
 	    pcode::Offset body_address;
 
 	    Any return_type;
+
+	    LambdaMetadata() : has_slot(0) {}
 
 	    bool is_closure()
 	    { return !closure.empty(); }
