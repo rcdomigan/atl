@@ -53,6 +53,7 @@ namespace atl
 
 		AllocatorBase& store;
 		CodeBacker const* code;	// just the byte code
+		value_type* slots;
 
 		vm_stack::Offset pc;
 		iterator top;           // 1 past last value
@@ -90,6 +91,29 @@ namespace atl
 		}
 
 		void std_function() { call_cxx_function<CxxFunctor::value_type*>(); }
+
+		/* Pre call:
+		 *  [value][slot]
+		 * Post call:
+		 */
+		void define()
+		{
+			slots[*(top - 1)] = *(top - 2);
+			top -= 2;
+			++pc;
+		}
+
+		/* Pre call:
+		 *  [slot]
+		 *
+		 * Post call:
+		 *  [value-from-slot]
+		 */
+		void deref_slot()
+		{
+			*(top - 1) = slots[*(top - 1)];
+			++pc;
+		}
 
 		/**
 		 * Pre call:
@@ -300,7 +324,10 @@ namespace atl
 		 */
 		void enter_code(Code const& input)
 		{
+			slots = new value_type[input.slots];
+
 			call_stack = nullptr;
+			pc = 0;
 		}
 
 		// Take code and run it.  Prints the stack and pc after each

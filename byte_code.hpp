@@ -40,9 +40,11 @@
 //   closure_argument   : [arg-offset]
 //   make_closure       : [arg1]...[argN][N]
 //   finish             : -
+//   define             : [closure-pointer][slot]
+//   deref_slot         : [slot]
 
 
-#define ATL_NORMAL_BYTE_CODES (nop)(push)(pop)(if_)(std_function)(jump)(return_)(argument)(nested_argument)(tail_call)(call_closure)(closure_argument)(make_closure)
+#define ATL_NORMAL_BYTE_CODES (nop)(push)(pop)(if_)(std_function)(jump)(return_)(argument)(nested_argument)(tail_call)(call_closure)(closure_argument)(make_closure)(deref_slot)(define)
 #define ATL_BYTE_CODES (finish)(push_word)ATL_NORMAL_BYTE_CODES
 
 #define ATL_VM_SPECIAL_BYTE_CODES (finish)      // Have to be interpreted specially by the run/switch statement
@@ -337,6 +339,20 @@ namespace atl
 		}
 
 		AssembleCode& make_closure(size_t count)
+		AssembleCode& define(std::string const& key)
+		{
+			constant(get_slot(key));
+			_push_back(vm_codes::Tag<vm_codes::define>::value);
+			return *this;
+		}
+
+		AssembleCode& deref_slot(std::string const& key)
+		{
+			constant(get_slot(key));
+			_push_back(vm_codes::Tag<vm_codes::deref_slot>::value);
+			return *this;
+		}
+
 		{
 			constant(count);
 			return make_closure();
