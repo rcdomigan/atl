@@ -198,6 +198,8 @@ namespace atl
 		return MovableAstPointer(&substrate, pos);
 	}
 
+	struct AstAllocator;
+	typedef std::function<Ast (AstAllocator)> ast_composer;
 
 	// I would like some Asts generating functions to be able to use
 	// either the GC or an Arena at runtime,
@@ -207,13 +209,64 @@ namespace atl
 
 		virtual AstSubstrate& sequence() = 0;
 		virtual Symbol* symbol(std::string const&) = 0;
-		virtual Bound* bound(Symbol*, Bound::Subtype, size_t) = 0;
 		virtual LambdaMetadata* lambda_metadata() = 0;
 		virtual Symbol* symbol(std::string const&, Scheme const& type) = 0;
 
 		virtual void free(Any any) = 0;
+
+		Ast operator()(ast_composer const& func);
+
+		pcode::value_type* closure(pcode::value_type body_location,
+		                           size_t formals,
+		                           size_t captures)
+		{
+			auto rval = new pcode::value_type[captures + 2];
+			rval[0] = formals;
+			rval[1] = body_location;
+			return rval;
+		}
 	};
 
+	struct AstAllocator
+	{
+		AllocatorBase &store;
+		AstSubstrate &buffer;
+
+		explicit AstAllocator(AllocatorBase &aa)
+			: store(aa), buffer(aa.sequence())
+		{}
+
+		AstAllocator& push_back(Any value)
+		{
+			buffer.push_back(value);
+			return *this;
+		}
+
+		MovableAstPointer nest_ast()
+		{ return push_nested_ast(buffer); }
+
+		size_t size()
+		{ return buffer.size(); }
+	};
+
+	Ast AllocatorBase::operator()(ast_composer const& func)
+	{
+		auto backer = AstAllocator(*this);
+		func(backer);
+		return Ast(reinterpret_cast<AstData*>(&backer.buffer.root()));
+	}
+
+	struct NestAst
+	{
+		AstAllocator& store;
+		MovableAstPointer ast;
+
+		NestAst(AstAllocator& store_)
+			: store(store_), ast(store.nest_ast())
+		{}
+
+		~NestAst() { ast.end_ast(); }
+	};
 
 	// A mark-and-sweep GC. STUB
 	class GC : public AllocatorBase
@@ -230,7 +283,6 @@ namespace atl
 		memory_pool::Pool< String > _string_heap;
 		memory_pool::Pool< CxxFunctor > _primitive_recursive_heap;
 		memory_pool::Pool< Symbol > _symbol_heap;
-		memory_pool::Pool< Bound > _bound_heap;
 
 		template< class T,  memory_pool::Pool<T> GC::*member >
 		struct MemberPtr {
@@ -244,7 +296,6 @@ namespace atl
 		                  , mpl::pair< CxxFunctor,
 		                               MemberPtr<CxxFunctor, &GC::_primitive_recursive_heap > >
 		                  , mpl::pair< Symbol,	MemberPtr<Symbol, &GC::_symbol_heap > >
-		                  , mpl::pair< Bound,	MemberPtr<Bound, &GC::_bound_heap > >
 		                  > PoolMap;
 
 		template<class T>
@@ -328,9 +379,6 @@ namespace atl
 		virtual Symbol* symbol(std::string const& name, Scheme const& type) override
 		{ return make<Symbol>(name, type); }
 
-		virtual Bound* bound(Symbol* sym, Bound::Subtype subtype, size_t offset) override
-		{ return make<Bound>(sym, subtype, offset); }
-
 		virtual void free(Any any) override { /* stub */ }
 	};
 
@@ -377,9 +425,6 @@ namespace atl
 
 		virtual Symbol* symbol(std::string const& name, Scheme const& type) override
 		{ return make<Symbol>(name, type); }
-
-		virtual Bound* bound(Symbol* sym, Bound::Subtype subtype, size_t offset) override
-		{ return make<Bound>(sym, subtype, offset); }
 
 		virtual void free(Any any) override { /* stub */ }
 	};

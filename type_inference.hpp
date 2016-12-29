@@ -19,7 +19,6 @@ namespace atl
 {
     namespace inference
     {
-	    using ast_hof::AstAllocator;
 	    typedef std::map<Type, Any> SubstituteMap;
 
 
@@ -118,7 +117,7 @@ namespace atl
 				    }
 			    case tag<Ast>::value:
 				    {
-					    ast_hof::NestAst nest(store);
+					    NestAst nest(store);
 
 					    for(auto& vv : unwrap<Ast>(value).modify_data())
 						    {
@@ -153,7 +152,7 @@ namespace atl
 	     */
 	    void apply_substitution(AstAllocator store, Gamma& gamma, SubstituteMap& subs, Any& value)
 	    {
-		    switch(value._tag)
+	    switch(value._tag)
 			    {
 				    // Subbing for the Symbol also takes care of
 				    // anything Bound to it.
@@ -452,19 +451,13 @@ namespace atl
 
 		    switch(expr._tag)
 			    {
-			    case tag<Bound>::value:
-				    {
-					    return WResult(SubstituteMap(),
-					                   instantiate(store,
-					                               new_types,
-					                               get_sym(*unwrap<Bound>(expr).sym).scheme));
-				    }
-
 			    case tag<Symbol>::value:
 				    {
 					    auto& sym = get_sym(unwrap<Symbol>(expr));
 					    return WResult(SubstituteMap(),
-					                   instantiate(store, new_types, sym.scheme));
+					                   instantiate(AstAllocator(store),
+					                               new_types,
+					                               sym.scheme));
 				    }
 
 			    case tag<CxxFunctor>::value:
@@ -500,15 +493,15 @@ namespace atl
 								    {
 									    fn_type::FnBuilder rtype_builder(ast_alloc(store));
 
-									    auto tmp = wrap(formals);
-									    apply_substitution(store, gamma, body.subs, tmp);
+									    apply_substitution(AstAllocator(store),
+									                       gamma, body.subs, ref_wrap(formals));
 
 									    for(auto raw_sym : formals)
 										    {
 											    auto& sym = get_sym(modify<Symbol>(raw_sym));
 											    SubsScope scope(body.subs, sym.scheme.quantified);
 											    sym.scheme.type = substitute_type
-												    (store,
+												    (AstAllocator(store),
 												     body.subs,
 												     sym.scheme.type);
 
@@ -532,11 +525,9 @@ namespace atl
 									                      scheme.quantified.end());
 								    }
 
-							    auto& lambda = unwrap<Lambda>(ast.reference(0));
-							    if(nullptr == lambda.value)
-								    { lambda.value = store.lambda_metadata(); }
+							    auto metadata = unwrap<Lambda>(ast[0]).value;
 
-							    lambda.value->return_type = body.type;
+							    metadata->return_type = body.type;
 
 							    return WResult(body.subs, wrap(result_type));
 						    }
@@ -553,7 +544,7 @@ namespace atl
 							    for(auto& item : generalize_env)
 								    {
 									    SubsScope knockout_subs(e1.subs, item.second.quantified);
-									    substitute_type(store, e1.subs, item.second.type);
+									    substitute_type(AstAllocator(store), e1.subs, item.second.type);
 								    }
 
 							    sym.scheme = generalize(generalize_env, e1.type);
@@ -572,9 +563,7 @@ namespace atl
 									    using namespace pattern_match;
 
 									    Any return_type;
-									    if(match(pattern_match::ast(tt<FunctionConstructor>(),
-									                                capture(return_type)),
-									             e1.type))
+									    if(match(fnt(capture(return_type)), e1.type))
 										    { return WResult(e1.subs, return_type); }
 
 									    else if(is<Type>(e1.type))
@@ -584,6 +573,8 @@ namespace atl
 											    return WResult(e1.subs, return_type);
 										    }
 
+									    std::cout << "no good: " << printer::print(e1.type) << std::endl;
+
 									    throw AlgorithmWFailed("Thunk function of several args");
 								    }
 							    else
@@ -592,7 +583,8 @@ namespace atl
 										    {
 											    SubsScope knockout_subs(e1.subs, item.second.quantified);
 											    new_var(item.second);
-											    item.second.type = substitute_type(store, e1.subs, item.second.type);
+											    item.second.type = substitute_type
+												    (AstAllocator(store), e1.subs, item.second.type);
 										    }
 
 									    for(auto arg : slice(ast, 1))
@@ -603,10 +595,12 @@ namespace atl
 
 											    auto V = most_general_unification
 												    (store,
-												     substitute_type(store, e2.subs, e1.type),
+												     substitute_type
+												     (AstAllocator(store), e2.subs, e1.type),
 												     wrap(fn_type::fn(e2.type, beta.value())(ast_alloc(store))));
 
-											    auto subbed_beta = substitute_type(store, V, ref_wrap(beta));
+											    auto subbed_beta = substitute_type
+												    (AstAllocator(store), V, ref_wrap(beta));
 
 											    compose_subs(store, V, e2.subs);
 											    compose_subs(store, V, e1.subs);

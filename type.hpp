@@ -48,7 +48,7 @@ namespace atl
 	typedef size_t tag_t;
 	namespace pcode
 	{
-		typedef uintptr_t  value_type;
+		typedef uintptr_t value_type;
 		// todo: switch iterator use to Offset so it remains valid if
 		// the structure being pointed into resizes
 		typedef value_type* iterator;
@@ -84,8 +84,8 @@ namespace atl
     struct is_pimpl : public std::false_type {};
 
 
-#define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(CallLambda)(DeclareType)(Type)(Ast)(AstData)(Undefined)(FunctionConstructor)
-#define ATL_PIMPL_SEQ (String)(Symbol)(Struct)(CxxFunctor)(CxxMacro)(Scheme)(LambdaMetadata)(Bound)
+#define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(DeclareType)(Type)(Ast)(AstData)(Undefined)(FunctionConstructor)(ClosureParameter)(Parameter)
+#define ATL_PIMPL_SEQ (String)(Symbol)(Struct)(CxxFunctor)(CxxMacro)(Scheme)(LambdaMetadata)
 #define ATL_TYPES_SEQ ATL_REINTERPERABLE_SEQ ATL_PIMPL_SEQ
 
 #define M(r, _, i, elem)						\
@@ -199,21 +199,6 @@ namespace atl
 	        : _tag(tag<Lambda>::value),
 	          value(value_)
 	    {}
-
-	    Lambda() : Lambda(nullptr) {}
-    };
-
-    struct CallLambda
-    {
-        tag_t _tag;
-        LambdaMetadata *value;
-
-        CallLambda(LambdaMetadata *value_)
-	        : _tag(tag<CallLambda>::value),
-	          value(value_)
-	    {}
-
-	    CallLambda() : CallLambda(nullptr) {}
     };
 
     struct DeclareType
@@ -265,20 +250,6 @@ namespace atl
 	/** | _|_|  ||  |_  **/
 	/**           pimpl **/
 	/*********************/
-    struct LambdaMetadata
-    {
-	    typedef std::map<std::string, Symbol*> Closure;
-	    Closure closure;
-
-	    // Amount of stack space to leave for Params + padding for the
-	    // paramaters of a tail call.
-	    size_t pad_to;
-
-	    pcode::Offset body_address;
-
-	    Any return_type;
-    };
-
 	namespace ast_helper
 	{
 		template<class Itr>
@@ -502,7 +473,6 @@ namespace atl
 		ast_helper::ModifyData modify_data() { return ast_helper::ModifyData(flat_begin(), flat_end()); }
 	};
 
-
 	// Return an Ast pointing to an AstData `input` which was cast to
 	// Any.
 	Ast AstData_to_Ast(AstData &input)
@@ -587,26 +557,58 @@ namespace atl
 	    {}
     };
 
-	struct Bound
+	struct Parameter
 	{
-		/* Refers to my formal or toplevel definition */
-		Symbol *sym;
+		tag_t _tag;
+		size_t value;
 
-		enum Subtype {is_local, is_closure};
-		Subtype subtype;
-		size_t offset;
-
-		LambdaMetadata *closure;
-
-		Bound(Symbol *vv=nullptr
-		      , Subtype subtype_=Subtype::is_local
-		      , size_t offset_=0)
-			: sym(vv)
-			, subtype(subtype_)
-			, offset(offset_)
-			, closure(nullptr)
+		Parameter(size_t offset)
+			: _tag(tag<Parameter>::value)
+			, value(offset)
 		{}
 	};
+
+	struct ClosureParameter
+	{
+		tag_t _tag;
+		size_t value;
+
+		ClosureParameter(size_t offset)
+			: _tag(tag<ClosureParameter>::value)
+			, value(offset)
+		{}
+	};
+
+    struct LambdaMetadata
+    {
+	    typedef std::vector<Symbol const*> Closure;
+	    Closure closure;
+	    Ast formals;
+
+	    bool has_slot;
+	    size_t slot;
+
+	    pcode::Offset body_address;
+
+	    Any return_type;
+
+	    LambdaMetadata() : has_slot(0) {}
+
+	    bool is_closure()
+	    { return !closure.empty(); }
+
+	    ClosureParameter closure_parameter(Symbol const* sym)
+	    {
+		    size_t idx = 0;
+		    for(auto cc : closure)
+			    {
+				    if(cc->name == sym->name) { return ClosureParameter(idx); }
+				    ++idx;
+			    }
+		    closure.push_back(sym);
+		    return ClosureParameter(idx);
+	    }
+    };
 
 	struct String {
 		std::string value;

@@ -11,7 +11,6 @@
 
 #include <vm.hpp>
 #include <print.hpp>
-#include <lexical_environment.hpp>
 #include <compile.hpp>
 #include <test/trivial_functions.hpp>
 
@@ -23,34 +22,29 @@ struct CompilerTest
 	: public ::testing::Test
 {
 	GC store;
-	SymbolMap lexical;
 
 	Compile compile;
 	TinyVM vm;
 
-	Any equal, add, sub;
-	CxxFunctor::value_type *fn_equal, *fn_add, *fn_sub;
+	Any equal, add, sub, add3;
+	CxxFunctor::value_type *fn_equal, *fn_add, *fn_sub, *fn_add3;
+
+	TrivialFunctions fns;
 
 	CompilerTest()
-		: lexical(store)
+		: vm(store)
 	{
 		init_types();
 
-		auto wrapped_equal = WrapStdFunction<bool (long, long)>::a(equal2, store);
-		auto wrapped_add = WrapStdFunction<long (long, long)>::a(add2, store);
-		auto wrapped_sub = WrapStdFunction<long (long, long)>::a(sub2, store);
+		fn_equal = &fns.weq->fn;
+		fn_add = &fns.wadd->fn;
+		fn_sub = &fns.wsub->fn;
+		fn_add3 = &fns.wadd3->fn;
 
-		fn_equal = &wrapped_equal->fn;
-		fn_add = &wrapped_add->fn;
-		fn_sub = &wrapped_sub->fn;
-
-		equal = wrap(wrapped_equal);
-		add = wrap(wrapped_add);
-		sub = wrap(wrapped_sub);
-
-		lexical.define(*store.symbol("equal2"), equal);
-		lexical.define(*store.symbol("add2"), add);
-		lexical.define(*store.symbol("sub2"), sub);
+		equal = wrap(fns.weq);
+		add = wrap(fns.wadd);
+		sub = wrap(fns.wsub);
+		add3 = wrap(fns.wadd3);
 	}
 
 	pcode::value_type run()
@@ -63,63 +57,6 @@ struct CompilerTest
 	}
 };
 
-
-TEST_F(CompilerTest, test_back_patch_constant)
-{
-	Symbol sym("foo");
-
-	Code code_store;
-	PatchingAssembler assemble(&code_store);
-
-	assemble
-		.constant(3)
-		.needs_patching(sym)
-		.std_function(fn_add, 2)
-		.finish();
-
-	sym.value = wrap<Fixnum>(4);
-
-	assemble
-		.patch(sym);
-
-	run_code(vm, code_store);
-	ASSERT_EQ(7, vm.stack[0]);
-}
-
-TEST_F(CompilerTest, test_back_patch_function)
-{
-	using namespace make_ast;
-
-	Symbol sym("foo");
-	// (-> Fixnum Fixnum)
-	sym.scheme.type = wrap(fn_type::fn(tag<Fixnum>::value, tag<Fixnum>::value)(store));
-
-	Code code;
-	PatchingAssembler assemble(&code);
-
-	// (foo 3)
-	assemble
-		.constant(3)
-		.needs_patching(sym)
-		.finish();
-
-	// (define foo (\ (a) (add a 4)))
-	LambdaMetadata metadata;
-	metadata.body_address = assemble.pos_end();
-	sym.value = wrap<CallLambda>(&metadata);
-
-	assemble
-		.patch(sym)
-		.argument(0)
-		.constant(4)
-		.std_function(fn_add, 2)
-		.constant(1)
-		.return_();
-
-	run_code(vm, code);
-	ASSERT_EQ(7, vm.stack[0]);
-}
-
 TEST_F(CompilerTest, test_compile_atom)
 {
 	compile.any(wrap<Fixnum>(5));
@@ -128,7 +65,7 @@ TEST_F(CompilerTest, test_compile_atom)
 
 TEST_F(CompilerTest, test_basic_application) {
 	using namespace make_ast;
-	compile.ast(mk(add, 5, 7)(store));
+	compile.ast(store(mk(add, 5, 7)));
 
 	Code code;
 	AssembleCode assemble(&code);
@@ -145,8 +82,7 @@ TEST_F(CompilerTest, test_basic_application) {
 TEST_F(CompilerTest, test_nested_application)
 {
 	using namespace make_ast;
-	compile.ast(mk(add, mk(sub, 7, 5), mk(add, 8, 3))
-	            (store));
+	compile.ast(store(mk(add, mk(sub, 7, 5), mk(add, 8, 3))));
 
 	Code code;
 	AssembleCode assemble(&code);
@@ -167,7 +103,7 @@ TEST_F(CompilerTest, test_nested_application)
 TEST_F(CompilerTest, test_if)
 {
 	using namespace make_ast;
-	compile.ast(mk(wrap<If>(), wrap<Bool>(true), 3, 4)(store));
+	compile.ast(store(mk(wrap<If>(), wrap<Bool>(true), 3, 4)));
 
 	Code code;
 	AssembleCode assemble(&code);
@@ -196,22 +132,19 @@ TEST_F(CompilerTest, test_basic_lambda)
 	Symbol a = Symbol("a"),
 		b = Symbol("b");
 
-	Bound bound_a = Bound(&a, Bound::Subtype::is_local, 1),
-		bound_b = Bound(&b, Bound::Subtype::is_local, 0);
+	Parameter param_a(0), param_b(1);
 
-	a.value = wrap(&bound_a);
-	b.value = wrap(&bound_b);
+	a.value = wrap(param_a);
+	b.value = wrap(param_b);
 
-	// note: currently the compiler just sets the LambdaMetadata body
-	// position; it doesn't need much else
 	LambdaMetadata metadata;
-	metadata.pad_to = 2;
 	metadata.return_type = wrap<Type>(tag<Fixnum>::value);
+	metadata.formals = mk(wrap(&a), wrap(&b))(ast_alloc(store));
 
 	auto expr = mk
 		(mk(wrap<Lambda>(&metadata),
 		    mk(wrap(&a), wrap(&b)),
-		    mk(add, wrap(&bound_a), wrap(&bound_b))),
+		    mk(add, param_a, param_b)),
 		 4, 7)
 		(ast_alloc(store));
 
@@ -228,8 +161,8 @@ TEST_F(CompilerTest, test_thunk)
 	// note: currently the compiler just sets the LambdaMetadata body
 	// position; it doesn't need much else
 	LambdaMetadata metadata;
-	metadata.pad_to = 2;
 	metadata.return_type = wrap<Type>(tag<Fixnum>::value);
+	metadata.formals = store(mk());
 
 	auto expr = mk
 		(mk(wrap<Lambda>(&metadata),
@@ -242,3 +175,239 @@ TEST_F(CompilerTest, test_thunk)
 	ASSERT_EQ(3, run());
 }
 
+TEST_F(CompilerTest, test_dummy_closure)
+{
+	using namespace make_ast;
+
+	Symbol a = Symbol("a"),
+		b = Symbol("b");
+
+	Parameter p_a(0), p_b(0);
+	ClosureParameter cp_a(0);
+
+	a.value = wrap(p_a);
+	b.value = wrap(p_b);
+
+	LambdaMetadata outer;
+	outer.return_type = wrap<Type>(tag<Fixnum>::value);
+	outer.formals = store(mk(wrap(&a)));
+
+	LambdaMetadata inner;
+	inner.return_type = wrap<Type>(tag<Fixnum>::value);
+	inner.formals = store(mk(wrap(&b)));
+
+	inner.closure.push_back(&a);
+
+	// (\ (a) (\ (b) (+ a b)))
+	auto expr = store
+		(mk(wrap<Lambda>(&outer),
+		    mk(wrap(&a)),
+		    (mk(wrap<Lambda>(&inner),
+		        mk(wrap(&b)),
+		        mk(add, wrap(cp_a), wrap(p_b))))));
+
+	compile.ast(expr);
+
+	// what I expect to be generated
+	Code code;
+	AssembleCode assemble(&code);
+
+	assemble
+		.add_label("post-outer")
+		.constant(0)
+		.jump()
+
+		.add_label("outer-closure")
+
+		.add_label("post-closure")
+		.constant(0)
+		.jump()
+
+		.add_label("inner-closure")
+		.closure_argument(0)
+		.argument(0)
+		.std_function(fn_add, 2)
+		.return_()
+
+		.constant_patch_label("post-closure")
+
+		.get_label("inner-closure")
+		.argument(0)
+		.make_closure(1, 1)
+		.return_()
+		.constant_patch_label("post-outer")  // end of outer closure body
+
+		.get_label("outer-closure")
+		.make_closure(1, 0);
+
+#ifdef DEBUGGING
+	std::cout << "Expecting:" << std::endl;
+	assemble.dbg();
+
+	std::cout << "Compiled:" << std::endl;
+	compile.assemble.dbg();
+#endif
+
+	ASSERT_EQ(code.size(), compile.code_store.size());
+	for(size_t idx = 0; idx < code.size(); ++idx)
+		{
+			ASSERT_EQ(code.code[idx], compile.code_store.code[idx])
+				<< " idx: " << idx;
+		}
+}
+
+TEST_F(CompilerTest, test_simple_closure)
+{
+	using namespace make_ast;
+
+	Symbol a = Symbol("a"),
+		b = Symbol("b");
+
+	Parameter p_a(0), p_b(0);
+	ClosureParameter cp_a(0);
+
+	a.value = wrap(p_a);
+	b.value = wrap(p_b);
+
+	LambdaMetadata outer;
+	outer.return_type = wrap<Type>(tag<Fixnum>::value);
+	outer.formals = store(mk(wrap(&a)));
+
+	LambdaMetadata inner;
+	inner.return_type = wrap<Type>(tag<Fixnum>::value);
+	inner.formals = store(mk(wrap(&b)));
+	inner.closure.push_back(&a);
+
+	// (\ (a) (\ (b) (+ a b)))
+	auto expr = store
+		(mk(mk(mk(wrap<Lambda>(&outer), mk(wrap(&a)),
+		          mk(wrap<Lambda>(&inner), mk(wrap(&b)),
+		             mk(add, wrap(cp_a), wrap(p_b)))),
+		       1),
+		    2));
+
+	compile.ast(expr);
+
+	ASSERT_EQ(3, run());
+}
+
+TEST_F(CompilerTest, test_two_arg_closure)
+{
+	using namespace make_ast;
+
+	Symbol a = Symbol("a"),
+		b = Symbol("b"),
+		c = Symbol("c");
+
+	Parameter p_a(0), p_b(1), p_c(0);
+	ClosureParameter cp_a(0), cp_b(1);
+
+	a.value = wrap(p_a);
+	b.value = wrap(p_b);
+	c.value = wrap(p_c);
+
+	LambdaMetadata outer;
+	outer.return_type = wrap<Type>(tag<Fixnum>::value);
+	outer.formals = store(mk(wrap(&a), wrap(&b)));
+
+	LambdaMetadata inner;
+	inner.return_type = wrap<Type>(tag<Fixnum>::value);
+	inner.formals = store(mk(wrap(&c)));
+
+	inner.closure.push_back(&a);
+	inner.closure.push_back(&b);
+
+	auto expr = store
+		(mk(mk(mk(wrap<Lambda>(&outer), mk(wrap(&a), wrap(&b)),
+		          (mk(wrap<Lambda>(&inner), mk(wrap(&c)),
+		              mk(add3, wrap(cp_a), wrap(cp_b), wrap(p_c))))),
+		       1, 2),
+		    3));
+
+	compile.ast(expr);
+
+	ASSERT_EQ(6, run());
+}
+
+TEST_F(CompilerTest, test_define_first)
+{
+	using namespace make_ast;
+
+	Symbol foo = Symbol("foo"),
+		a = Symbol("a"),
+		b = Symbol("b"),
+		c = Symbol("c");
+
+	Parameter p_a(0), p_b(1), p_c(2);
+
+	foo.scheme.type = wrap
+		(store(fn_type::fn(tag<Fixnum>::value,
+		                   tag<Fixnum>::value,
+		                   tag<Fixnum>::value,
+		                   tag<Fixnum>::value)));
+
+	LambdaMetadata foo_info;
+	foo_info.return_type = wrap<Type>(tag<Fixnum>::value);
+	foo_info.formals = store(mk(&a, &b, &c));
+
+	foo.value = wrap<Lambda>(&foo_info);
+
+	// (define foo (\ (a b c) (+ (+ a b) c)))
+	compile.ast
+		(store
+		 (mk(wrap<Define>(),
+		     &foo,
+		     mk(wrap<Lambda>(&foo_info), mk(&a, &b, &c),
+		        mk(add, mk(add, p_a, p_b), p_c)))));
+
+	compile.ast(store(mk(&foo, 5, 3, 2)));
+
+	ASSERT_EQ(10, run());
+}
+
+TEST_F(CompilerTest, test_define_after)
+{
+	using namespace make_ast;
+
+	Symbol do_it = Symbol("do_it"),
+		foo = Symbol("foo"),
+		a = Symbol("a"),
+		b = Symbol("b");
+	Parameter p_a(0), p_b(1);
+
+	do_it.scheme.type = wrap
+		(store(fn_type::fn(tag<Fixnum>::value)));
+
+	foo.scheme.type = wrap
+		(store(fn_type::fn(tag<Fixnum>::value,
+		                   tag<Fixnum>::value,
+		                   tag<Fixnum>::value)));
+
+	LambdaMetadata do_it_info;
+	do_it_info.return_type =  wrap<Type>(tag<Fixnum>::value);
+	do_it_info.formals = store(mk());
+
+	LambdaMetadata foo_info;
+	foo_info.return_type = wrap<Type>(tag<Fixnum>::value);
+	foo_info.formals = store(mk(&a, &b));
+
+	foo.value = wrap<Lambda>(&foo_info);
+
+	compile.ast
+		(store
+		 (mk(wrap<Define>(),
+		     &do_it,
+		     mk(wrap<Lambda>(&do_it_info), mk(), mk(&foo, 5, 2)))));
+
+	// (define foo (\ (a b) (- a b)))
+	compile.ast
+		(store
+		 (mk(wrap<Define>(),
+		     &foo,
+		     mk(wrap<Lambda>(&foo_info), mk(&a, &b),
+		        mk(sub, p_a, p_b)))));
+
+	compile.ast(store(mk(&do_it)));
+
+	ASSERT_EQ(3, run());
+}

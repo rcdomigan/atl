@@ -26,8 +26,7 @@ namespace atl
 	 */
 	struct SymbolMap
 	{
-		/* The value_type::second may have literals or things computable from literals at compile time. */
-		typedef Symbol* value_type;
+		typedef Any value_type;
 		typedef std::map<std::string, value_type> Map;
 		typedef Map::iterator iterator;
 		typedef Map::const_iterator const_iterator;
@@ -50,16 +49,20 @@ namespace atl
 
 		Map local;
 		SymbolMap *up;
+		LambdaMetadata *closure;
 
 		AllocatorBase& store;
 
 		explicit SymbolMap(AllocatorBase& store_)
 			: up(nullptr)
+			, closure(nullptr)
 			, store(store_)
 		{}
 
-		explicit SymbolMap(SymbolMap *up_)
+		explicit SymbolMap(SymbolMap *up_,
+		                   LambdaMetadata *closure_)
 			: up(up_)
+			, closure(closure_)
 			, store(up->store)
 		{}
 
@@ -74,16 +77,13 @@ namespace atl
 				{ return *this; }
 		}
 
-		/* offset is from the frame pointer; reverse of the formal order (for
-		   `(\ (a b) (...))` the offset of `a` would be 1 and `b` would be 0)
-		*/
 		void formal(Symbol& sym,
 		            size_t offset)
 		{
 			sym.subtype = Symbol::Subtype::variable;
-			sym.value = wrap(store.bound(&sym, Bound::Subtype::is_local, offset));
+			sym.value = wrap<Parameter>(offset);
 
-			auto rval = local.emplace(sym.name, &sym);
+			auto rval = local.emplace(sym.name, sym.value);
 
 			if(!rval.second)
 				{ throw RedefinitionError(std::string("Can't redefine ").append(sym.name)); }
@@ -97,17 +97,24 @@ namespace atl
 				{ return local.end(); }
 		}
 
-		all_iterator find(std::string const& k)
+		/* returns <found, closure, from_closure> (from_closure indicating
+		   that it's from a different closure than the current 'top'.
+		   */
+		std::tuple<all_iterator, LambdaMetadata*, bool> find(std::string const& k)
 		{
 			auto itr = local.find(k);
 			if(itr == end())
 				{
 					if(up)
-						{ return up->find(k); }
+						{
+							auto rval = up->find(k);
+							std::get<2>(rval) = true;
+							return rval;
+						}
 					else
-						{ return all_iterator(itr); }
+						{ return std::make_tuple(all_iterator(itr), nullptr, true); }
 				}
-			return itr;
+			return std::make_tuple(all_iterator(itr), closure, false);
 		}
 		size_t size() const { return local.size(); }
 		size_t count(std::string const& key) const { return local.count(key); }
@@ -118,16 +125,11 @@ namespace atl
 		const_iterator end() const { return local.end(); }
 		const_iterator begin() const { return local.begin(); }
 
-		void define(Symbol& sym,
-		            Any const& value)
-		{
-			symbol_assign(sym, value);
-			local.emplace(sym.name, &sym);
-		}
+		void define(std::string const& name, Any value) { local.emplace(name, value); }
 
 		size_t count(std::string const& key)
 		{
-			if(find(key) != very_end())
+			if(std::get<0>(find(key)) != very_end())
 				{ return 1; }
 			return 0;
 		}
@@ -140,7 +142,7 @@ namespace atl
 				{
 					std::cout << pair.first
 					          << " = (: "
-					          << printer::print(pair.second->value)
+					          << printer::print(pair.second)
 					          << ")"
 					          << std::endl;
 				}
@@ -151,10 +153,10 @@ namespace atl
 			if(is<Symbol>(key))
 				{
 					auto& sym = unwrap<Symbol>(key);
-					auto found = find(sym.name);
+					all_iterator found = std::get<0>(find(sym.name));
 
 					if(found != very_end())
-						{ return std::make_pair(found->second->value, true); }
+						{ return std::make_pair(found->second, true); }
 					else
 						{ return std::make_pair(key, false); }
 				}
@@ -166,48 +168,74 @@ namespace atl
 	{
 		using namespace fn_type;
 
-		toplevel.define(*store.symbol("__\\__"), wrap<Lambda>());
-		toplevel.define(*store.symbol(":"), wrap<DeclareType>());
-		toplevel.define(*store.symbol("quote"), wrap<Quote>());
-
-		toplevel.define
-			(*store.symbol
-			 ("if",
-			  Scheme(std::unordered_set<Type::value_type>({0}),
-			         wrap(fn(tt<Bool>(), 0, 0, 0)(ast_alloc(store))))),
-			 wrap<If>());
-
-		toplevel.define(*store.symbol("#f"), atl_false());
-		toplevel.define(*store.symbol("#t"), atl_true());
-		toplevel.define(*store.symbol("define"), wrap<Define>());
+		toplevel.define("__\\__", wrap<Lambda>());
+		toplevel.define(":", wrap<DeclareType>());
+		toplevel.define("quote", wrap<Quote>());
+		toplevel.define("if", wrap<If>());
+		toplevel.define("#f", atl_false());
+		toplevel.define("#t", atl_true());
+		toplevel.define("define", wrap<Define>());
 	}
 
-	typedef std::map<std::string, std::vector<Any*> > BackPatch;
 	typedef std::set<std::string> closure;
-
+	typedef std::map<std::string, std::vector<Any*> > BackPatch;
 
 	/** Replace symbols in `value` with their values.  This doesn't
 	 * setup back-patches or lexical scope, it's just meant to define
 	 * the special forms (like Lambda) before type inference occurs.
 	 */
-	void assign_forms(SymbolMap& env,
-	                  Any& value)
+	Any assign_forms(SymbolMap& env,
+	                 AstAllocator store,
+	                 Any value)
 	{
 		switch(value._tag)
 			{
 			case tag<Ast>::value:
 				{
-					for(auto& item : unwrap<Ast>(value).modify_data())
-						{ assign_forms(env, item); }
+					NestAst nesting(store);
+
+					{
+						using namespace pattern_match;
+						namespace pm = pattern_match;
+						Lambda lambda(nullptr);
+						Ast formals;
+
+						if(match(pm::ast(capture(lambda), capture(formals), tag<Ast>::value),
+						         value))
+							{
+								auto metadata = store.store.lambda_metadata();
+								metadata->formals = *ast_hof::copy
+									(formals, make_ast::ast_alloc(store.store));
+
+								store.push_back(wrap<Lambda>(metadata));
+
+								for(auto item : slice(unwrap<Ast>(value), 1))
+									{ assign_forms(env, store, item); }
+							}
+						else
+							{
+								for(auto item : unwrap<Ast>(value))
+									{ assign_forms(env, store, item); }
+							}
+					}
+					return wrap(*nesting.ast);
 				}
 			case tag<Symbol>::value:
-				/* Just assign forms; ints and other atoms are also safe.  Just no Asts. */
-				auto sym_value = env.current_value(value);
+				{
+					/* Just assign forms; ints and other atoms are also safe.  Just no Asts. */
+					auto sym_value = env.current_value(value);
 
-				if(sym_value.second && !is<Ast>(sym_value.first))
-					{ value = sym_value.first; }
-
-				break;
+					Any rval;
+					if(sym_value.second && !is<Ast>(sym_value.first))
+						{ rval = sym_value.first; }
+					else
+						{ rval = value; }
+					store.push_back(rval);
+					return rval;
+				}
+			default:
+				store.push_back(value);
+				return value;
 			}
 	}
 
@@ -224,9 +252,22 @@ namespace atl
 	{
 		auto& sym = unwrap<Symbol>(value);
 
-		auto found_def = env.find(sym.name);
+		SymbolMap::all_iterator found_def(env.local.end());
+		LambdaMetadata *closure;
+		bool from_closure;
+
+		std::tie(found_def, closure, from_closure) = env.find(sym.name);
+
 		if(found_def != env.very_end())
-			{ value = found_def->second->value; }
+			{
+				value = found_def->second;
+
+				if(from_closure && is<Parameter>(value))
+					{
+						auto& sym = unwrap<Symbol>(closure->formals[unwrap<Parameter>(value).value]);
+						value = wrap(env.closure->closure_parameter(&sym));
+					}
+			}
 		else
 			{
 				/* If we haven't found the symbol at all, it must be backpatched at the toplevel later. */
@@ -267,49 +308,45 @@ namespace atl
 								{
 									using namespace pattern_match;
 
-									Lambda func;
+									Lambda func(nullptr);
 									if(match(pattern_match::ast(capture(func), tag<Ast>::value, tag<Ast>::value),
 									         ast[2]))
 										{
-											auto& metadata = *func.value;
-
-											env.define(sym, wrap<CallLambda>(&metadata));
+											symbol_assign(sym, wrap(func));
+											env.define(sym.name, wrap(&sym));
 											assign_free(env, store, backpatch, ast.peek(2));
 										}
 									else
 										{
 											assign_free(env, store, backpatch, ast.peek(2));
 											if(is<Ast>(ast[2]))
-												{ env.define(sym, wrap<Undefined>()); }
+												{
+													symbol_assign(sym, wrap<Undefined>());
+													env.define(sym.name, wrap<Undefined>());
+												}
 											else
-												{ env.define(sym, ast[2]); }
+												{
+													symbol_assign(sym, ast[2]);
+													env.define(sym.name, ast[2]);
+												}
 										}
 								}
 
-								auto found = backpatch.find(sym.name);
-								if(found != backpatch.end())
-									{
-										// back-patch
-										for(auto ptr : found->second)
-											{ *ptr = wrap(&sym); }
-										backpatch.erase(found);
-									}
 								return;
 							}
 
 						case tag<Lambda>::value:
 							{
-								// function metadata should have been
-								// created by the type inference
-								SymbolMap inner_map(&env);
+								SymbolMap inner_map(&env, unwrap<Lambda>(*head).value);
 
 								auto formals = unwrap<Ast>(ast[1]);
 
-								size_t count = formals.size();
+								size_t idx = 0;
 								for(auto sym : formals)
 									{
 										assert(is<Symbol>(sym));
-										inner_map.formal(unwrap<Symbol>(sym), --count);
+										inner_map.formal(unwrap<Symbol>(sym),
+										                 idx++);
 									}
 
 								assign_free(inner_map, store, backpatch, ast.peek(2));
