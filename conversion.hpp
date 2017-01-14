@@ -49,9 +49,9 @@ namespace atl {
 	template<class T>
 	static inline T& unwrap(Any& input)
 	{
-		// If you checked the tag and know something is an Ast or
-		// AstData, use explicit_unwrap. Otherwise use unwrap_slice
-		// (which does the dispatching for you).
+		// AstData needs to be passed as reference, so I it needs to
+		// be wrapped and unwrapped with care.  Use explicit_unwrap if
+		// you need to.
 		static_assert(!std::is_same<AstData, T>::value,
 		              "AstData type requires special handling");
 		return unwrapping::Any<T>::a(input);
