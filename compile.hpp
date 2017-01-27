@@ -243,22 +243,23 @@ namespace atl
 			return wrap<Null>();
 		}
 
-		void ast(Ast const& ast)
+		void compile(Ast const& ast)
 		{ _compile(wrap(ast), Context(nullptr, false)); }
 
-		// For most external use.  The generated code can be passed to
-		// the VM for evaluation.
-		void any(Any ast)
+		void compile(Marked<Ast>&& ast)
 		{
-			value(ast);
+			auto marked = std::move(ast);
+			_compile(marked.any, Context(nullptr, false));
 		}
+
+		void compile(Marked<Ast>& ast)
+		{ _compile(ast.any, Context(nullptr, false)); }
+
 
 		// For most external use.  The generated code can be passed to
 		// the VM for evaluation.
-		void value(Any ast)
-		{
-			_compile(ast, Context(nullptr, false));
-		}
+		void compile(Any ast)
+		{ _compile(ast, Context(nullptr, false)); }
 
 		void dbg();
 	};
