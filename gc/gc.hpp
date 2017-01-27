@@ -235,19 +235,6 @@ namespace atl
 
 	template< class T,	memory_pool::Pool<T> GC::*member >
 	const typename GC::MemberPtr<T,member>::PoolType GC::MemberPtr<T,member>::value = member;
-
-	// Uses GC to mark each argument of this function.
-	//
-	// @tparam Types: types of the args
-	// @param args: args to be marked
-	void mark_args(GC &gc) {}
-
-	template<class T, class  ... Types>
-	void mark_args(GC &gc, T a, Types ... as)
-	{
-		gc.mark( a );
-		mark_args(gc, as...);
-	}
 }
 
 #endif
