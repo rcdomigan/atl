@@ -381,13 +381,16 @@ namespace atl
 			: _tag(tag<AstData>::value), value(offset)
 		{}
 
-		Any* flat_begin() { return reinterpret_cast<Any*>(this) + 1; }
-		Any* flat_end() { return flat_begin() + value; }
-		const Any* flat_begin() const { return reinterpret_cast<Any const*>(this) + 1; }
-		const Any* flat_end() const { return flat_begin() + value; }
+		// 'Flat' functions begin with _this_ and ends one past the last element
+		Any* flat_begin() { return reinterpret_cast<Any*>(this); }
+		Any* flat_end() { return flat_begin() + value + 1; }
+		const Any* flat_begin() const { return reinterpret_cast<Any const*>(this); }
+		const Any* flat_end() const { return flat_begin() + value + 1; }
 
-		iterator begin() { return iterator(flat_begin()); }
-		const_iterator begin() const { return const_iterator(flat_begin()); }
+		// Regular begin/end are over the elements of the "container"
+		// and don't include 'this'
+		iterator begin() { return iterator(flat_begin() + 1); }
+		const_iterator begin() const { return const_iterator(flat_begin() + 1); }
 
 		iterator end() { return iterator(flat_end()); }
 		const_iterator end() const { return const_iterator(flat_end()); }
@@ -399,6 +402,9 @@ namespace atl
 			itr = itr + n;
 			return *itr;
 		}
+
+		size_t flat_size() const { return flat_end() - flat_begin(); }
+		size_t size() const { return end() - begin(); }
 	};
 
 	struct Ast
@@ -461,15 +467,15 @@ namespace atl
 		Any& back()
 		{ return *(end().value - 1); }
 
-		size_t flat_size() const { return value->flat_end() - value->flat_begin(); }
+		size_t flat_size() const { return value->flat_size(); }
 
-		size_t size() const { return end() - begin(); }
+		size_t size() const { return value->size(); }
 		bool empty() const { return value->value == 0; }
 
 		bool operator<(Ast const& other) const
 		{ return value < other.value; }
 
-		ast_helper::ModifyData modify_data() { return ast_helper::ModifyData(flat_begin(), flat_end()); }
+		ast_helper::ModifyData modify_data() { return ast_helper::ModifyData(flat_begin() + 1, flat_end()); }
 	};
 
 	// Return an Ast pointing to an AstData `input` which was cast to
