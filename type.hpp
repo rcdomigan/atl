@@ -586,23 +586,31 @@ namespace atl
 
     struct LambdaMetadata
     {
-	    typedef std::vector<Symbol const*> Closure;
+	    typedef std::vector<Symbol*> Closure;
 	    Closure closure;
 	    Ast formals;
 
-	    bool has_slot;
 	    size_t slot;
 
 	    pcode::Offset body_address;
 
 	    Any return_type;
+	    bool has_slot;
+
+	    LambdaMetadata()=delete;
 
 	    LambdaMetadata() : has_slot(0) {}
+	    LambdaMetadata(Ast formals_, Any return_type_)
+		    : formals(formals_),
+		      return_type(return_type_),
+		      has_slot(false),
+		      has_closure_values(false)
+	    {}
 
 	    bool is_closure()
 	    { return !closure.empty(); }
 
-	    ClosureParameter closure_parameter(Symbol const* sym)
+	    ClosureParameter closure_parameter(Symbol* sym)
 	    {
 		    size_t idx = 0;
 		    for(auto cc : closure)
