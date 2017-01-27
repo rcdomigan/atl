@@ -22,10 +22,9 @@ using namespace std;
 struct TypeBasics
     : public ::testing::Test
 {
-	atl::Arena store;
+	atl::GC store;
 
 	TypeBasics() { init_types(); }
-	make_ast::AstAllocator new_ast() { return make_ast::ast_alloc(store); }
 
 	// function constructor type
 	Any fn() { return wrap<Type>(tag<FunctionConstructor>::value); }
@@ -46,9 +45,8 @@ TEST_F(TypeBasics, test_uniary_cxx_functions)
 	auto uniary_types = uniary::parameter_types(store);
 
 	ASSERT_EQ(tag<Ast>::value, uniary_types._tag);
-	ASSERT_EQ(mk(fn(), type<Bool>(), type<Fixnum>())(new_ast())
-
-	          , uniary_types);
+	ASSERT_EQ(store.raw_ast(mk(fn(), type<Bool>(), type<Fixnum>())),
+	          uniary_types);
 }
 
 TEST_F(TypeBasics, test_binary_cxx_functions)
@@ -62,14 +60,13 @@ TEST_F(TypeBasics, test_binary_cxx_functions)
 	auto binary_types = binary::parameter_types(store);
 
 	ASSERT_EQ(tag<Ast>::value, binary_types._tag);
-	ASSERT_EQ(mk(fn(),
-	             lift<Type>(tag<Fixnum>::value),
-	             mk(fn(),
-	                lift<Type>(tag<Fixnum>::value),
-	                lift<Type>(tag<Bool>::value)))
-	          (new_ast())
-
-	          , binary_types);
+	ASSERT_EQ(store.raw_ast
+	          (mk(fn(),
+	              wrap<Type>(tag<Fixnum>::value),
+	              mk(fn(),
+	                 wrap<Type>(tag<Fixnum>::value),
+	                 wrap<Type>(tag<Bool>::value)))),
+	          binary_types);
 }
 
 TEST_F(TypeBasics, test_trinary_cxx_functions)
@@ -84,15 +81,14 @@ TEST_F(TypeBasics, test_trinary_cxx_functions)
 
 	ASSERT_EQ(tag<Ast>::value, triple_types._tag);
 
-	ASSERT_EQ(mk(fn(),
-	             lift<Type>(tag<Fixnum>::value),
-	             mk(fn(),
-	                lift<Type>(tag<Bool>::value),
-	                mk(fn(),
-	                   lift<Type>(tag<Fixnum>::value),
-	                   lift<Type>(tag<Bool>::value))))
-	          (new_ast())
-
-	          , triple_types);
+	ASSERT_EQ(store.raw_ast
+	          (mk(fn(),
+	              wrap<Type>(tag<Fixnum>::value),
+	              mk(fn(),
+	                 wrap<Type>(tag<Bool>::value),
+	                 mk(fn(),
+	                    wrap<Type>(tag<Fixnum>::value),
+	                    wrap<Type>(tag<Bool>::value))))),
+	          triple_types);
 
 }

@@ -52,10 +52,7 @@ namespace atl {
 
 				template<class Alloc>
 				static Ast parameter_types(Alloc& gc)
-				{
-					using namespace fn_type;
-					return fn_type::fn(GuessTag<Rest>::value..., GuessTag<R>::value)(ast_alloc(gc));
-				}
+				{ return *gc(fn_type::fn(GuessTag<Rest>::value..., GuessTag<R>::value)); }
 			};
 		};
 
@@ -83,7 +80,7 @@ namespace atl {
 			 * @return: wrapped function
 			 */
 			template<class Alloc>
-			static CxxFunctor* a(std::function<R (Sig...)> const& fn, Alloc &gc
+			static Marked<CxxFunctor> a(std::function<R (Sig...)> const& fn, Alloc &gc
 			                     , std::string const & name = "#<Unnamed-CxxFunctor>")
 			{
 				return gc.template make<CxxFunctor>
@@ -94,13 +91,6 @@ namespace atl {
 					 , name
 					 , WrapStdFunction::parameter_types(gc)
 					 , WrapStdFunction::arity());
-			}
-
-			template<class Alloc>
-			static Any any(std::function<R (Sig...)> const& fn, Alloc &gc,
-			               std::string const& name = "#<Unnamed-CxxFunctor>")
-			{
-				return wrap(a(fn, gc, name));
 			}
 		};
 	}

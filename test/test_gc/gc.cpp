@@ -1,13 +1,9 @@
-/**
- * @file /home/ryan/programming/atl/test/gc.cpp
- * @author Ryan Domigan <ryan_domigan@sutdents@uml.edu>
- * Created on Jul 25, 2015
- */
-
 #include <iostream>
 #include <vector>
 
-#include <gc.hpp>
+#include <gc/ast_builder.hpp>
+#include <gc/gc.hpp>
+#include <print.hpp>
 
 #include <gtest/gtest.h>
 
@@ -20,7 +16,16 @@ TEST(TestGC, test_marked_move_in_order)
 	Marked<Any> aa(top, wrap<Null>()),
 		bb(top, wrap<Null>());
 
-Ast make_expr(AstAllocator backer)
+	// so should be top->bb->aa->0
+	ASSERT_EQ(top, &bb);
+	ASSERT_EQ(bb._up, &aa);
+
+	Marked<Any> cc(std::move(bb));
+	ASSERT_EQ(top, &cc);
+	ASSERT_EQ(cc._up, &aa);
+}
+
+TEST(TestGC, test_marked_move_out_of_order)
 {
 	// testing the _move method
 	using namespace atl;
@@ -82,16 +87,21 @@ TEST(TestGC, test_marked_equal)
 
 TEST(TestGC, test_mark_atoms)
 {
-	Arena store;
-	Ast ast = store(make_expr);
+	using namespace atl;
+	GC gc;
+	init_types();
 
-	ASSERT_EQ(2, ast.size());
+	{
+		auto str_0 = gc.make<String>("str_0"),
+			str_1 = gc.make<String>("str_1");
 
-	ASSERT_EQ(tag<Fixnum>::value, ast[0]._tag);
-	ASSERT_EQ(1, reinterpret_cast<Fixnum::value_type>(ast[0].value));
+		ASSERT_EQ(2, gc.cells_allocated());
+		gc.gc();
+		ASSERT_EQ(2, gc.cells_allocated());
+	}
 
-	ASSERT_EQ(tag<Fixnum>::value, ast[1]._tag);
-	ASSERT_EQ(2, reinterpret_cast<Fixnum::value_type>(ast[1].value));
+	gc.gc();
+	ASSERT_EQ(0, gc.cells_allocated());
 }
 
 TEST(TestGC, test_mark_LambdaMetadata)
@@ -171,7 +181,7 @@ TEST(TestGC, test_moving_builders)
 
 TEST(TestGC, test_mark_assigning)
 {
-	// Check that an Ast allocated by an Arena an a GC are the same.
+	using namespace atl;
 	GC gc;
 	init_types();
 
@@ -190,9 +200,14 @@ TEST(TestGC, test_mark_assigning)
 		ASSERT_EQ(3, gc.cells_allocated());
 	}
 
-	auto ast0 = gc(make_expr);
+	gc.gc();
+	ASSERT_EQ(2, gc.cells_allocated());
+}
 
-	auto ast1 = arena(make_expr);
+TEST(TestGC, test_ast_composer)
+{
+	using namespace atl;
+	GC gc;
 
 	auto compose = [](AstBuilder& ast)
 		{
@@ -203,8 +218,8 @@ TEST(TestGC, test_mark_assigning)
 
 	auto ast = gc(compose);
 
-	for(auto zz : zip(ast0, ast1))
-		ASSERT_EQ((*get<0>(zz)), (*get<1>(zz)));
+	ASSERT_EQ(2, ast->size());
+	ASSERT_EQ(3, ast->flat_size());
 }
 
 TEST(TestGC, test_moving_ast)
