@@ -84,32 +84,6 @@ namespace atl
 	struct AstAllocator;
 	typedef std::function<Ast (AstAllocator)> ast_composer;
 
-	// I would like some Asts generating functions to be able to use
-	// either the GC or an Arena at runtime,
-	struct AllocatorBase
-	{
-		virtual ~AllocatorBase() {}
-
-		virtual AstSubstrate& sequence() = 0;
-		virtual Symbol* symbol(std::string const&) = 0;
-		virtual LambdaMetadata* lambda_metadata() = 0;
-		virtual Symbol* symbol(std::string const&, Scheme const& type) = 0;
-
-		virtual void free(Any any) = 0;
-
-		Ast operator()(ast_composer const& func);
-
-		pcode::value_type* closure(pcode::value_type body_location,
-		                           size_t formals,
-		                           size_t captures)
-		{
-			auto rval = new pcode::value_type[captures + 2];
-			rval[0] = formals;
-			rval[1] = body_location;
-			return rval;
-		}
-	};
-
 	struct AstAllocator
 	{
 		AllocatorBase &store;
@@ -132,12 +106,6 @@ namespace atl
 		{ return buffer.size(); }
 	};
 
-	Ast AllocatorBase::operator()(ast_composer const& func)
-	{
-		auto backer = AstAllocator(*this);
-		func(backer);
-		return Ast(reinterpret_cast<AstData*>(&backer.buffer.root()));
-	}
 
 	struct NestAst
 	{
@@ -152,7 +120,7 @@ namespace atl
 	};
 
 	// A mark-and-sweep GC. STUB
-	class GC : public AllocatorBase
+	struct GC
 	{
 	private:
 		typedef std::list< Any > MarkType;
@@ -280,37 +248,6 @@ namespace atl
 		gc.mark( a );
 		mark_args(gc, as...);
 	}
-
-	// A GC which collects all allocated objects when it goes out of
-	// scope. <STUB>
-	struct Arena : public AllocatorBase
-	{
-		virtual AstSubstrate& sequence() override
-		{
-			auto rval = new AstSubstrate();
-			rval->reserve(100);
-			return *rval;
-		}
-
-		template<class T, class ... Args>
-		T* make(Args ... args)
-		{ return new  T(args...); }
-
-		template<class T, class ... Args>
-		Any amake(Args ... args)
-		{ return Any( tag<T>::value , make<T>(args...)); }
-
-		virtual Symbol* symbol(std::string const& name) override
-		{ return make<Symbol>(name); }
-
-		virtual LambdaMetadata* lambda_metadata() override
-		{ return make<LambdaMetadata>(); }
-
-		virtual Symbol* symbol(std::string const& name, Scheme const& type) override
-		{ return make<Symbol>(name, type); }
-
-		virtual void free(Any any) override { /* stub */ }
-	};
 }
 
 #endif
