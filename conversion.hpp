@@ -7,6 +7,8 @@
  */
 
 #include <string>
+#include <type_traits.hpp>
+
 #include "./type.hpp"
 #include "./type_traits.hpp"
 #include "./utility.hpp"
@@ -21,7 +23,7 @@ namespace atl {
 		struct Pimpl {
 			static_assert(type_mapping::unwrappable_type<T>::value, "T is not an unwrappable_type");
 			static inline constexpr T& a(atl::Any& aa) {return *reinterpret_cast<T*>(aa.value);}
-			static inline constexpr T const& a(atl::Any const& aa) {return *reinterpret_cast<T*>(aa.value);}};
+			static inline constexpr T& a(atl::Any const& aa) {return *reinterpret_cast<T*>(aa.value);}};
 
 		template<class T>
 		struct Reinterpret {
@@ -58,7 +60,11 @@ namespace atl {
 	}
 
 	template<class T>
-	static inline T const& unwrap(Any const& input)
+	static inline
+	typename std::conditional<is_pimpl<T>::value,
+	                          T&,
+	                          T>::type
+	unwrap(Any const& input)
 	{ return unwrapping::Any<T>::a(input); }
 
 	template<class T>
