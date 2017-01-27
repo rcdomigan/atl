@@ -1,17 +1,19 @@
 #ifndef ATL_HELPER_PATTERN_MATCH_HPP
 #define ATL_HELPER_PATTERN_MATCH_HPP
 
-#include <helpers.hpp>
+#include <helpers/misc.hpp>
 #include <print.hpp>
 
 namespace atl
 {
 	namespace pattern_match
 	{
-		using make_type::tt;
-
 		struct Match;
 		typedef std::function<bool (Match&, Any const&)> Matcher;
+
+		template<class TagAs>
+		Any tt()
+		{ return wrap<Type>(tag<TagAs>::value); }
 
 		struct Match
 		{
@@ -111,7 +113,7 @@ namespace atl
 		template<class ... Args>
 		Matcher ast(Args ... args)
 		{
-			auto tup = make_tuple(args...);
+			auto tup = std::make_tuple(args...);
 			return [tup](Match& match, Any const& expr) -> bool
 				{
 					Ast::const_iterator begin, end;
@@ -153,7 +155,6 @@ namespace atl
 		template<class ... Args>
 		Matcher types()
 		{ return ast(tag<Args>::value...); }
-
 
 		bool match(Matcher const& pattern, Any const& expr)
 		{
