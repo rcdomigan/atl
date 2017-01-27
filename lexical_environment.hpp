@@ -51,9 +51,9 @@ namespace atl
 		SymbolMap *up;
 		LambdaMetadata *closure;
 
-		AllocatorBase& store;
+		GC& store;
 
-		explicit SymbolMap(AllocatorBase& store_)
+		explicit SymbolMap(GC& store_)
 			: up(nullptr)
 			, closure(nullptr)
 			, store(store_)
@@ -164,7 +164,7 @@ namespace atl
 		}
 	};
 
-	void setup_basic_definitions(AllocatorBase& store, SymbolMap& toplevel)
+	void setup_basic_definitions(GC& store, SymbolMap& toplevel)
 	{
 		using namespace fn_type;
 
@@ -184,41 +184,40 @@ namespace atl
 	 * setup back-patches or lexical scope, it's just meant to define
 	 * the special forms (like Lambda) before type inference occurs.
 	 */
-	Any assign_forms(SymbolMap& env,
-	                 AstAllocator store,
-	                 Any value)
+	void _assign_forms(AstBuilder& ast,
+	                   GC& gc,
+	                   SymbolMap& env,
+	                   Any value)
 	{
 		switch(value._tag)
 			{
 			case tag<Ast>::value:
 				{
-					NestAst nesting(store);
-
+					NestAst nesting(ast);
 					{
 						using namespace pattern_match;
 						namespace pm = pattern_match;
-						Lambda lambda(nullptr);
 						Ast formals;
 
-						if(match(pm::ast(capture(lambda), capture(formals), tag<Ast>::value),
+						if(match(pm::ast(tag<Lambda>::value, capture(formals), tag<Ast>::value),
 						         value))
 							{
-								auto metadata = store.store.lambda_metadata();
-								metadata->formals = *ast_hof::copy
-									(formals, make_ast::ast_alloc(store.store));
+								auto metadata = gc.make<LambdaMetadata>();
 
-								store.push_back(wrap<Lambda>(metadata));
+								metadata->formals = *gc(ast_hof::copy(formals));
+
+								ast.push_back(wrap<Lambda>(metadata.pointer()));
 
 								for(auto item : slice(unwrap<Ast>(value), 1))
-									{ assign_forms(env, store, item); }
+									{ _assign_forms(ast, gc, env, item); }
 							}
 						else
 							{
 								for(auto item : unwrap<Ast>(value))
-									{ assign_forms(env, store, item); }
+									{ _assign_forms(ast, gc, env, item); }
 							}
 					}
-					return wrap(*nesting.ast);
+					return;
 				}
 			case tag<Symbol>::value:
 				{
@@ -230,11 +229,35 @@ namespace atl
 						{ rval = sym_value.first; }
 					else
 						{ rval = value; }
-					store.push_back(rval);
-					return rval;
+					ast.push_back(rval);
+					return;
 				}
 			default:
-				store.push_back(value);
+				ast.push_back(value);
+				return;
+			}
+	}
+
+	Any assign_forms(GC& gc, SymbolMap& env, Any value)
+	{
+		switch(value._tag)
+			{
+			case tag<Ast>::value:
+				{
+					auto builder = gc.ast_builder();
+					_assign_forms(builder, gc, env, value);
+					return wrap(builder.root());
+				}
+			case tag<Symbol>::value:
+				{
+					/* Just assign forms; ints and other atoms are also safe.  Just no Asts. */
+					auto sym_value = env.current_value(value);
+
+					if(sym_value.second && !is<Ast>(sym_value.first))
+						{ return sym_value.first; }
+					return value;
+				}
+			default:
 				return value;
 			}
 	}
@@ -264,7 +287,7 @@ namespace atl
 
 				if(from_closure && is<Parameter>(value))
 					{
-						auto& sym = unwrap<Symbol>(closure->formals[unwrap<Parameter>(value).value]);
+						Symbol& sym = unwrap<Symbol>(closure->formals[unwrap<Parameter>(value).value]);
 						value = wrap(env.closure->closure_parameter(&sym));
 					}
 			}
@@ -285,7 +308,6 @@ namespace atl
 	 * pointing to their respective formal or toplevel entry
 	 */
 	void assign_free(SymbolMap& env,
-	                 AllocatorBase &store,
 	                 BackPatch &backpatch,
 	                 Any& value)
 	{
@@ -304,21 +326,19 @@ namespace atl
 						case tag<Define>::value:
 							{
 								auto &sym = modify<Symbol>(ast.peek(1));
-
 								{
 									using namespace pattern_match;
-
 									Lambda func(nullptr);
 									if(match(pattern_match::ast(capture(func), tag<Ast>::value, tag<Ast>::value),
 									         ast[2]))
 										{
 											symbol_assign(sym, wrap(func));
 											env.define(sym.name, wrap(&sym));
-											assign_free(env, store, backpatch, ast.peek(2));
+											assign_free(env, backpatch, ast.peek(2));
 										}
 									else
 										{
-											assign_free(env, store, backpatch, ast.peek(2));
+											assign_free(env, backpatch, ast.peek(2));
 											if(is<Ast>(ast[2]))
 												{
 													symbol_assign(sym, wrap<Undefined>());
@@ -331,10 +351,8 @@ namespace atl
 												}
 										}
 								}
-
-								return;
 							}
-
+							return;
 						case tag<Lambda>::value:
 							{
 								SymbolMap inner_map(&env, unwrap<Lambda>(*head).value);
@@ -349,12 +367,12 @@ namespace atl
 										                 idx++);
 									}
 
-								assign_free(inner_map, store, backpatch, ast.peek(2));
+								assign_free(inner_map, backpatch, ast.peek(2));
 							}
 							return;
 						default:
 							for(auto& item : ast)
-								{ assign_free(env, store, backpatch, item); }
+								{ assign_free(env, backpatch, item); }
 						}
 					return;
 				}

@@ -23,21 +23,23 @@ using namespace atl;
 struct TestToplevelMap
 	: public ::testing::Test
 {
-	Arena store;
+	GC store;
 	SymbolMap env;
 	BackPatch backpatch;
 
 	GC gc;
 
 	void do_assign_free(Any& thing)
-	{ assign_free(env, gc, backpatch, thing); }
+	{ assign_free(env, backpatch, thing); }
 
 	Any do_assign_forms(Any thing)
-	{ return assign_forms(env, AstAllocator(gc), thing); }
+	{
+		return assign_forms(gc, env, thing);
+	}
 
 	template<class T>
-	Any do_assign_forms(T thing)
-	{ return do_assign_forms(wrap(thing)); }
+	Any do_assign_forms(Marked<T>&& thing)
+	{ return do_assign_forms(thing.any); }
 
 	Any do_assign(Any thing)
 	{
@@ -47,8 +49,8 @@ struct TestToplevelMap
 	}
 
 	template<class T>
-	Any do_assign(T thing)
-	{ return do_assign(wrap(thing)); }
+	Any do_assign(Marked<T>&& thing)
+	{ return do_assign(thing.any); }
 
 	TestToplevelMap()
 		: env(store)
