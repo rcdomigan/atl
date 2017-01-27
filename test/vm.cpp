@@ -16,12 +16,16 @@ struct VmTest : public ::testing::Test
 {
 	Code code_store;
 	AssembleCode assemble;
-	Arena store;
+	GC store;
 
 	TinyVM vm;
-	TrivialFunctions fns;
+	unittest::TrivialFunctions fns;
 
-	VmTest() : assemble(&code_store), vm(store) {}
+	VmTest()
+		: assemble(&code_store),
+		  vm(store),
+		  fns(store)
+	{}
 };
 
 TEST_F(VmTest, TestCxxFn2)
@@ -47,11 +51,8 @@ TEST_F(VmTest, TestSimpleCxxStdFunction)
         gc,
         "foo");
 
-    // include conversion to Any
-    Any fn = wrap(shimmed_function);
-
     assemble.constant(3)
-        .std_function(&unwrap<CxxFunctor>(fn).fn, 1)
+        .std_function(&shimmed_function->fn, 1)
         .finish();
 
     run_code(vm, code_store);
