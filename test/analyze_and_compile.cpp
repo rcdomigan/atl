@@ -25,8 +25,8 @@ using namespace atl;
 struct AnalyzeAndCompile
 	: public ::testing::Test
 {
-	TrivialFunctions cxx_fns;
-	Arena& store;
+	unittest::TrivialFunctions cxx_fns;
+	GC& store;
 	SymbolMap lexical;
 
 	inference::Gamma gamma;
@@ -37,7 +37,7 @@ struct AnalyzeAndCompile
 	TinyVM vm;
 
 	AnalyzeAndCompile()
-		: store(cxx_fns.store)
+		: store(cxx_fns.gc)
 		, lexical(store)
 		, vm(store)
 	{
@@ -47,9 +47,9 @@ struct AnalyzeAndCompile
 
 		setup_basic_definitions(store, lexical);
 
-		lexical.define("equal2", wrap(cxx_fns.weq));
-		lexical.define("add2", wrap(cxx_fns.wadd));
-		lexical.define("sub2", wrap(cxx_fns.wsub));
+		lexical.define("equal2", cxx_fns.weq.any);
+		lexical.define("add2", cxx_fns.wadd.any);
+		lexical.define("sub2", cxx_fns.wsub.any);
 	}
 
 	/**
@@ -61,36 +61,36 @@ struct AnalyzeAndCompile
 	{
 		BackPatch backpatch;
 
-		expr = assign_forms(lexical, AstAllocator(store), expr);
+		expr = assign_forms(store, lexical, expr);
 
 		auto type_info = inference::W(store, new_types, gamma, expr);
 
-		inference::apply_substitution(AstAllocator(store),
+		inference::apply_substitution(store,
 		                              gamma,
 		                              type_info.subs,
 		                              expr);
 
 		assign_free(lexical,
-		            store,
 		            backpatch,
 		            expr);
 
-		return type_info.type;
+		return type_info.type.any;
 	}
 
 	void compile(Any expr)
 	{
 		annotate(expr);
-
-		compiler.any(expr);
+		compiler.compile(expr);
 	}
 
-	template<class T>
-	void compile(T expr)
-	{ compile(wrap(expr)); }
+	void compile(Marked<Ast>&& expr)
+	{ compile(expr.any); }
 
-	void compile(make_ast::BuilderFn expr)
-	{ compile(store(expr)); }
+	void compile(ast_composer const& compose)
+	{
+		auto expr = store(compose);
+		compile(expr.any);
+	}
 
 	pcode::value_type run()
 	{
@@ -105,22 +105,21 @@ struct AnalyzeAndCompile
 TEST_F(AnalyzeAndCompile, test_simple_statement)
 {
 	using namespace make_ast;
-	auto expr = mk("add2", 1, 2)(ast_alloc(store));
+	auto expr = store(mk("add2", 1, 2));
 
-    compile(wrap(expr));
+    compile(expr.any);
     ASSERT_EQ(3, run());
 }
 
 TEST_F(AnalyzeAndCompile, test_if_false)
 {
 	using namespace make_ast;
-	auto expr = mk("if",
-	               mk("equal2", 1, 2),
-	               mk("add2", 7, 3),
-	               mk("sub2", 7, 3))
-		(ast_alloc(store));
+	auto expr = store(mk("if",
+	                     mk("equal2", 1, 2),
+	                     mk("add2", 7, 3),
+	                     mk("sub2", 7, 3)));
 
-    compile(wrap(expr));
+    compile(expr.any);
 
     ASSERT_EQ(4, run());
 }
@@ -128,13 +127,12 @@ TEST_F(AnalyzeAndCompile, test_if_false)
 TEST_F(AnalyzeAndCompile, test_if_true)
 {
 	using namespace make_ast;
-	auto expr = mk("if",
-	               mk("equal2", 2, 2),
-	               mk("add2", 7, 3),
-	               mk("sub2", 7, 3))
-		(ast_alloc(store));
+	auto expr = store(mk("if",
+	                     mk("equal2", 2, 2),
+	                     mk("add2", 7, 3),
+	                     mk("sub2", 7, 3)));
 
-    compile(wrap(expr));
+    compile(expr.any);
 
     ASSERT_EQ(10, run());
 }
@@ -142,17 +140,17 @@ TEST_F(AnalyzeAndCompile, test_if_true)
 TEST_F(AnalyzeAndCompile, test_lambda_with_if)
 {
 	using namespace make_ast;
-	auto expr = mk
-		(mk(wrap<Lambda>(),
-		    mk("a", "b"),
-		    mk("if",
-		       mk("equal2", "a", "b"),
-		       mk("add2", "a", "b"),
-		       mk("sub2", "a", "b"))),
-		 7, 3)
-		(ast_alloc(store));
+	auto expr = store
+		(mk
+		 (mk(wrap<Lambda>(),
+		     mk("a", "b"),
+		     mk("if",
+		        mk("equal2", "a", "b"),
+		        mk("add2", "a", "b"),
+		        mk("sub2", "a", "b"))),
+		  7, 3));
 
-	compile(wrap(expr));
+	compile(expr.any);
 
 	ASSERT_EQ(4, run());
 }
@@ -162,13 +160,12 @@ TEST_F(AnalyzeAndCompile, test_basic_define)
 {
 	using namespace make_ast;
 
-	auto def = mk(wrap<Define>(), "foo", 3)(ast_alloc(store)),
-
-		expr = mk("add2", "foo", "foo")(ast_alloc(store));
+	auto def = store(mk(wrap<Define>(), "foo", 3)),
+		expr = store(mk("add2", "foo", "foo"));
 
 	// Test that defining a constant works
-	compile(wrap(def));
-	compile(wrap(expr));
+	compile(def.any);
+	compile(expr.any);
 
 	ASSERT_EQ(6, run());
 }
@@ -186,8 +183,8 @@ TEST_F(AnalyzeAndCompile, test_applying_defined_lambda)
 
 		apply_add3 = store(mk("my-add3", 2, 3, 7));
 
-	compile(define_add3);
-	compile(apply_add3);
+	compile(define_add3.any);
+	compile(apply_add3.any);
 
 	ASSERT_EQ(12, run());
 }
