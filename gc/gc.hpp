@@ -21,112 +21,15 @@
 #include "./debug.hpp"
 #include "./byte_code.hpp"
 
+#include <gc/ast_pool.hpp>
+#include <gc/pool.hpp>
+#include <gc/ast_builder.hpp>
+
 namespace atl
 {
-	using namespace std;
-
-	/*****************/
-	/*	 ____  ____  */
-	/*	/ ___|/ ___| */
-	/* | |  _| |     */
-	/* | |_| | |___  */
-	/*	\____|\____| */
-	/*****************/
-	// This is a basic vector with the copy constructor disabled so I
-	// can pass it around by reference and not accidently copy by
-	// value.
-	struct AstSubstrate
-		: public std::vector<Any>
-	{
-		AstSubstrate() : std::vector<Any>() {}
-		AstSubstrate(AstSubstrate const&) = delete;
-
-		Any& root() { return front(); }
-
-		void dbg();
-	};
-
-	void AstSubstrate::dbg() {
-		for(auto& vv : *this)
-			{ std::cout << type_name(vv) << std::endl; }
-	}
-
-	// An iterator like thing which follows the position of an object
-	// in a vector so it will remain valid after a resize.
-	struct MovableAstPointer
-	{
-		AstSubstrate *vect;
-		size_t position;
-
-		MovableAstPointer(AstSubstrate* vect_, size_t pos)
-			: vect(vect_), position(pos)
-		{}
-
-		AstData* ast_data() { return reinterpret_cast<AstData*>(&(*vect)[position]); }
-
-		// Last + 1 element of the wrapped Ast
-		void end_ast()
-		{
-			reinterpret_cast<AstData*>(vect->data() + position)->value
-				= vect->size() - position - 1;
-		}
-
-		Ast operator*() { return Ast(ast_data()); }
-	};
-
-	MovableAstPointer push_nested_ast(AstSubstrate& substrate)
-	{
-		auto pos = substrate.size();
-		substrate.emplace_back(tag<AstData>::value, nullptr);
-		return MovableAstPointer(&substrate, pos);
-	}
-
-	struct AstAllocator;
-	typedef std::function<Ast (AstAllocator)> ast_composer;
-
-	struct AstAllocator
-	{
-		AllocatorBase &store;
-		AstSubstrate &buffer;
-
-		explicit AstAllocator(AllocatorBase &aa)
-			: store(aa), buffer(aa.sequence())
-		{}
-
-		AstAllocator& push_back(Any value)
-		{
-			buffer.push_back(value);
-			return *this;
-		}
-
-		MovableAstPointer nest_ast()
-		{ return push_nested_ast(buffer); }
-
-		size_t size()
-		{ return buffer.size(); }
-	};
-
-
-	struct NestAst
-	{
-		AstAllocator& store;
-		MovableAstPointer ast;
-
-		NestAst(AstAllocator& store_)
-			: store(store_), ast(store.nest_ast())
-		{}
-
-		~NestAst() { ast.end_ast(); }
-	};
-
 	// A mark-and-sweep GC. STUB
 	struct GC
 	{
-	private:
-		typedef std::list< Any > MarkType;
-		MarkType _mark;
-	private:
-		vector< function<void (GC&)> > _mark_callbacks;
 
 		void unregister(MarkType::iterator itr) { _mark.erase(itr); }
 
@@ -214,11 +117,17 @@ namespace atl
 			return Any( tag<Type>::value , make<Type>(args...));
 		}
 
-		virtual AstSubstrate& sequence() override
+		AstBuilder ast_builder()
+		{ return AstBuilder(_ast_pool, _ast_pool.ast_backer()); }
+
+		AstBuilder ast_builder(size_t nn)
+		{ return AstBuilder(_ast_pool, _ast_pool.ast_backer(nn)); }
+
+		Ast raw_ast(ast_composer const& func)
 		{
-			auto rval = new AstSubstrate();
-			rval->reserve(100);
-			return *rval;
+			auto ast = ast_builder();
+			func(ast);
+			return ast.root();
 		}
 
 		virtual Symbol* symbol(std::string const& name) override
@@ -235,6 +144,10 @@ namespace atl
 
 	template< class T,	memory_pool::Pool<T> GC::*member >
 	const typename GC::MemberPtr<T,member>::PoolType GC::MemberPtr<T,member>::value = member;
+
+	typedef GC::AstBuilder AstBuilder;
+	typedef ast_builder::NestAst<AstBuilder> NestAst;
+	typedef GC::ast_composer ast_composer;
 }
 
 #endif

@@ -20,7 +20,9 @@ test/primitive
 test/structs
 test/test
 test/test_type
+test/test_gc/ast_pool
 test/test_gc/gc
+test/test_gc/mark
 test/test_gc/pool
 test/type
 test/type_inference
