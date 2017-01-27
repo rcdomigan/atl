@@ -1,4 +1,4 @@
-COMMON_FLAGS=  -pipe -std=c++11 -ggdb -Wall
+COMMON_FLAGS=-pipe -std=c++11 -ggdb -Wall
 GTEST_LINK=-lgtest -lgtest_main -pthread -O0
 CXXFLAGS=$(CFLAGS) $(COMMON_FLAGS)
 
@@ -10,11 +10,15 @@ IWYU=iwyu -std=c++11 $(CLANG_INCLUDE)
 CXX=g++ $(CXXFLAGS) $(GCC_INCLUDE)
 #CXX=clang $(CXXFLAGS) -lc++ -stdlib=libc++ $(CLANG_INCLUDE)
 
-%: %.cpp ../*.hpp ../helpers/*.hpp ./*.hpp
+%: %.cpp ../*.hpp ../helpers/*.hpp ./*.hpp ../gc/*.hpp
 	$(CXX) $< $(GTEST_LINK) -o $@
+
+gc: gc.cpp ../*.hpp ../helpers/*.hpp ./*.hpp ../gc/*.hpp ./test_gc/*.cpp
+	$(CXX) $< $(GTEST_LINK) -o $@
+
 
 iwyu-%:
 	$(IWYU) $(subst iwyu-,,$@)
 
-test: test.cpp ../*.hpp ./*.cpp
+test: test.cpp ../*.hpp ./*.cpp ../gc/*.hpp
 	$(CXX) test.cpp $(GTEST_LINK) -o test
