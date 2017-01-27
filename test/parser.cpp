@@ -39,9 +39,9 @@ TEST_F(ParserTest, test_simple_int_list) {
 	using namespace make_ast;
     auto parsed = parser.string_("(1 2 3)");
 
-    auto expected = mk(1, 2, 3)(ast_alloc(store));
+    auto expected = store(mk(1, 2, 3));
 
-    for(auto& vv : zip(unwrap<Ast>(parsed), expected))
+    for(auto& vv : zip(unwrap<Ast>(parsed), *expected))
 	    {
 #ifdef DEBUGGING
 		    cout << "parsed: " << printer::print(*get<0>(vv)) << "\nexpected: " << printer::print(*get<1>(vv)) << endl;

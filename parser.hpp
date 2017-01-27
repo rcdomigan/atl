@@ -66,17 +66,17 @@ namespace atl
 		GC &_gc;
 		unsigned long _line;
 
-		static const string delim;	/* symbol deliminator */
-		static const string _ws; 	/* white space */
-		string scratch;
+		static const std::string delim;	/* symbol deliminator */
+		static const std::string _ws; 	/* white space */
+		std::string scratch;
 
 		inline bool digit(char c) { return ((c >= '0') && (c <= '9')); }
-		bool string_is_number(const string& str) {
+		bool string_is_number(const std::string& str) {
 			return (digit(str[0]) || ((str[0] == '-') && (str.length() > 1) && digit(str[1])));
 		}
 
 		template<class Itr>
-		void parse(AstSubstrate &vec, Itr &&itr, Itr &&end) {
+		void parse(AstBuilder &vec, Itr &&itr, Itr &&end) {
 			for(; itr != end; ++itr) {
 				switch(*itr)
 					{
@@ -93,36 +93,28 @@ namespace atl
 
 					case '\'':
 						{		/* quote */
-							auto quote = push_nested_ast(vec);
+							NestAst nest(vec);
 							vec.push_back(wrap<Quote>());
 
 							++itr;
 							parse(vec, itr, end);
-							quote.end_ast();
 							return;
 						}
 
 					case '(':
 						{		/* sub expression */
+							NestAst nest(vec);
 							++itr;
-							if(*itr == ')') {
-								push_nested_ast(vec);
-								++itr;
-								return;
-							}
-
-							auto ast = push_nested_ast(vec);
 							while(*itr != ')')
 								{
 									if(itr == end)
 										throw UnbalancedParens
-											(to_string(_line)
+											(std::to_string(_line)
 											 .append(": error: unbalanced parens"));
 									parse(vec, itr, end);
 								}
 
 							++itr;
-							ast.end_ast();
 							return;
 						}
 
@@ -130,19 +122,19 @@ namespace atl
 
 					case '"':
 						{		/* string */
-							std::string *str = reinterpret_cast<std::string*>(_gc.make<String>());
+							auto str = _gc.make<String>();
 
 							for(++itr; *itr != '"'; ++itr)
 								{
-									if(itr == end) throw to_string(_line)
+									if(itr == end) throw std::to_string(_line)
 										               .append("string not terminated.");
 									if(*itr == '\n') ++_line;
 
-									str->push_back(*itr);
+									str->value.push_back(*itr);
 								}
 
 							++itr;
-							vec.emplace_back(tag<String>::value, str);
+							vec.push_back(str.any);
 							return;
 						}
 
@@ -150,8 +142,10 @@ namespace atl
 						{
 							scratch.clear();
 
-							for(; (itr != end) && (delim.find(*itr) == string::npos); ++itr)
-								scratch.push_back(*itr);
+							for(;
+							    (itr != end) && (delim.find(*itr) == std::string::npos);
+							    ++itr)
+								{ scratch.push_back(*itr); }
 
 							if((itr != end) && (*itr == '\n')) ++_line;
 
@@ -180,7 +174,7 @@ namespace atl
 		/* parse one S-expression from a string into an ast */
 		Any string_(const std::string& input)
 		{
-			auto& vec = _gc.sequence();
+			auto vec = _gc.ast_builder();
 
 			auto itr = input.begin(),
 				end = input.end();
@@ -193,21 +187,21 @@ namespace atl
 				                            .append(input)
 				                            .append("`"));
 
-			if(vec.begin()->_tag == tag<AstData>::value)
-				{ return Any(tag<Ast>::value, reinterpret_cast<AstData*>(&*vec.begin())); }
-			return *vec.begin();
+			if(vec.backer->begin()->_tag == tag<AstData>::value)
+				{ return Any(tag<Ast>::value, vec.backer->begin()); }
+			return *vec.backer->begin();
 		}
 
 		/* parse one S-expression from a stream into an ast */
-		Any stream(istream &stream)
+		Any stream(std::istream &stream)
 		{
 			auto initial_flags = stream.flags();
-			noskipws(stream);
+			std::noskipws(stream);
 
-			auto& vec = _gc.sequence();
+			auto vec = _gc.ast_builder();
 
-			auto itr = istreambuf_iterator<char>(stream),
-				end = istreambuf_iterator<char>();
+			auto itr = std::istreambuf_iterator<char>(stream),
+				end = std::istreambuf_iterator<char>();
 			parse(vec, itr, end);
 
 			// Swallow any following whitepace or comments so the caller
@@ -216,9 +210,9 @@ namespace atl
 
 			stream.flags(initial_flags);
 
-			if(vec.begin()->_tag == tag<AstData>::value)
-				{ return Any(tag<Ast>::value, reinterpret_cast<AstData*>(&*vec.begin())); }
-			return *vec.begin();
+			if(vec.backer->begin()->_tag == tag<AstData>::value)
+				{ return Any(tag<Ast>::value, reinterpret_cast<AstData*>(vec.backer->begin())); }
+			return *vec.backer->begin();
 
 		}
 
