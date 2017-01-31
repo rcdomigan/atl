@@ -533,6 +533,8 @@ namespace atl
 
 		Scheme() : type(tag<Undefined>::value, nullptr) {}
 
+		Scheme(Any const& type_) : type(type_) {}
+
 		Scheme(Quantified const& bound_, Any const& type_)
 			: quantified(bound_), type(type_)
 		{}
