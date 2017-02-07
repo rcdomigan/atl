@@ -59,10 +59,11 @@ namespace atl
 
 		struct _DispatchMatcher
 		{
-			Ast::const_iterator itr, end;
+			typedef Ast::const_iterator iterator;
+			iterator itr, end;
 			Match& run;
 
-			_DispatchMatcher(Match& run_, Ast::const_iterator itr_, Ast::const_iterator end_)
+			_DispatchMatcher(Match& run_, iterator itr_, iterator end_)
 				: itr(itr_)
 				, end(end_)
 				, run(run_)
