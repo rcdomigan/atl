@@ -2,6 +2,7 @@
 #define ATL_HELPERS_MAKE_AST_HH
 
 #include <gc/gc.hpp>
+#include <helpers/misc.hpp>
 
 /**
  * Make Asts along various patterns
@@ -109,16 +110,6 @@ namespace atl
 						}
 				};
 		}
-	}
-
-	namespace make_type
-	{
-		/** Make a Type with T's tag.  Not much to it, but used in a bunch of tests.
-		 * @tparam T: the type whose tag to use
-		 * @return: a wraped Type
-		 */
-		template<class T>
-		Any tt() { return wrap<Type>(tag<T>::value); }
 	}
 
 	namespace fn_type

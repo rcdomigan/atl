@@ -76,6 +76,14 @@ namespace atl
 		return Type(input._tag);
 	}
 
+	template<class T>
+	Type typify()
+	{
+		static_assert(is_atl_type<T>::value,
+		              "Can only typify atl types.");
+		return Type(tag<T>::value);
+	}
+
 	/** Assign `sym` a constant `value`. */
 	void symbol_assign(Symbol& sym, Any value)
 	{
@@ -102,6 +110,16 @@ namespace atl
 			}
 
 		sym.value = value;
+	}
+
+	namespace make_type
+	{
+		/** Make a Type with T's tag.  Not much to it, but used in a bunch of tests.
+		 * @tparam T: the type whose tag to use
+		 * @return: a wraped Type
+		 */
+		template<class T>
+		Any tt() { return wrap<Type>(tag<T>::value); }
 	}
 }
 

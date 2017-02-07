@@ -8,12 +8,10 @@ namespace atl
 {
 	namespace pattern_match
 	{
+		using make_type::tt;
+
 		struct Match;
 		typedef std::function<bool (Match&, Any const&)> Matcher;
-
-		template<class TagAs>
-		Any tt()
-		{ return wrap<Type>(tag<TagAs>::value); }
 
 		struct Match
 		{
