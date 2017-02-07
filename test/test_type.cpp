@@ -35,6 +35,30 @@ TEST(TestType, test_ast)
 	ASSERT_EQ(1, reinterpret_cast<Fixnum::value_type>(ast[0].value));
 }
 
+TEST(TestType, test_ast_self_iterator)
+{
+	Any data[] = {Any(tag<AstData>::value, reinterpret_cast<void*>(3)),
+	              Any(tag<Fixnum>::value, reinterpret_cast<void*>(1)),
+	              Any(tag<Fixnum>::value, reinterpret_cast<void*>(2)),
+	              Any(tag<Fixnum>::value, reinterpret_cast<void*>(3))};
+
+	Ast ast(reinterpret_cast<AstData*>(data));
+
+	auto self_itr = ast.self_iterator();
+	ASSERT_TRUE(self_itr.is<Ast>());
+
+	auto subex = self_itr.subex();
+	ASSERT_EQ(3, subex.size());
+
+	auto itr = subex.begin();
+
+	ASSERT_EQ(Any(tag<Fixnum>::value, reinterpret_cast<void*>(1)), *itr);
+	++itr;
+	ASSERT_EQ(Any(tag<Fixnum>::value, reinterpret_cast<void*>(2)), *itr);
+	++itr;
+	ASSERT_EQ(Any(tag<Fixnum>::value, reinterpret_cast<void*>(3)), *itr);
+}
+
 TEST(TestType, test_empty_ast)
 {
 	vector<Any> space;
@@ -46,6 +70,45 @@ TEST(TestType, test_empty_ast)
 	ASSERT_EQ(0, ast.size());
 }
 
+TEST(TestType, test_ast_iterator)
+{
+	Any data[] = {Any(tag<AstData>::value, reinterpret_cast<void*>(6)),
+	              Any(tag<Fixnum>::value, reinterpret_cast<void*>(1)),
+	              Any(tag<Fixnum>::value, reinterpret_cast<void*>(2)),
+	              Any(tag<AstData>::value, reinterpret_cast<void*>(2)),
+	              Any(tag<Fixnum>::value, reinterpret_cast<void*>(3)),
+	              Any(tag<Fixnum>::value, reinterpret_cast<void*>(4)),
+	              Any(tag<Fixnum>::value, reinterpret_cast<void*>(5))};
+
+	Ast ast(reinterpret_cast<AstData*>(data));
+	auto itr = ast.begin();
+
+	ASSERT_EQ(Any(tag<Fixnum>::value, reinterpret_cast<void*>(1)), *itr);
+	++itr;
+	ASSERT_EQ(Any(tag<Fixnum>::value, reinterpret_cast<void*>(2)), *itr);
+	++itr;
+	ASSERT_EQ(tag<Ast>::value, (*itr)._tag);
+	++itr;
+	ASSERT_EQ(Any(tag<Fixnum>::value, reinterpret_cast<void*>(5)), *itr);
+}
+
+TEST(TestType, test_ast_subscript)
+{
+	Any data[] = {Any(tag<AstData>::value, reinterpret_cast<void*>(6)),
+	              Any(tag<Fixnum>::value, reinterpret_cast<void*>(1)),
+	              Any(tag<Fixnum>::value, reinterpret_cast<void*>(2)),
+	              Any(tag<AstData>::value, reinterpret_cast<void*>(2)),
+	              Any(tag<Fixnum>::value, reinterpret_cast<void*>(3)),
+	              Any(tag<Fixnum>::value, reinterpret_cast<void*>(4)),
+	              Any(tag<Fixnum>::value, reinterpret_cast<void*>(5))};
+
+	Ast ast(reinterpret_cast<AstData*>(data));
+
+	ASSERT_EQ(Any(tag<Fixnum>::value, reinterpret_cast<void*>(1)), ast[0]);
+	ASSERT_EQ(Any(tag<Fixnum>::value, reinterpret_cast<void*>(2)), ast[1]);
+	ASSERT_EQ(tag<Ast>::value, ast[2]._tag);
+	ASSERT_EQ(Any(tag<Fixnum>::value, reinterpret_cast<void*>(5)), ast[3]);
+}
 
 TEST(TestType, test_scheme_is_function)
 {
@@ -60,7 +123,6 @@ TEST(TestType, test_scheme_is_function)
 
 	Any ast(tag<Ast>::value,
 	        reinterpret_cast<AstData*>(&space.front()));
-
 	Scheme scheme;
 	scheme.type = ast;
 

@@ -251,126 +251,137 @@ namespace atl
 	/*********************/
 	namespace ast_helper
 	{
-		template<class Itr>
-		Itr add_iters(Itr itr, size_t n)
+		using namespace std;
+
+		template<class Ast, class AstData, class Any>
+		typename remove_const<Any>::type
+		wrap_ast_data(Any& value)
 		{
-			for(size_t i = 0; i < n; ++i)
-				++itr;
-			return itr;
+			typedef typename remove_const<Any>::type RType;
+			if(value._tag == tag<AstData>::value)
+				{ return RType(tag<Ast>::value, const_cast<void*>(reinterpret_cast<void const*>(&value))); }
+			return value;
 		}
 
-		// This is really a special iterator for when I have nested
-		// arrays.  I don't know when that would happen other than in
-		// generating ASTs.
-		template<class Value>
-		struct IteratorBase
+		template<class Ast, class AstData, class Any>
+		struct Iterator
 		{
-			// Should by Any or Any const
-			Value *value;
+			typedef Iterator<Ast, AstData, Any> Self;
 
-			IteratorBase(Value* vv) : value(vv) {}
-			IteratorBase() = default;
+			Ast* ast;
+			size_t position;
 
-			Any operator*() const
+			Iterator() : ast(nullptr), position(0)
+			{}
+
+			Iterator(Ast& ast_,
+			         size_t pos)
+				: ast(&ast_), position(pos)
+			{}
+
+			typename add_const<Any>::type* pointer() const { return ast->flat_begin() + position; }
+			Any* pointer() { return ast->flat_begin() + position; }
+
+			// operator* automatically wraps AstData items, which
+			// means it does _not_ return a reference.  Use the
+			// 'reference' method and deal with AstData explicitly if
+			// that's what you need.
+			typename remove_const<Any>::type operator*() const
+			{ return wrap_ast_data<Ast, AstData>(*pointer()); }
+
+			typename remove_const<Any>::type operator*()
+			{ return wrap_ast_data<Ast, AstData>(*pointer()); }
+
+			Any& reference() { return *pointer(); }
+			typename add_const<Any>::type& reference() const { return *pointer(); }
+
+			Any* operator->() const { return pointer(); }
+			Any* operator->() { return pointer(); }
+
+			Iterator& operator++()
 			{
-				if(value->_tag == tag<AstData>::value)
-					{ return Any(tag<Ast>::value,
-					             reinterpret_cast<void*>(const_cast<Any*>(value))); }
-				return *value;
-			}
-
-			Value* operator->() { return value; }
-			Value const* operator->() const { return value; }
-
-			IteratorBase& operator++()
-			{
-				using namespace std;
-				if(value->_tag == tag<AstData>::value)
-					value = reinterpret_cast<typename
-					                         conditional<is_const<Value>::value,
-					                                     add_const<AstData>,
-					                                     tmpl::Identity<AstData>
-					                                     >::type::type*
-					                         >(value)->flat_end();
+				if(pointer()->_tag == atl::tag<AstData>::value)
+					{ position += reinterpret_cast<AstData*>(pointer())->value + 1; }
 				else
-					++value;
+					{ ++position; }
 				return *this;
 			}
 
-			IteratorBase operator+(size_t n) const
-			{ return add_iters(*this, n); }
+			Iterator operator+(size_t n) const
+			{
+				Iterator rval = *this;
+				for(size_t i=0; i < n; ++i) { ++rval; }
+				return rval;
+			}
 
-			size_t operator-(IteratorBase other) const
+			bool operator==(Iterator const& j) const
+			{
+				return (position == j.position) && (ast->value == j.ast->value);
+			}
+
+			bool operator!=(Iterator const& j) const {return !operator==(j);}
+
+			size_t operator-(Iterator other) const
 			{
 				size_t n = 0;
-				for(; other != *this; ++other, ++n);
+				for(; other.position != position; ++other, ++n);
 				return n;
 			}
 
-			bool operator!=(const IteratorBase<Value>& j) const {return j.value != value;}
-
-			bool operator==(const IteratorBase<Value>& j) const {return j.value == value;}
-
-			std::ostream& print(std::ostream& out) const { return out << value; }
-		};
-
-
-		/* Modify the values of an Ast, but not its structure.  This
-		   iterator is suitable for traversal, but Ast references
-		   returned by it will be invalid after an increment.
-		 */
-		struct ModifyDataIterator
-			: public IteratorBase<Any>
-		{
-			typedef IteratorBase<Any> Base;
-			Any _data_wrapper;
-
-			ModifyDataIterator(Any *vv) : Base(vv) {}
-
-			/* Returns a reference to the data of an Ast.  For nested AstData, return a reference to an instance Ast. */
-			Any& operator*()
+			struct Subex
 			{
-				if(value->_tag == tag<AstData>::value)
+				Iterator _begin, _end;
+				Subex(Iterator const& begin, Iterator const& end)
+					: _begin(begin), _end(end)
+				{}
+
+				Subex()=default;
+
+				Iterator begin() { return _begin; }
+				Iterator end() { return _end; }
+				size_t size() { return end() - begin(); }
+				size_t empty() { return end() == begin(); }
+			};
+
+			// Assuming 'this' is on an Ast or AstData, return the
+			// Range describing that subexpression's start and end in
+			// terms of the appropriate base Ast.
+			Subex subex()
+			{
+				if(reference()._tag == atl::tag<AstData>::value)
 					{
-						_data_wrapper = Any(tag<Ast>::value,
-						                    reinterpret_cast<void*>(value));
-						return _data_wrapper;
+						return Subex
+							(Iterator(*ast, position+1),
+							 Iterator
+							 (*ast,
+							  reinterpret_cast<AstData&>(reference()).value + position +1));
 					}
-				return *value;
+				else
+					{
+						// An Ast should be pointing out to a
+						// different array; we need to get its own
+						// iterators
+						return reinterpret_cast<Ast&>(reference()).subex();
+					}
 			}
 
-			ModifyDataIterator operator+(size_t n) const
-			{ return add_iters(*this, n); }
-		};
-
-		struct ModifyData
-		{
-			typedef ModifyDataIterator iterator;
-			iterator _begin, _end, _peek;
-
-			ModifyData(Any *bb, Any *ee)
-				: _begin(bb), _end(ee), _peek(nullptr)
-			{}
-
-			iterator begin() { return _begin; }
-			iterator end() { return _end; }
-
-			Any& peek(size_t n)
+			// returns the approximate tag of our value (Ast for AstData)
+			tag_t tag() const
 			{
-				_peek = begin() + n;
-				return *_peek;
+				auto tag = reference()._tag;
+				if(tag == atl::tag<AstData>::value)
+					{ return atl::tag<Ast>::value; }
+				return tag;
 			}
 
-			Any operator[](size_t n) const {
-				return *(_begin + n);
-			}
+			template<class T>
+			bool is() const
+			{ return std::is_same<T, Any>::value || tag() == atl::tag<T>::value; }
 		};
 	}
 
 	struct AstData
 	{
-		typedef ast_helper::IteratorBase<Any> iterator;
-		typedef ast_helper::IteratorBase<const Any> const_iterator;
 		typedef Any* flat_iterator;
 		typedef Any const* const_flat_iterator;
 
@@ -387,24 +398,9 @@ namespace atl
 		const Any* flat_begin() const { return reinterpret_cast<Any const*>(this); }
 		const Any* flat_end() const { return flat_begin() + value + 1; }
 
-		// Regular begin/end are over the elements of the "container"
-		// and don't include 'this'
-		iterator begin() { return iterator(flat_begin() + 1); }
-		const_iterator begin() const { return const_iterator(flat_begin() + 1); }
-
-		iterator end() { return iterator(flat_end()); }
-		const_iterator end() const { return const_iterator(flat_end()); }
-
 		bool empty() const { return value == 0; }
 
-		Any operator[](size_t n) const {
-			auto itr = begin();
-			itr = itr + n;
-			return *itr;
-		}
-
 		size_t flat_size() const { return flat_end() - flat_begin(); }
-		size_t size() const { return end() - begin(); }
 	};
 
 	struct Ast
@@ -419,14 +415,22 @@ namespace atl
 		Ast() : _tag(tag<Ast>::value), value(nullptr) {}
 		Ast(const Ast&) = default;
 
-		typedef ast_helper::IteratorBase<Any> iterator;
-		typedef ast_helper::IteratorBase<const Any> const_iterator;
+		typedef ast_helper::Iterator<Ast, AstData, Any> iterator;
+		typedef ast_helper::Iterator<Ast const, AstData const, Any const> const_iterator;
+		typedef iterator::Subex Subex;
 
 		typedef Any* flat_iterator;
 		typedef Any const* const_flat_iterator;
 
-		friend std::ostream& operator<<(std::ostream& out, const iterator& itr) { return itr.print(out); }
-		friend std::ostream& operator<<(std::ostream& out, const const_iterator& itr) { return itr.print(out); }
+		Any* address(size_t n)
+		{
+			auto itr = begin();
+			itr = itr + n;
+			return itr.pointer();
+		}
+
+		Any& reference(size_t n)
+		{ return *address(n); }
 
 		/* The operator[] behavior doesn't return a reference because
 		   nested AstData should be wrapped before return so it can be
@@ -434,48 +438,34 @@ namespace atl
 		   (Ast and AstData) to deal with everywhere).  The
 		   'reference' method exists if something in the Ast needs to
 		   be set. */
-		Any operator[](size_t n) const
-		{
-			auto itr = begin();
-			itr = itr + n;
-			return *itr;
-		}
-
-		Any const* address(size_t n) const
-		{
-			auto itr = begin();
-			itr = itr + n;
-			return itr.value;
-		}
-
-		Any& reference(size_t n)
-		{
-			auto itr = begin();
-			itr = itr + n;
-			return *itr.value;
-		}
+		Any operator[](size_t n)
+		{ return *(begin() + n); }
 
 		flat_iterator flat_begin() { return value->flat_begin(); }
 		flat_iterator flat_end() { return value->flat_end(); }
+		const_flat_iterator flat_begin() const { return value->flat_begin(); }
+		const_flat_iterator flat_end() const { return value->flat_end(); }
 
-		iterator begin() { return value->begin(); }
-		const_iterator begin() const { return const_cast<AstData const*>(value)->begin(); }
 
-		iterator end() { return value->end(); }
-		const_iterator end() const { return const_cast<AstData const*>(value)->end(); }
+		iterator begin() { return iterator(*this, 1); }
+		iterator end() { return iterator(*this, value->value + 1); }
 
-		Any& back()
-		{ return *(end().value - 1); }
+		const_iterator begin() const { return const_iterator(*this, 1); }
+		const_iterator end() const { return const_iterator(*this, value->value + 1); }
 
 		size_t flat_size() const { return value->flat_size(); }
 
-		size_t size() const { return value->size(); }
+		size_t size() { return end() - begin(); }
 		bool empty() const { return value->value == 0; }
 
 		bool operator<(Ast const& other) const
 		{ return value < other.value; }
 
-		ast_helper::ModifyData modify_data() { return ast_helper::ModifyData(flat_begin() + 1, flat_end()); }
+		// An iterator with our range as its subex()
+		iterator self_iterator()
+		{ return iterator(*this, 0); }
+
+		Subex subex() { return Subex(begin(), end()); }
 	};
 
 	// Return an Ast pointing to an AstData `input` which was cast to
@@ -520,9 +510,8 @@ namespace atl
 		{
 			if(type._tag == tag<Ast>::value)
 				{
-					auto& ast = *reinterpret_cast<AstData*>(type.value);
-					if(ast.empty())
-						{ return false; }
+					auto& ast = reinterpret_cast<Ast&>(type);
+					if(ast.empty()) { return false; }
 
 					auto head = ast[0];
 					return head._tag == tag<Type>::value &&

@@ -57,8 +57,8 @@ namespace atl
 					{
 					case tag<AstData>::value:
 						{
-							if(Ast(const_cast<AstData*>(reinterpret_cast<AstData const*>(aa.value)))
-							   != Ast(const_cast<AstData*>(reinterpret_cast<AstData const*>(bb.value))))
+							if(Ast(const_cast<AstData*>(reinterpret_cast<AstData const*>(aa.pointer())))
+							   != Ast(const_cast<AstData*>(reinterpret_cast<AstData const*>(bb.pointer()))))
 								{ return false; }
 							break;
 						}
