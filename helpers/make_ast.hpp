@@ -3,6 +3,7 @@
 
 #include <gc/gc.hpp>
 #include <helpers/misc.hpp>
+#include <helpers/itritrs.hpp>
 
 /**
  * Make Asts along various patterns
@@ -96,17 +97,17 @@ namespace atl
 		}
 
 
-		ast_composer copy(Ast const& input)
+		ast_composer copy(Ast::Subex const& input)
 		{
 			return [input](AstBuilder& store) -> void
 				{
 					NestAst nest(store);
-					for(auto vv : input)
+					for(auto& itr : itritrs(input))
 						{
-							if(is<Ast>(vv))
-								{ copy(unwrap<Ast>(vv))(store); }
+							if(itr.is<Ast>())
+								{ copy(itr.subex())(store); }
 							else
-								{ store.push_back(vv); }
+								{ store.push_back(*itr); }
 						}
 				};
 		}
@@ -133,14 +134,11 @@ namespace atl
 			void _push_back(Any const& tt)
 			{
 				switch(tt._tag)
-					{
-					case tag<Ast>::value:
+   				{
 					case tag<AstData>::value:
-						{
-							// assume it's a nested function:
-							ast_hof::copy(unwrap<Ast>(tt))(space);
-							break;
-						}
+					case tag<Ast>::value:
+						throw WrongTypeError
+							("Can't FnBuilder._push_back a raw Asts; Ast's memory might move.");
 					default:
 						space.push_back(tt);
 					}
@@ -184,8 +182,14 @@ namespace atl
 
 			void operator()(Any const& value) { arg_type(value); }
 
-			void operator()(ast_composer const& fn)
+			void operator()(Marked<Ast>& ast)
 			{
+				if(!is_last) { _nest(); }
+				// assume it's a nested function:
+				ast_hof::copy(ast->subex())(space);
+			}
+
+			void operator()(ast_composer const& fn) {
 				if(!is_last)
 					{ _nest(); }
 

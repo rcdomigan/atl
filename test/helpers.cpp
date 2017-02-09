@@ -37,15 +37,14 @@ TEST_F(TestHelpers, test_trivial_pattern_match)
 {
 	using namespace make_ast;
 	auto ast_raii = store(mk(wrap<Lambda>(), mk("a")));
-	Any ast_expr = wrap(*ast_raii);
 
 	{
 		using namespace pattern_match;
 
-		ASSERT_TRUE(match(ast(tag<Lambda>::value, ast(tag<Symbol>::value)), ast_expr));
-		ASSERT_FALSE(match(ast(tag<Lambda>::value, ast(tag<Lambda>::value)), ast_expr));
-		ASSERT_FALSE(match(ast(tag<Lambda>::value), ast_expr));
-		ASSERT_FALSE(match(ast(tag<Lambda>::value, ast(tag<Symbol>::value, tag<Symbol>::value)), ast_expr));
+		ASSERT_TRUE(match(ast(tag<Lambda>::value, ast(tag<Symbol>::value)), ast_raii));
+		ASSERT_FALSE(match(ast(tag<Lambda>::value, ast(tag<Lambda>::value)), ast_raii));
+		ASSERT_FALSE(match(ast(tag<Lambda>::value), ast_raii));
+		ASSERT_FALSE(match(ast(tag<Lambda>::value, ast(tag<Symbol>::value, tag<Symbol>::value)), ast_raii));
 	}
 }
 
@@ -57,8 +56,8 @@ TEST_F(TestHelpers, test_pattern_match_empty_ast)
 	{
 		namespace pm = pattern_match;
 
-		ASSERT_TRUE(match(pm::ast(), wrap(*ast)));
-		ASSERT_FALSE(match(pm::ast("foo"), wrap(*ast)));
+		ASSERT_TRUE(match(pm::ast(), ast));
+		ASSERT_FALSE(match(pm::ast("foo"), ast));
 	}
 }
 
@@ -71,7 +70,7 @@ TEST_F(TestHelpers, test_pattern_match_capture)
 	{
 		using namespace pattern_match;
 
-		ASSERT_TRUE(match(ast(capture(sym)), wrap(*expr)));
+		ASSERT_TRUE(match(ast(capture(sym)), expr));
 		ASSERT_EQ("a", sym.name);
 	}
 }
@@ -139,7 +138,7 @@ TEST_F(TestHelpers, test_ast_hof_copy)
 	using namespace make_ast;
 
 	auto pre = store(mk("a", "b"));
-	auto post = store(ast_hof::copy(*pre));
+	auto post = store(ast_hof::copy(pre->subex()));
 
 	ASSERT_EQ(*pre, *post);
 	ASSERT_NE(pre.any.value, post.any.value);
@@ -151,7 +150,7 @@ TEST_F(TestHelpers, test_ast_hof_nested_copy)
 
 	auto pre = store(mk("a", "b", mk("c", "d")));
 
-	ASSERT_EQ(*pre, *store(ast_hof::copy(*pre)));
+	ASSERT_EQ(*pre, *store(ast_hof::copy(pre->subex())));
 }
 
 TEST_F(TestHelpers, test_fn_type)
@@ -164,7 +163,7 @@ TEST_F(TestHelpers, test_fn_type)
 		using namespace pattern_match;
 		ASSERT_TRUE
 			(match(fnt(tt<Bool>(), fnt(tt<Any>(), tt<Any>())),
-			       wrap(*type)))
+			       type))
 			<< printer::print(*type) << std::endl;
 	}
 }
@@ -181,7 +180,7 @@ TEST_F(TestHelpers, test_nested_fn_type)
 		ASSERT_TRUE
 			(match(fnt(fnt(tt<Any>(), tt<Fixnum>()),
 			           fnt(tt<Symbol>(), tt<Symbol>())),
-			       wrap(*type)))
+			       type))
 			<< printer::print(*type) << std::endl;
 	}
 }
@@ -190,15 +189,14 @@ TEST_F(TestHelpers, test_fn_type_thunk)
 {
 	using namespace fn_type;
 
-	auto ast_store = store.ast_builder();
-	fn(tag<Fixnum>::value)(ast_store);
+	auto expr = store(fn(tag<Fixnum>::value));
 
 	{
 		using namespace pattern_match;
 		ASSERT_TRUE
 			(match(fnt(tt<Fixnum>()),
-			       wrap(ast_store.root())))
-			<< printer::print(ast_store.root()) << std::endl;
+			       expr))
+			<< printer::print(*expr) << std::endl;
 	}
 }
 
@@ -213,4 +211,37 @@ TEST_F(TestHelpers, test_subscript)
 	ASSERT_TRUE(is<Symbol>(subscript(expr, 0)));
 	ASSERT_TRUE(is<Lambda>(subscript(expr, 1, 0)));
 	ASSERT_TRUE(is<Fixnum>(subscript(expr, 1, 1)));
+}
+
+TEST_F(TestHelpers, test_ItrItr)
+{
+	using namespace make_ast;
+
+	auto ast = store(mk(1, mk(2, 3), 4));
+	auto itr = ItrItr(ast->begin());
+
+	ASSERT_EQ(wrap<Fixnum>(1), (*itr).reference());
+	++itr;
+	ASSERT_TRUE(is<Ast>(**itr));
+	ASSERT_TRUE(is<AstData>(itr->reference()));
+	++itr;
+	ASSERT_EQ(wrap<Fixnum>(4), itr->reference());
+	++itr;
+}
+
+TEST_F(TestHelpers, test_itritrs)
+{
+	using namespace make_ast;
+
+	auto ast = store(mk(1, 2, 3));
+
+	size_t count = 1;
+	for(auto itr : itritrs(ast))
+		{
+			ASSERT_TRUE(is<Fixnum>(*itr));
+			ASSERT_EQ(wrap<Fixnum>(count), *itr)
+				<< "got " << printer::print(*itr)
+				<< " rather than " << count << std::endl;
+			++count;
+		}
 }

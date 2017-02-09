@@ -365,6 +365,9 @@ namespace atl
 		Marked<T> marked(T& thing)
 		{ return Marked<T>(_cxx_stack, thing); }
 
+		Marked<Ast> marked(Ast thing)
+		{ return Marked<Ast>(_cxx_stack, wrap(thing)); }
+
 		Marked<Any> marked(Any thing)
 		{ return Marked<Any>(_cxx_stack, thing); }
 
