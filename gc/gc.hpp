@@ -25,6 +25,7 @@
 #include <gc/pool.hpp>
 #include <gc/ast_builder.hpp>
 #include <gc/marked.hpp>
+#include <gc/vm_closure.hpp>
 
 namespace atl
 {
@@ -172,6 +173,7 @@ namespace atl
 		void remove_mark_base(MarkBaseList::iterator itr) { _mark_bases.erase(itr); }
 
 		AstPool _ast_pool;
+		ClosurePool _closure_pool;
 
 		memory_pool::Pool< LambdaMetadata > _lambda_metadata_heap;
 		memory_pool::Pool< String > _string_heap;
@@ -218,6 +220,7 @@ namespace atl
 		void _mark()
 		{
 			_ast_pool.gc_start();
+			_ast_pool.mark();
 
 			for(auto& i : _roots) { i(*this); }
 			for(auto& i : _mark_bases) { i->mark(); }
@@ -270,7 +273,8 @@ namespace atl
 		{
 			_symbol_heap.mark(&sym);
 			mark(sym.value);
-			// The Scheme is on the Symbol, not the scheme heap
+			// The Scheme is on the Symbol, not the Scheme heap, so
+			// just check its type part.
 			mark(sym.scheme.type);
 		}
 
@@ -406,12 +410,7 @@ namespace atl
 		pcode::value_type* closure(pcode::value_type body_location,
 		                           size_t formals,
 		                           size_t captures)
-		{
-			auto rval = new pcode::value_type[captures + 2];
-			rval[0] = formals;
-			rval[1] = body_location;
-			return rval;
-		}
+		{ return _closure_pool.closure(body_location, formals, captures); }
 	};
 
 	template< class T,	memory_pool::Pool<T> GC::*member >

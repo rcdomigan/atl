@@ -13,8 +13,8 @@
 
 #include <exception.hpp>
 #include <type.hpp>
+#include <helpers/itritrs.hpp>
 #include <helpers.hpp>
-#include <helpers/pattern_match.hpp>
 #include "./gc.hpp"
 #include "./print.hpp"
 
@@ -25,6 +25,7 @@ namespace atl
 	 * Map of toplevel definitions
 	 */
 	struct SymbolMap
+		: public MarkBase
 	{
 		typedef Any value_type;
 		typedef std::map<std::string, value_type> Map;
@@ -51,23 +52,34 @@ namespace atl
 		SymbolMap *up;
 		LambdaMetadata *closure;
 
-		GC& store;
-
-		explicit SymbolMap(GC& store_)
-			: up(nullptr)
+		explicit SymbolMap(GC& gc)
+			: MarkBase(gc)
+			, up(nullptr)
 			, closure(nullptr)
-			, store(store_)
 		{}
 
-		explicit SymbolMap(SymbolMap *up_,
+		explicit SymbolMap(GC& gc,
+		                   SymbolMap *up_,
 		                   LambdaMetadata *closure_)
-			: up(up_)
+			: MarkBase(gc)
+			, up(up_)
 			, closure(closure_)
-			, store(up->store)
 		{}
 
 		SymbolMap(SymbolMap const&) = delete;
+		SymbolMap(SymbolMap &&) = delete;
 		SymbolMap() = delete;
+
+		virtual void mark() override
+		{
+			if(closure)
+				{ manage_marking.gc->mark(*closure); }
+
+			for(auto item : local)
+				{ manage_marking.gc->mark(item.second); }
+
+			if(up) { up->mark(); }
+		}
 
 		SymbolMap& top()
 		{
@@ -99,7 +111,7 @@ namespace atl
 
 		/* returns <found, closure, from_closure> (from_closure indicating
 		   that it's from a different closure than the current 'top'.
-		   */
+		*/
 		std::tuple<all_iterator, LambdaMetadata*, bool> find(std::string const& k)
 		{
 			auto itr = local.find(k);
@@ -138,6 +150,7 @@ namespace atl
 
 		void dbg()
 		{
+			std::cout << "Closure: " << closure << std::endl;
 			for(auto& pair : local)
 				{
 					std::cout << pair.first
@@ -146,6 +159,7 @@ namespace atl
 					          << ")"
 					          << std::endl;
 				}
+			if(up) up->dbg();
 		}
 
 		std::pair<Any, bool> current_value(Any key)
@@ -178,89 +192,88 @@ namespace atl
 	}
 
 	typedef std::set<std::string> closure;
-	typedef std::map<std::string, std::vector<Any*> > BackPatch;
+
+	typedef std::map<std::string, std::vector<Ast::iterator> > BackPatch;
 
 	/** Replace symbols in `value` with their values.  This doesn't
 	 * setup back-patches or lexical scope, it's just meant to define
 	 * the special forms (like Lambda) before type inference occurs.
 	 */
-	void _assign_forms(AstBuilder& ast,
-	                   GC& gc,
-	                   SymbolMap& env,
-	                   Any value)
+	struct AssignForms
 	{
-		switch(value._tag)
-			{
-			case tag<Ast>::value:
+		GC& gc;
+		SymbolMap& env;
+
+		AssignForms(GC& gc_, SymbolMap& env_)
+			: gc(gc_), env(env_)
+		{}
+
+		void assign_forms(AstBuilder& builder, Ast::Subex subex)
+		{ for(auto itr : itritrs(subex)) { assign_forms(builder, itr); } }
+
+		void assign_forms(AstBuilder& builder, Ast::iterator& itr)
+		{
+			switch(itr.tag())
 				{
-					NestAst nesting(ast);
+				case tag<Ast>::value:
 					{
-						using namespace pattern_match;
-						namespace pm = pattern_match;
-						Ast formals;
+						NestAst nesting(builder);
+						{
+							using namespace pattern_match;
+							namespace pm = pattern_match;
+							Ast::iterator formals, body;
 
-						if(match(pm::ast(tag<Lambda>::value, capture(formals), tag<Ast>::value),
-						         value))
-							{
-								auto metadata = gc.make<LambdaMetadata>();
+							if(match(ast(tag<Lambda>::value, capture(formals), capture(body)),
+							         itr))
 
-								metadata->formals = *gc(ast_hof::copy(formals));
+								{
+									auto metadata = gc.make<LambdaMetadata>
+										(gc(ast_hof::copy(formals.subex())),
+										 wrap<Null>());
 
-								ast.push_back(wrap<Lambda>(metadata.pointer()));
+									builder.push_back(wrap<Lambda>(metadata.pointer()));
 
-								for(auto item : slice(unwrap<Ast>(value), 1))
-									{ _assign_forms(ast, gc, env, item); }
-							}
-						else
-							{
-								for(auto item : unwrap<Ast>(value))
-									{ _assign_forms(ast, gc, env, item); }
-							}
+									ast_hof::copy(formals.subex())(builder);
+
+									assign_forms(builder, body);
+								}
+							else
+								{ assign_forms(builder, itr.subex()); }
+						}
+						return;
 					}
+				case tag<Symbol>::value:
+					{
+						// Assign forms; ints and other atoms are also
+						// safe.  Just no Asts.
+						auto sym_value = env.current_value(*itr);
+
+						Any rval;
+						if(sym_value.second && !is<Ast>(sym_value.first))
+							{ rval = sym_value.first; }
+						else
+							{ rval = *itr; }
+						builder.push_back(rval);
+						return;
+					}
+				default:
+					builder.push_back(*itr);
 					return;
 				}
-			case tag<Symbol>::value:
-				{
-					/* Just assign forms; ints and other atoms are also safe.  Just no Asts. */
-					auto sym_value = env.current_value(value);
+		}
 
-					Any rval;
-					if(sym_value.second && !is<Ast>(sym_value.first))
-						{ rval = sym_value.first; }
-					else
-						{ rval = value; }
-					ast.push_back(rval);
-					return;
-				}
-			default:
-				ast.push_back(value);
-				return;
-			}
-	}
+		Marked<Ast> operator()(Marked<Ast>& ast)
+		{
+			auto builder = gc.ast_builder();
+			auto itr = ast->self_iterator();
+			assign_forms(builder, itr);
+			return gc.marked(builder.root());
+		}
 
-	Any assign_forms(GC& gc, SymbolMap& env, Any value)
-	{
-		switch(value._tag)
-			{
-			case tag<Ast>::value:
-				{
-					auto builder = gc.ast_builder();
-					_assign_forms(builder, gc, env, value);
-					return wrap(builder.root());
-				}
-			case tag<Symbol>::value:
-				{
-					/* Just assign forms; ints and other atoms are also safe.  Just no Asts. */
-					auto sym_value = env.current_value(value);
+		Marked<Ast> operator()(Marked<Ast>&& ast)
+		{ return (*this)(ast); }
+	};
 
-					if(sym_value.second && !is<Ast>(sym_value.first))
-						{ return sym_value.first; }
-					return value;
-				}
-			default:
-				return value;
-			}
-	}
 
 	/** Replace a symbol with its value (where that makes sense),
 	 * setup backpatches, and keep track of what the closure will need
@@ -271,24 +284,24 @@ namespace atl
 	 */
 	void assign_symbol(SymbolMap& env
 	                   , BackPatch& backpatch
-	                   , Any& value)
+	                   , Ast::iterator& itr)
 	{
-		auto& sym = unwrap<Symbol>(value);
+		auto& sym = unwrap<Symbol>(*itr);
 
 		SymbolMap::all_iterator found_def(env.local.end());
 		LambdaMetadata *closure;
-		bool from_closure;
+		bool from_parent_closure;
 
-		std::tie(found_def, closure, from_closure) = env.find(sym.name);
+		std::tie(found_def, closure, from_parent_closure) = env.find(sym.name);
 
 		if(found_def != env.very_end())
 			{
-				value = found_def->second;
+				itr.reference() = found_def->second;
 
-				if(from_closure && is<Parameter>(value))
+				if(from_parent_closure && itr.is<Parameter>())
 					{
-						Symbol& sym = unwrap<Symbol>(closure->formals[unwrap<Parameter>(value).value]);
-						value = wrap(env.closure->closure_parameter(&sym));
+						Symbol& sym = unwrap<Symbol>(closure->formals[unwrap<Parameter>(*itr).value]);
+						itr.reference() = wrap(env.closure->closure_parameter(&sym));
 					}
 			}
 		else
@@ -296,91 +309,116 @@ namespace atl
 				/* If we haven't found the symbol at all, it must be backpatched at the toplevel later. */
 				auto to_patch = backpatch.find(sym.name);
 				if(to_patch != backpatch.end())
-					{ to_patch->second.push_back(&value); }
+					{ to_patch->second.push_back(itr); }
 				else
-					{ backpatch.emplace(sym.name, std::vector<Any*>({&value})); }
+					{ backpatch.emplace(sym.name, std::vector<Ast::iterator>({itr})); }
 			}
 		return;
 	}
 
 
-	/** Modify `ast` in place replacing body Symbols with Bounds
+	/** Modify `value` in place replacing body Symbols with Bounds
 	 * pointing to their respective formal or toplevel entry
 	 */
-	void assign_free(SymbolMap& env,
-	                 BackPatch &backpatch,
-	                 Any& value)
+	struct AssignFree
 	{
-		switch(value._tag)
-			{
-			case tag<Ast>::value:
+		GC& gc;
+		SymbolMap& toplevel;
+		BackPatch& backpatch;
+
+		AssignFree(GC& gc_,
+		           SymbolMap& env_,
+		           BackPatch& backpatch_)
+			: gc(gc_), toplevel(env_), backpatch(backpatch_)
+		{}
+
+		void operator()(Ast::iterator itr)
+		{ assign_free(toplevel, itr); }
+
+
+		void operator()(Marked<Ast>& ast)
+		{ (*this)(ast->self_iterator()); }
+
+		void operator()(Marked<Ast>&& ast)
+		{ (*this)(ast->self_iterator()); }
+
+		void assign_free(SymbolMap& env, Ast::iterator& outer)
+		{
+			switch(outer.tag())
 				{
-					auto ast = unwrap<Ast>(value).modify_data();
-					auto head = ast.begin();
-
-					if(is<Symbol>(*head))
-						{ assign_symbol(env, backpatch, *head); }
-
-					switch(head->_tag)
-						{
-						case tag<Define>::value:
-							{
-								auto &sym = modify<Symbol>(ast.peek(1));
-								{
-									using namespace pattern_match;
-									Lambda func(nullptr);
-									if(match(pattern_match::ast(capture(func), tag<Ast>::value, tag<Ast>::value),
-									         ast[2]))
-										{
-											symbol_assign(sym, wrap(func));
-											env.define(sym.name, wrap(&sym));
-											assign_free(env, backpatch, ast.peek(2));
-										}
-									else
-										{
-											assign_free(env, backpatch, ast.peek(2));
-											if(is<Ast>(ast[2]))
-												{
-													symbol_assign(sym, wrap<Undefined>());
-													env.define(sym.name, wrap<Undefined>());
-												}
-											else
-												{
-													symbol_assign(sym, ast[2]);
-													env.define(sym.name, ast[2]);
-												}
-										}
-								}
-							}
-							return;
-						case tag<Lambda>::value:
-							{
-								SymbolMap inner_map(&env, unwrap<Lambda>(*head).value);
-
-								auto formals = unwrap<Ast>(ast[1]);
-
-								size_t idx = 0;
-								for(auto sym : formals)
-									{
-										assert(is<Symbol>(sym));
-										inner_map.formal(unwrap<Symbol>(sym),
-										                 idx++);
-									}
-
-								assign_free(inner_map, backpatch, ast.peek(2));
-							}
-							return;
-						default:
-							for(auto& item : ast)
-								{ assign_free(env, backpatch, item); }
-						}
+				case tag<Symbol>::value:
+					assign_symbol(env, backpatch, outer);
 					return;
-				}
-			case tag<Symbol>::value:
-				assign_symbol(env, backpatch, value);
-				return;
-			}
-	}
-}
+				case tag<Ast>::value:
+					{
+						auto subex = outer.subex();
+						auto itr = subex.begin();
 
+						if(is<Symbol>(*itr))
+							{ assign_symbol(env, backpatch, itr); }
+
+						switch(itr->_tag)
+							{
+							case tag<Define>::value:
+								{
+									++itr;
+									auto& sym = unwrap<Symbol>(*itr);
+
+									++itr; // body
+									{
+										namespace pm = pattern_match;
+										Lambda func(nullptr);
+
+										if(match(pm::ast(pm::capture(func), tag<Ast>::value, tag<Ast>::value),
+										         itr))
+											{
+												symbol_assign(sym, wrap(func));
+												env.define(sym.name, wrap(&sym));
+												(*this)(itr);
+											}
+										else
+											{
+												(*this)(itr);
+												if(itr.is<Ast>())
+													{
+														symbol_assign(sym, wrap<Undefined>());
+														env.define(sym.name, wrap<Undefined>());
+													}
+												else
+													{
+														symbol_assign(sym, *itr);
+														env.define(sym.name, *itr);
+													}
+											}
+									}
+								}
+								return;
+							case tag<Lambda>::value:
+								{
+									SymbolMap inner_map(gc, &env, unwrap<Lambda>(itr.reference()).value);
+
+									++itr; // formals
+									size_t idx = 0;
+									for(auto const& sym : itr.subex())
+										{
+											assert(is<Symbol>(sym));
+											inner_map.formal(unwrap<Symbol>(sym),
+											                 idx++);
+										}
+
+									++itr;
+									assign_free(inner_map, itr);
+								}
+								return;
+							default:
+								for(auto inner : itritrs(subex))
+									{ assign_free(env, inner); }
+								return;
+							}
+						return;
+					}
+				}
+		}
+	};
+}
 #endif
