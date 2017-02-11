@@ -15,8 +15,13 @@
 #include <iterator>
 
 #include <boost/mpl/map.hpp>
+#include <boost/mpl/set.hpp>
 #include <boost/mpl/lambda.hpp>
+#include <boost/mpl/placeholders.hpp>
 #include <boost/mpl/value_type.hpp>
+#include <boost/mpl/fold.hpp>
+#include <boost/mpl/insert.hpp>
+#include <boost/mpl/apply.hpp>
 
 #include "./debug.hpp"
 #include "./byte_code.hpp"
@@ -137,6 +142,8 @@ namespace atl
 		};
 	}
 
+	namespace pl = ::boost::mpl::placeholders;
+
 	struct GC
 	{
 		typedef ::atl::gc_detail::MarkBase<GC> MarkBase;
@@ -197,6 +204,18 @@ namespace atl
 		                  , mpl::pair< Symbol,	MemberPtr<Symbol, &GC::_symbol_heap > >
 		                  , mpl::pair< Scheme,	MemberPtr<Scheme, &GC::_scheme_heap > >
 		                  > PoolMap;
+
+		typedef typename mpl::fold<PoolMap,
+		                           mpl::set<>,
+		                           mpl::lambda< mpl::insert<pl::_1, mpl::first<pl::_2> > >
+		                           >::type BasicPoolTypes;
+
+		typedef typename tmpl::Apply<mpl::insert,
+		                             mpl::insert<BasicPoolTypes, Ast>,
+		                             tmpl::Identity<Any> >::type MarkableTypes;
+
+
+
 
 		template<class T>
 		T* alloc_from(memory_pool::Pool<T> &pool)
