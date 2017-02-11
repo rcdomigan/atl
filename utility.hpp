@@ -633,4 +633,29 @@ Output map_range(Fn fn, Input in)
 }
 
 
+namespace detail
+{
+	template<class T>
+	struct Deref
+	{ static T& a(T* item) { return *item; } };
+
+	template<class T>
+	struct Passthrough
+	{
+		static T&& a(T&& item) { return std::move(item); }
+		static T& a(T& item) { return std::move(item); }
+	};
+}
+
+
+template<class T, class R = typename std::remove_pointer<T>::type>
+R& deref(T&& item)
+{
+	return std::conditional<std::is_pointer<T>::value,
+	                        detail::Deref<T>,
+	                        detail::Passthrough<T>
+	                        >::a(item);
+}
+
+
 #endif
