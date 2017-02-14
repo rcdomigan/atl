@@ -32,7 +32,9 @@ struct CompilerTest
 	unittest::TrivialFunctions fns;
 
 	CompilerTest()
-		: vm(store)
+		: compile(store),
+		  vm(store),
+		  fns(store)
 	{
 		init_types();
 
@@ -59,7 +61,9 @@ struct CompilerTest
 
 TEST_F(CompilerTest, test_compile_atom)
 {
-	compile.compile(wrap<Fixnum>(5));
+	using namespace make_ast;
+	auto expr = store(mk(wrap<Fixnum>(5)));
+	compile.compile(expr->begin());
 	ASSERT_EQ(run(), 5);
 }
 
@@ -147,7 +151,7 @@ TEST_F(CompilerTest, test_basic_lambda)
 		       mk(add, param_a, param_b)),
 		    4, 7));
 
-	compile.compile(*expr);
+	compile.compile(expr);
 
 	ASSERT_EQ(11, run());
 }
@@ -159,16 +163,15 @@ TEST_F(CompilerTest, test_thunk)
 
 	// note: currently the compiler just sets the LambdaMetadata body
 	// position; it doesn't need much else
-	auto metadata = store.make<LambdaMetadata>();
-	metadata->return_type = wrap<Type>(tag<Fixnum>::value);
-	metadata->formals = *store(mk());
+	auto metadata = store.make<LambdaMetadata>
+		(store(mk()), wrap<Type>(tag<Fixnum>::value));
 
 	auto expr = store(mk
 		(mk(wrap<Lambda>(&*metadata),
 		    mk(),
 		    mk(add, 1, 2))));
 
-	compile.compile(*expr);
+	compile.compile(expr);
 
 	ASSERT_EQ(3, run());
 }
@@ -195,7 +198,7 @@ TEST_F(CompilerTest, test_dummy_closure)
 		(*store(mk(b.any)),
 		 wrap<Type>(tag<Fixnum>::value));
 
-	inner->closure.push_back(a.pointer());
+	inner->closure_parameter(a.pointer());
 
 	// (\ (a) (\ (b) (+ a b)))
 	auto expr = store
@@ -205,7 +208,7 @@ TEST_F(CompilerTest, test_dummy_closure)
 		        mk(b.pointer()),
 		        mk(add, wrap(cp_a), wrap(p_b))))));
 
-	compile.compile(*expr);
+	compile.compile(expr);
 
 	// what I expect to be generated
 	Code code;
@@ -275,7 +278,7 @@ TEST_F(CompilerTest, test_simple_closure)
 	auto inner = store.make<LambdaMetadata>
 		(store.raw_ast(mk(b.any)),
 		 wrap<Type>(tag<Fixnum>::value));
-	inner->closure.push_back(a.pointer());
+	inner->closure_parameter(a.pointer());
 
 	// (\ (a) (\ (b) (+ a b)))
 	auto expr = store
@@ -285,7 +288,7 @@ TEST_F(CompilerTest, test_simple_closure)
 		       1),
 		    2));
 
-	compile.compile(*expr);
+	compile.compile(expr);
 
 	ASSERT_EQ(3, run());
 }
@@ -313,8 +316,8 @@ TEST_F(CompilerTest, test_two_arg_closure)
 		(store.raw_ast(mk(c.any)),
 		 wrap<Type>(tag<Fixnum>::value));
 
-	inner->closure.push_back(&*a);
-	inner->closure.push_back(&*b);
+	inner->closure_parameter(a.pointer());
+	inner->closure_parameter(b.pointer());
 
 	auto expr = store
 		(mk(mk(mk(wrap<Lambda>(&*outer), mk(a.any, b.any),
@@ -323,7 +326,7 @@ TEST_F(CompilerTest, test_two_arg_closure)
 		       1, 2),
 		    3));
 
-	compile.compile(*expr);
+	compile.compile(expr);
 
 	ASSERT_EQ(6, run());
 }
