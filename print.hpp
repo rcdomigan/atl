@@ -89,7 +89,7 @@ namespace atl
 				case tag<LambdaMetadata>::value:
 					{
 						out << "#<LambdaMetadata" << flush;
-						auto closure = unwrap<LambdaMetadata>(any).closure;
+						auto& closure = unwrap<LambdaMetadata>(any).closure;
 						if(!closure.empty())
 							{
 								out << "(" << closure.size() << " free vars)";

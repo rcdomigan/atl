@@ -23,8 +23,8 @@
 #include <boost/mpl/insert.hpp>
 #include <boost/mpl/apply.hpp>
 
-#include "./debug.hpp"
-#include "./byte_code.hpp"
+#include <debug.hpp>
+#include <byte_code.hpp>
 
 #include <gc/ast_pool.hpp>
 #include <gc/pool.hpp>

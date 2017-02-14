@@ -575,42 +575,61 @@ namespace atl
 		{}
 	};
 
+	// Information about a function, what variables it binds and what
+	// variables are bound by its enclosing scope.
     struct LambdaMetadata
     {
+	    // Both 'formals' and 'closure' are asts which describe some
+	    // bound variables.
+
+	    // Formals are known when LambdaMetadata is
+	    // first created, so the normal more-or-less immutable Asts is
+	    // appropriate.
+	    Ast formals;
+
+	    // Closure variables (as currently implemented) need to be
+	    // added as implicit arguments to the lambda expression.
+	    // Because free-variables are added as they are encountered in
+	    // the body, I need to use an appendable container.
 	    typedef std::vector<Symbol*> Closure;
 	    Closure closure;
-	    Ast formals;
+
+	    Ast closure_values;
+
+	    // Map a free symbol's name to the closure parameter it'll
+	    // bind to.
+	    std::map<std::string, size_t> closure_index_map;
 
 	    size_t slot;
 
 	    pcode::Offset body_address;
 
 	    Any return_type;
-	    bool has_slot;
+	    bool has_slot, has_closure_values;
+
 
 	    LambdaMetadata()=delete;
 
-	    LambdaMetadata() : has_slot(0) {}
 	    LambdaMetadata(Ast formals_, Any return_type_)
 		    : formals(formals_),
+		      closure_values(nullptr),
 		      return_type(return_type_),
 		      has_slot(false),
 		      has_closure_values(false)
 	    {}
 
-	    bool is_closure()
-	    { return !closure.empty(); }
-
 	    ClosureParameter closure_parameter(Symbol* sym)
 	    {
-		    size_t idx = 0;
-		    for(auto cc : closure)
+		    auto found = closure_index_map.find(sym->name);
+		    if(found == closure_index_map.end())
 			    {
-				    if(cc->name == sym->name) { return ClosureParameter(idx); }
-				    ++idx;
+				    auto idx = closure_index_map.size();
+				    closure_index_map[sym->name] = idx;
+				    closure.push_back(sym);
+				    return ClosureParameter(idx);
 			    }
-		    closure.push_back(sym);
-		    return ClosureParameter(idx);
+		    else
+			    { return ClosureParameter(found->second); }
 	    }
     };
 
