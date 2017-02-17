@@ -131,17 +131,19 @@ namespace atl
 				, is_last(false)
 			{}
 
-			void _push_back(Any const& tt)
+			void _push_back(Any& tt)
 			{
 				switch(tt._tag)
    				{
-					case tag<AstData>::value:
-					case tag<Ast>::value:
-						throw WrongTypeError
-							("Can't FnBuilder._push_back a raw Asts; Ast's memory might move.");
-					default:
-						space.push_back(tt);
-					}
+				case tag<AstData>::value:
+					throw WrongTypeError
+						("Can't FnBuilder._push_back a raw AstData; Ast's memory might move.");
+				case tag<Ast>::value:
+					ast_hof::copy(unwrap<Ast>(tt).subex())(space);
+					break;
+				default:
+					space.push_back(tt);
+				}
 			}
 
 			void _nest()
@@ -150,10 +152,10 @@ namespace atl
 				space.push_back(wrap<Type>(tag<FunctionConstructor>::value));
 			}
 
-			void last_arg(Any const& type)
+			void last_arg(Any& type)
 			{ _push_back(type); }
 
-			void other_arg(Any const& type)
+			void other_arg(Any& type)
 			{
 				_nest();
 				_push_back(type);
@@ -180,7 +182,7 @@ namespace atl
 			void operator()(int ss)
 			{ arg_type(wrap<Type>(ss)); }
 
-			void operator()(Any const& value) { arg_type(value); }
+			void operator()(Any& value) { arg_type(value); }
 
 			void operator()(Marked<Ast>& ast)
 			{
@@ -203,7 +205,7 @@ namespace atl
 		         size_t size = std::tuple_size<Tuple>::value>
 		struct _DispatchRunner
 		{
-			static Ast a(Tuple const& tup, AstBuilder& space)
+			static Ast a(Tuple& tup, AstBuilder& space)
 			{
 				FnBuilder runner(space);
 
@@ -222,7 +224,7 @@ namespace atl
 		template<class Tuple>
 		struct _DispatchRunner<Tuple, 1>
 		{
-			static Ast a(Tuple const& tup, AstBuilder& space)
+			static Ast a(Tuple& tup, AstBuilder& space)
 			{
 				FnBuilder runner(space);
 				runner(std::get<0>(tup));
@@ -237,7 +239,7 @@ namespace atl
 
 			auto tup = Tuple(std::forward<Args>(args)...);
 
-			return [tup](AstBuilder& space) -> void
+			return [tup](AstBuilder& space) mutable -> void
 				{
 					static_assert(std::tuple_size<Tuple>::value > 0,
 					              "Some arguments required");
