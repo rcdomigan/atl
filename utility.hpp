@@ -337,11 +337,21 @@ struct ForeachTuple
 		fn( std::get<elem>(tup) );
 		ForeachTuple<Tup,elem + 1, last>::apply(fn, tup);
 	}
+
+	template<class Fn>
+	static void apply(Fn& fn, Tup& tup)
+	{
+		fn( std::get<elem>(tup) );
+		ForeachTuple<Tup,elem + 1, last>::apply(fn, tup);
+	}
 };
 
 template<class Tup, size_t elem>
 struct ForeachTuple<Tup, elem, elem>
-{ template<class Fn>  static void apply(Fn&, Tup const&) {} };
+{
+	template<class Fn>  static void apply(Fn&, Tup const&) {}
+	template<class Fn>  static void apply(Fn&, Tup&) {}
+};
 
 template<class Fn, class Tup>
 void foreach_tuple(Fn& fn, Tup const& tup)
