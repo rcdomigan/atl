@@ -23,7 +23,7 @@ TEST(TestBasic, test_marking_WResult)
 
 	auto alloc_stuff = [&]() -> WResult
 		{
-			WResult rval(SubstituteMap(gc), gc.make<String>("str_0").wrap());
+			WResult rval(SubstituteMap(gc), gc.make<String>("str_0"));
 
 			// Stuff in subs should get marked too
 			rval.subs[Type(1)] = wrap(gc.raw_make<String>("str_1"));
@@ -33,6 +33,9 @@ TEST(TestBasic, test_marking_WResult)
 
 	{
 		auto result = alloc_stuff();
+
+		ASSERT_EQ(*result.subs.manage_marking.itr,
+		          dynamic_cast<MarkBase*>(&result.subs));
 
 		ASSERT_EQ(2, gc.cells_allocated());
 		gc.gc();
@@ -54,6 +57,23 @@ struct TestSubstitution
 };
 
 
+TEST_F(TestSubstitution, test_move_SubstituteMap)
+{
+	using namespace inference;
+	SubstituteMap subs0(gc);
+
+	ASSERT_EQ(1, gc._mark_bases.size());
+	ASSERT_EQ(gc._mark_bases.begin(), subs0.manage_marking.itr);
+
+	SubstituteMap subs1(std::move(subs0));
+	ASSERT_EQ(1, gc._mark_bases.size());
+	ASSERT_EQ(gc._mark_bases.begin(), subs1.manage_marking.itr);
+	ASSERT_EQ(*subs1.manage_marking.itr,
+	          dynamic_cast<MarkBase*>(&subs1));
+
+	ASSERT_EQ(nullptr, subs0.manage_marking.gc);
+}
+
 TEST_F(TestSubstitution, test_nop_type_substitution)
 {
 	using namespace make_ast;
@@ -61,14 +81,30 @@ TEST_F(TestSubstitution, test_nop_type_substitution)
 
     subst[Type(1)] = wrap<Type>(3);
 
-    auto make_expr = mk(wrap<Type>(4), wrap<Type>(5));
-
-    auto pre = gc(make_expr);
+    auto pre = gc(mk(wrap<Type>(4), wrap<Type>(5)));
     auto post = inference::substitute_type(gc,
                                            subst,
-                                           wrap(*pre));
+                                           pre.any);
 
     ASSERT_EQ(*pre, unwrap<Ast>(post));
+}
+
+TEST_F(TestSubstitution, test_substitution_as_root)
+{
+	using namespace make_ast;
+
+	ASSERT_EQ(0, gc._mark_bases.size());
+
+	{
+		inference::SubstituteMap subst2(gc);
+		ASSERT_EQ(1, gc._mark_bases.size());
+		{
+			inference::SubstituteMap subst(gc);
+			ASSERT_EQ(2, gc._mark_bases.size());
+		}
+		ASSERT_EQ(1, gc._mark_bases.size());
+	}
+	ASSERT_EQ(0, gc._mark_bases.size());
 }
 
 TEST_F(TestSubstitution, test_type_substitution)
@@ -83,10 +119,7 @@ TEST_F(TestSubstitution, test_type_substitution)
 	        mk(wrap<Type>(1)),
 	        wrap<Type>(2)));
 
-    auto expr = inference::substitute_type
-	    (gc,
-	     subst,
-	     wrap(*ast));
+    auto expr = inference::substitute_type(gc, subst, ast.any);
 
     auto expect = gc
 	    (mk(wrap<Type>(3),
@@ -109,10 +142,10 @@ TEST_F(TestSubstitution, test_type_substitution_p8)
     subs[Type('x' + LAST_CONCRETE_TYPE)] = wrap<Type>('a' + LAST_CONCRETE_TYPE);
     subs[Type('y' + LAST_CONCRETE_TYPE)] = wrap(*gc(mk(type('b'), type('a'))));
 
-    auto do_sub = [&](Ast& ast) -> Ast
+    auto do_sub = [&](Any& ast) -> Ast
 	    {
 		    return unwrap<Ast>
-		    (inference::substitute_type(gc, subs, ref_wrap(ast)));
+		    (inference::substitute_type(gc, subs, ast));
 	    };
 
     auto first = gc(mk(type('x'),
@@ -124,11 +157,11 @@ TEST_F(TestSubstitution, test_type_substitution_p8)
 
     auto expect = gc(mk(type('a'), mk(type('b'), type('a'))));
 
-    ASSERT_EQ(*expect, do_sub(*first))
-	    << "Got: " << printer::with_type(*first) << std::endl;
+    ASSERT_EQ(*expect, do_sub(first.any))
+	    << "Got: " << printer::with_type(first.any) << std::endl;
 
-    ASSERT_EQ(*expect, do_sub(*second))
-	    << "Got: " << printer::with_type(*second) << std::endl;
+    ASSERT_EQ(*expect, do_sub(second.any))
+	    << "Got: " << printer::with_type(second.any) << std::endl;
 }
 
 TEST_F(TestSubstitution, example_p9_assuming_mgu)
@@ -155,8 +188,8 @@ TEST_F(TestSubstitution, example_p9_assuming_mgu)
 	subs.emplace(Type(3),
 	             wrap(*gc(mk(zero, zero))));
 
-    auto sub_left = substitute_type(gc, subs, wrap(*left)),
-	    sub_right = substitute_type(gc, subs, wrap(*right));
+    auto sub_left = substitute_type(gc, subs, left.any),
+	    sub_right = substitute_type(gc, subs, right.any);
 
     ASSERT_EQ(explicit_unwrap<Ast>(sub_left),
               explicit_unwrap<Ast>(sub_right));
@@ -305,8 +338,8 @@ TEST_F(Unification, example_p8)
     auto subs = inference::most_general_unification
 	    (gc, wrap(*left), wrap(*right));
 
-    auto left_post = substitute_type(gc, subs, wrap(*left)),
-	    right_post = substitute_type(gc, subs, wrap(*right));
+    auto left_post = substitute_type(gc, subs, left.any),
+	    right_post = substitute_type(gc, subs, right.any);
 
     ASSERT_EQ(explicit_unwrap<Ast>(left_post),
               explicit_unwrap<Ast>(right_post));
@@ -324,8 +357,8 @@ TEST_F(Unification, example_p9)
 
     auto subs = most_general_unification(gc, wrap(*left), wrap(*right));
 
-    auto sub_left = substitute_type(gc, subs, wrap(*left)),
-	    sub_right = substitute_type(gc, subs, wrap(*right));
+    auto sub_left = substitute_type(gc, subs, left.any),
+	    sub_right = substitute_type(gc, subs, right.any);
 
     ASSERT_EQ(explicit_unwrap<Ast>(sub_left),
               explicit_unwrap<Ast>(sub_right));
@@ -519,51 +552,29 @@ struct Inference
 {
 	Type::value_type new_types;
 	inference::Gamma gamma;
-
-	inference::WResult infer(Any expr)
-	{ return inference::W(gc, new_types, gamma, expr); }
+	inference::AlgorithmW w;
 
 	Inference()
-		: Unification(), new_types(LAST_CONCRETE_TYPE), gamma(gc)
+		: Unification(),
+		  new_types(LAST_CONCRETE_TYPE),
+		  gamma(gc),
+		  w(gc, new_types, gamma)
 	{}
 };
-
-/* My plan is that the symbols will be bound to their scope by
-   assign_free, so I can't really test var in isolation.
-
-   TODO: Not sure the Symbol/Bound sharing the same type information
-   during type inference will work as I hope, but press onward for
-   now.*/
-TEST_F(Inference, try_nop)
-{
-	using namespace inference;
-
-	Symbol sym_a = Symbol("a"),
-		sym_b = Symbol("b");
-
-	sym_a.scheme.type = wrap<Type>(++new_types);
-	sym_b.scheme.type = wrap<Type>(++new_types);
-
-	auto e1 = infer(wrap(&sym_a));
-	auto e2 = infer(wrap(&sym_b));
-	auto e3 = infer(wrap(&sym_a));
-
-    ASSERT_NE(e1.type.any, e2.type.any);
-    ASSERT_EQ(e1.type.any, e3.type.any);
-}
 
 TEST_F(Inference, test_lambda)
 {
     using namespace inference;
     using namespace make_ast;
 
-    auto foo = gc.make<LambdaMetadata>();
+    auto foo = gc.make<LambdaMetadata>
+	    (gc(mk("a")), wrap<Null>());
 
     auto e1 = gc(mk(wrap<Lambda>(foo.pointer()),
                     mk("a"),
                     "a"));
 
-    auto We1 = infer(e1.any);
+    auto We1 = w.W(e1->subex());
 
     ASSERT_EQ(tag<Ast>::value, We1.type->_tag);
 
@@ -579,12 +590,13 @@ TEST_F(Inference, test_multi_arg_lambda)
     using namespace inference;
     using namespace make_ast;
 
-    auto metadata = gc.make<LambdaMetadata>();
+    auto metadata = gc.make<LambdaMetadata>
+	    (gc(mk("a", "b")), wrap<Null>());
     auto e1 = gc(mk(wrap<Lambda>(metadata.pointer()),
                     mk("a", "b"),
                     "a"));
 
-    auto We1 = infer(e1.any);
+    auto We1 = w.W(e1);
 
     {
 	    using namespace pattern_match;
@@ -603,7 +615,7 @@ TEST_F(Inference, test_simple_application)
 	auto fn_type = new_types + 1;
 	auto expr = gc(mk("fn", "arg"));
 
-	auto inferred = infer(expr.any);
+	auto inferred = w.W(expr);
 
 	auto scheme = inferred.subs.at(fn_type);
 
@@ -619,13 +631,14 @@ TEST_F(Inference, test_simple_lambda)
 	using namespace inference;
 	using namespace make_ast;
 
-	auto metadata = gc.make<LambdaMetadata>();
+	auto metadata = gc.make<LambdaMetadata>
+		(gc(mk("a", "b")), wrap<Null>());
 	auto expr = gc(mk(wrap<Lambda>(metadata.pointer()),
 	                  mk("a", "b"),
 	                  mk("add2", "a", "b")));
 
-	auto inferred = infer(expr.any);
-	apply_substitution(gc, inferred.subs, wrap(*expr));
+	auto inferred = w.W(expr);
+	apply_substitution(gc, inferred.subs, expr.any);
 
 	{
 		using namespace pattern_match;
@@ -641,11 +654,12 @@ TEST_F(Inference, test_application)
     using namespace make_ast;
     using namespace inference;
 
-	auto metadata = gc.make<LambdaMetadata>();
+	auto metadata = gc.make<LambdaMetadata>
+		(gc(mk("x", "y")), wrap<Null>());
 	auto e1 = gc(mk(wrap<Lambda>(metadata.pointer()),
 	                mk("x", "y"),
 	                mk("x", "y")));
-    auto We1 = infer(e1.any);
+    auto We1 = w.W(e1);
 
     /* Check the body: */
     {
@@ -664,7 +678,7 @@ TEST_F(Inference, test_define)
 
     auto e1 = gc(mk(wrap<Define>(), "a", "b"));
 
-    auto We1 = infer(e1.any);
+    auto We1 = w.W(e1);
 
     apply_substitution(gc, We1.subs, e1.any);
 
@@ -683,11 +697,13 @@ TEST_F(Inference, test_apply_defined)
     using namespace inference;
 
     // id function
-    auto metadata = gc.make<LambdaMetadata>();
+    auto metadata = gc.make<LambdaMetadata>
+	    (gc(mk("x")), wrap<Null>());
+
     auto e1 = gc(mk(wrap<Define>(), "id",
                     mk(wrap<Lambda>(metadata.pointer()), mk("x"), "x")));
 
-    auto We1 = infer(e1.any);
+    auto We1 = w.W(e1);
 
     ASSERT_TRUE(is<Scheme>(*We1.type));
 
@@ -706,7 +722,7 @@ TEST_F(Inference, test_apply_defined)
 
     // Now see if we can apply the newly defined "id"
     auto e2 = gc(mk("id", "y"));
-    auto We2 = infer(e2.any);
+    auto We2 = w.W(e2);
 
     ASSERT_EQ(2, We2.subs.size());
     ASSERT_TRUE(is<Type>(*We2.type));
@@ -732,12 +748,13 @@ TEST_F(Inference, test_nested_application)
     using namespace make_ast;
     using namespace inference;
 
-    auto metadata = gc.make<LambdaMetadata>();
+    auto metadata = gc.make<LambdaMetadata>
+	    (gc(mk("x", "y", "z")), wrap<Null>());
     auto e1 = gc(mk(wrap<Lambda>(metadata.pointer()),
                     mk("x", "y", "z"),
                     mk("x", mk("y", "z"))));
 
-    auto We1 = infer(e1.any);
+    auto We1 = w.W(e1);
 
     {
 	    using namespace pattern_match;
@@ -753,12 +770,13 @@ TEST_F(Inference, test_multi_arg_application)
     using namespace make_ast;
     using namespace inference;
 
-    auto metadata = gc.make<LambdaMetadata>();
+    auto metadata = gc.make<LambdaMetadata>
+	    (gc(mk("x", "y", "z")), wrap<Null>());
     auto e1 = gc(mk(wrap<Lambda>(metadata.pointer()),
                     mk("x", "y", "z"),
                     mk("x", "y", "z")));
 
-    auto We1 = infer(e1.any);
+    auto We1 = w.W(e1);
 
     {
 	    using namespace pattern_match;
@@ -806,12 +824,13 @@ TEST_F(Inference, test_recursive_fn)
     using namespace make_ast;
     using namespace inference;
 
-    auto metadata = gc.make<LambdaMetadata>();
+    auto metadata = gc.make<LambdaMetadata>
+	    (gc(mk("x")), wrap<Null>());
     auto rec = gc(mk(wrap<Define>(),
                      "rec", mk(wrap<Lambda>(metadata.pointer()),
                                mk("x"),
                                mk("rec", "x"))));
-    auto Wrec = infer(rec.any);
+    auto Wrec = w.W(rec);
     {
 	    using namespace pattern_match;
 	    ASSERT_TRUE
@@ -833,13 +852,13 @@ TEST_F(Inference, test_cxx_functor)
 
 	auto expr = gc(mk(add.any, "x", "y"));
 
-	auto inferred = infer(expr.any);
+	auto inferred = w.W(expr);
 
 	ASSERT_TRUE(is<Type>(*inferred.type));
 	ASSERT_EQ(tag<Bool>::value
 	          , unwrap<Type>(*inferred.type).value());
 
-	apply_substitution(gc, inferred.subs, wrap(*expr));
+	apply_substitution(gc, inferred.subs, expr.any);
 
 	{
 		using namespace pattern_match;
@@ -848,11 +867,11 @@ TEST_F(Inference, test_cxx_functor)
 		ASSERT_TRUE
 			(match(ast(tag<CxxFunctor>::value,
 			           capture(a), capture(b)),
-			       wrap(*expr)))
+			       expr))
 			<< "\n" << printer::with_type(*expr);
 
-		ASSERT_TRUE(match(wrap<Type>(tag<Fixnum>::value), a.scheme.type));
-		ASSERT_TRUE(match(wrap<Type>(tag<Fixnum>::value), b.scheme.type));
+		ASSERT_EQ(tt<Fixnum>(), a.scheme.type);
+		ASSERT_EQ(tt<Fixnum>(), b.scheme.type);
 	}
 }
 
@@ -867,12 +886,13 @@ TEST_F(Inference, test_if_scheme)
 	auto sym_type = gc(fn_type::fn(fn_type::tt<Bool>(), arg_type, arg_type, arg_type));
 	auto foo = gc.make<Symbol>
 		("foo",
-		 Scheme(std::unordered_set<Type::value_type>({arg_type}),
-		        wrap(*sym_type)));
+		 Scheme({arg_type}, sym_type.any));
 
 	auto expr = gc(mk(foo.any, "x", wrap<Type>(tag<Fixnum>::value), "y"));
 
-	auto inferred = infer(expr.any);
+	auto inferred = w.W(expr);
+
+	ASSERT_EQ(inferred.type.any, wrap<Type>(tag<Fixnum>::value));
 
 	apply_substitution(gc, inferred.subs, expr.any);
 
@@ -885,8 +905,8 @@ TEST_F(Inference, test_if_scheme)
 			       expr.any))
 			<< "\n" << printer::with_type(*expr);
 
-		ASSERT_TRUE(match(tt<Bool>(), a.scheme.type));
-		ASSERT_TRUE(match(tt<Fixnum>(), b.scheme.type));
+		ASSERT_EQ(tt<Bool>(), a.scheme.type);
+		ASSERT_EQ(tt<Fixnum>(), b.scheme.type);
 	}
 }
 
@@ -903,12 +923,14 @@ TEST_F(Inference, test_thunk)
 	Symbol fn("add2");
 	symbol_assign(fn, add.any);
 
-	auto metadata = gc.make<LambdaMetadata>();
+	auto metadata = gc.make<LambdaMetadata>
+		(gc(mk()), wrap<Null>());
+
 	auto expr = gc(mk(wrap<Lambda>(metadata.pointer()),
 	               mk(),
 	               mk(wrap(&fn), "foo", "foo")));
 
-	auto inferred = infer(expr.any);
+	auto inferred = w.W(expr);
 
 	{
 		using namespace pattern_match;
@@ -925,7 +947,8 @@ TEST_F(Inference, test_applying_defined_lambda)
 	using namespace make_ast;
 	using namespace inference;
 
-    auto metadata = gc.make<LambdaMetadata>();
+    auto metadata = gc.make<LambdaMetadata>
+	    (gc(mk()), wrap<Null>());
     auto def = gc(mk(wrap<Define>(), "foo", 3)),
 
 	    expr = gc(mk(wrap<Define>(), "main",
@@ -934,8 +957,8 @@ TEST_F(Inference, test_applying_defined_lambda)
 	                    mk("add2", "foo", "foo"))));
 
 	// Test that defining a constant works
-	infer(def.any);
-	auto inferred = infer(expr.any);
+	w.W(def);
+	auto inferred = w.W(expr);
 
 	{
 		using namespace pattern_match;
@@ -948,4 +971,61 @@ TEST_F(Inference, test_applying_defined_lambda)
 			       scheme.type))
 			<< " " << printer::print(scheme.type) << std::endl;
 	}
+}
+
+TEST_F(Inference, test_if_constant_results)
+{
+	using namespace fn_type;
+	using namespace make_ast;
+
+	auto if_result = ++new_types;
+
+	auto if_scheme = gc(fn(tt<Bool>(), if_result, if_result, if_result));
+	auto equal_scheme = gc(fn(tt<Fixnum>(), tt<Fixnum>(), tt<Bool>()));
+
+	auto _if = gc.make<Symbol>("if", Scheme({if_result}, if_scheme.any)),
+		equal = gc.make<Symbol>("equal", Scheme(equal_scheme.any)),
+		consequent = gc.make<Symbol>("consequent", Scheme(wrap<Type>(++new_types))),
+		alternate = gc.make<Symbol>("alternate", Scheme(tt<Fixnum>()));
+
+	auto expr = gc(mk(_if.any,
+	                  mk(equal.any, 1, 2),
+	                  consequent.any,
+	                  alternate.any));
+
+	auto inferred = w.W(expr);
+
+	apply_substitution(gc, inferred.subs, expr.any);
+	std::cout << printer::with_type(*expr) << std::endl;
+
+	ASSERT_EQ(tt<Fixnum>(), inferred.type.any)
+			<< " " << printer::print(inferred.type.any) << std::endl;
+}
+
+TEST_F(Inference, test_if_function_results)
+{
+	using namespace fn_type;
+	using namespace make_ast;
+
+	auto if_result = ++new_types;
+
+	auto if_scheme = gc(fn(tt<Bool>(), if_result, if_result, if_result));
+	auto equal_scheme = gc(fn(tt<Fixnum>(), tt<Fixnum>(), tt<Bool>()));
+	auto add_scheme = gc(fn(tt<Fixnum>(), tt<Fixnum>(), tt<Fixnum>()));
+	auto sub_scheme = gc(fn(tt<Fixnum>(), tt<Fixnum>(), tt<Fixnum>()));
+
+	auto _if = gc.make<Symbol>("if", Scheme({if_result}, if_scheme.any)),
+		equal = gc.make<Symbol>("equal", Scheme(equal_scheme.any)),
+		add = gc.make<Symbol>("add", Scheme(add_scheme.any)),
+		sub = gc.make<Symbol>("sub", Scheme(sub_scheme.any));
+
+	auto expr = gc(mk(_if.any,
+	                  mk(equal.any, 1, 2),
+	                  mk(add.any, 7, 3),
+	                  mk(sub.any, 7, 3)));
+
+	auto inferred = w.W(expr);
+
+	ASSERT_EQ(tt<Fixnum>(), inferred.type.any)
+			<< " " << printer::print(inferred.type.any) << std::endl;
 }
