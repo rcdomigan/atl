@@ -39,9 +39,9 @@ TEST_F(ParserTest, test_simple_int_list) {
 	using namespace make_ast;
     auto parsed = parser.string_("(1 2 3)");
 
-    auto expected = mk(1, 2, 3)(ast_alloc(store));
+    auto expected = store(mk(1, 2, 3));
 
-    for(auto& vv : zip(unwrap<Ast>(parsed), expected))
+    for(auto& vv : zip(unwrap<Ast>(parsed), *expected))
 	    {
 #ifdef DEBUGGING
 		    cout << "parsed: " << printer::print(*get<0>(vv)) << "\nexpected: " << printer::print(*get<1>(vv)) << endl;
@@ -58,7 +58,7 @@ TEST_F(ParserTest, test_empty_list)
     auto parsed = parser.string_("()");
 
 
-    ASSERT_TRUE(match(ast(), parsed))
+    ASSERT_TRUE(match(ast(), unwrap<Ast>(parsed).self_iterator()))
 	    << printer::print(parsed) << std::endl;
 }
 
@@ -70,7 +70,8 @@ TEST_F(ParserTest, nested_int_list)
 
     ASSERT_TRUE
 	    (literal_match
-	     (ast(1, 2, ast(4, 5), 3), parsed))
+	     (ast(1, 2, ast(4, 5), 3),
+	      unwrap<Ast>(parsed).self_iterator()))
 	    << printer::print(parsed) << std::endl;;
 }
 
@@ -85,7 +86,7 @@ TEST_F(ParserTest, test_parsing_int_list_from_stream)
     ASSERT_TRUE
 	    (literal_match
 	     (ast(1, 2, ast(4, 5), 3),
-	      parsed))
+	      unwrap<Ast>(parsed).self_iterator()))
 	    << printer::print(parsed) << std::endl;;
 }
 
@@ -97,7 +98,7 @@ TEST_F(ParserTest, TestQuote) {
     ASSERT_TRUE
 	    (literal_match
 	     (ast(wrap<Quote>(), ast(2, 3)),
-	      parsed))
+	      unwrap<Ast>(parsed).self_iterator()))
 	    << printer::print(parsed) << std::endl;;
 }
 
@@ -110,7 +111,7 @@ TEST_F(ParserTest, test_nested_quote)
 	ASSERT_TRUE
 		(literal_match
 		 (ast(1, ast(wrap<Quote>(), ast(2, 3)), 4),
-		  parsed));
+		  unwrap<Ast>(parsed).self_iterator()));
 }
 
 

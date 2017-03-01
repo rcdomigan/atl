@@ -19,7 +19,33 @@ namespace atl
 {
     namespace inference
     {
-	    typedef std::map<Type, Any> SubstituteMap;
+	    struct SubstituteMap
+		    : public MarkBase,
+		      public std::map<Type, Any>
+	    {
+		    typedef std::map<Type, Any> Map;
+
+		    SubstituteMap(SubstituteMap const&)=delete;
+
+		    SubstituteMap(SubstituteMap&&)=default;
+
+		    SubstituteMap(GC& gc)
+			    : MarkBase(gc)
+		    {}
+
+		    SubstituteMap& operator=(SubstituteMap&& other)=default;
+
+		    virtual void mark() override
+		    { for(auto& item : *this) { manage_marking.gc->mark(item.second); } }
+
+		    void dbg()
+		    {
+			    using namespace printer;
+			    for(auto& item : *this)
+				    { std::cout << print(item.first) << std::flush << ": " << print(item.second) << std::endl; }
+		    }
+
+	    };
 
 
 	    /* Remove a set of variables from substitutions (ie, don't substitute
@@ -29,8 +55,8 @@ namespace atl
 		    SubstituteMap &subs,
 			    old_subs;
 
-		    SubsScope(SubstituteMap& subs_, Scheme::Quantified& quantified)
-			    : subs(subs_)
+		    SubsScope(GC& gc, SubstituteMap& subs_, Scheme::Quantified& quantified)
+			    : subs(subs_), old_subs(gc)
 		    {
 			    for(auto& raw_var : quantified)
 				    {
@@ -89,43 +115,76 @@ namespace atl
 	     * @param value:
 	     * @return:
 	     */
-	    Any substitute_type(AstAllocator store, SubstituteMap& subs, Any& value)
+	    void build_substitute_type(GC& gc, AstBuilder& building, SubstituteMap& subs, Ast::iterator& itr)
+	    {
+		    switch(itr.tag())
+			    {
+			    case tag<Type>::value:
+				    {
+					    auto type = unwrap<Type>(*itr);
+					    auto found = subs.find(type);
+					    if(found != subs.end())
+						    {
+							    Marked<Any> new_value = gc.marked(found->second);
+							    if(is<Ast>(new_value.any))
+								    { ast_hof::copy(unwrap<Ast>(*new_value).subex())(building); }
+							    else
+								    { building.push_back(*new_value); }
+						    }
+					    else
+						    { building.push_back(*itr); }
+
+					    return;
+				    }
+			    case tag<Ast>::value:
+				    {
+					    NestAst nest(building);
+					    for(auto vv : itritrs(itr.subex()))
+						    {
+							    // values goes to `building`
+							    build_substitute_type(gc, building, subs, vv);
+						    }
+
+					    return;
+				    }
+			    default:
+				    throw WrongTypeError(std::string("Type expressions can only be 'Type' and Asts of Type.  Got a ")
+				                         .append(type_name(itr->_tag)));
+			    }
+	    }
+
+	    void build_substitute_type(GC& gc, AstBuilder& building, SubstituteMap& subs, Ast::iterator const& value)
+	    {
+		    auto itr = value;
+		    build_substitute_type(gc, building, subs, itr);
+	    }
+
+	    // Perform substitutions according to `subs` in `values` (which must not be an AstData).
+	    Any substitute_type(GC& gc, SubstituteMap& subs, Any& value)
 	    {
 		    switch(value._tag)
 			    {
 			    case tag<Type>::value:
 				    {
 					    auto type = unwrap<Type>(value);
-					    auto itr = subs.find(type);
-					    Any new_value;
-					    if(itr != subs.end())
+					    auto found = subs.find(type);
+					    if((found != subs.end()))
 						    {
-							    new_value = itr->second;
+							    auto new_value = found->second;
 							    if(is<Ast>(new_value))
-								    { new_value = wrap(*ast_hof::copy(unwrap<Ast>(new_value),
-								                                      store)); }
-							    else
-								    { store.push_back(new_value); }
+								    { return wrap(*gc(ast_hof::copy(unwrap<Ast>(new_value).subex()))); }
+							    return new_value;
 						    }
-					    else
-						    {
-							    new_value = value;
-							    store.push_back(new_value);
-						    }
-
-					    return new_value;
+					    return value;
 				    }
 			    case tag<Ast>::value:
 				    {
-					    NestAst nest(store);
-
-					    for(auto& vv : unwrap<Ast>(value).modify_data())
-						    {
-							    // values goes to `store`
-							    substitute_type(store, subs, vv);
-						    }
-
-					    return wrap(*nest.ast);
+					    auto builder = gc.ast_builder();
+					    build_substitute_type(gc,
+					                          builder,
+					                          subs,
+					                          unwrap<Ast>(value).self_iterator());
+					    return wrap(builder.root());
 				    }
 			    default:
 				    throw WrongTypeError(std::string("Type expressions can only be 'Type' and Asts of Type.  Got a ")
@@ -134,23 +193,31 @@ namespace atl
 	    }
 
 	    /* Gamma is the symbol to scheme map */
-	    typedef std::unordered_map<std::string, Scheme> Gamma;
-
-	    void dbg_gamma(Gamma& gamma)
+	    struct Gamma
+		    : public MarkBase,
+		      public std::unordered_map<std::string, Scheme>
 	    {
-		    for(auto& item : gamma)
-			    {
-				    std::cout<<item.first<<": ";
-				    dbg_type(wrap(&item.second));
-			    }
-	    }
+		    Gamma(GC& gc) : MarkBase(gc) {}
+
+		    virtual void mark() override
+		    {
+			    for(auto& item : *this)
+				    { manage_marking.gc->mark(item.second.type); }
+		    }
+	    };
 
 	    /** Look for Symbols and apply subs to them
-	     * @param store:
-	     * @param subs:
-	     * @param value:
 	     */
-	    void apply_substitution(AstAllocator store, Gamma& gamma, SubstituteMap& subs, Any& value)
+	    void apply_substitution(GC& store, SubstituteMap& subs, Any& value);
+
+	    void apply_substitution(GC& store, SubstituteMap& subs, Ast::Subex subex)
+	    {
+		    for(auto item : itritrs(subex))
+			    { apply_substitution(store, subs, item.reference()); }
+
+	    }
+
+	    void apply_substitution(GC& store, SubstituteMap& subs, Any& value)
 	    {
 	    switch(value._tag)
 			    {
@@ -160,7 +227,7 @@ namespace atl
 				    {
 					    auto& sym = unwrap<Symbol>(value);
 
-					    SubsScope scope(subs, sym.scheme.quantified);
+					    SubsScope scope(store, subs, sym.scheme.quantified);
 					    sym.scheme.type = substitute_type(store, subs, sym.scheme.type);
 					    break;
 				    }
@@ -172,7 +239,7 @@ namespace atl
 					    if(is<Scheme>(lambda.value->return_type))
 						    {
 							    auto& scheme = unwrap<Scheme>(lambda.value->return_type);
-							    SubsScope scope(subs, scheme.quantified);
+							    SubsScope scope(store, subs, scheme.quantified);
 							    scheme.type = substitute_type(store, subs, scheme.type);
 						    }
 					    else
@@ -182,20 +249,13 @@ namespace atl
 				    }
 			    case tag<Ast>::value:
 				    {
-					    for(auto& item : unwrap<Ast>(value).modify_data())
-						    { apply_substitution(store, gamma, subs, item); }
+					    apply_substitution(store, subs, unwrap<Ast>(value).subex());
 					    break;
-				    }
-			    case tag<Type>::value:
-				    {
-					    auto found = subs.find(unwrap<Type>(value));
-					    if(found != subs.end())
-						    { value = found->second; }
 				    }
 			    }
 	    }
 
-	    Any instantiate(AstAllocator store, Type::value_type& new_types, Scheme& scheme)
+	    Any instantiate(GC& store, Type::value_type& new_types, Scheme& scheme)
 	    {
 		    if(is<Undefined>(scheme.type))
 			    { return scheme.type = wrap<Type>(++new_types); }
@@ -203,7 +263,7 @@ namespace atl
 			    { return scheme.type; }
 		    else
 			    {
-				    SubstituteMap subs;
+				    SubstituteMap subs(store);
 				    for(auto& item : scheme.quantified)
 					    {
 						    subs[Type(item)] = wrap<Type>(++new_types);
@@ -237,13 +297,10 @@ namespace atl
 		    return rval;
 	    }
 
-	    void compose_subs(AllocatorBase& store, SubstituteMap& left, SubstituteMap const& right)
+	    void compose_subs(GC& store, SubstituteMap& left, SubstituteMap& right)
 	    {
-		    for(auto const& rr : right)
-			    {
-				    auto right_temp = rr.second;
-				    left[rr.first] = substitute_type(make_ast::ast_alloc(store), left, right_temp);
-			    }
+		    for(auto& rr : right)
+			    { left[rr.first] = substitute_type(store, left, rr.second); }
 	    }
 
 	    void arity_mismatch(Any const& left, Any const& right)
@@ -261,72 +318,75 @@ namespace atl
 	    }
 
 	    /* Unify the Types lists `left` and `right` */
-	    SubstituteMap most_general_unification(AllocatorBase& store, Any const& left, Any const& right)
+	    SubstituteMap most_general_unification(GC& gc, Any const& left, Any const& right)
         {
 	        using namespace make_ast;
-            SubstituteMap sub{};
+	        SubstituteMap rval(gc);
 
 	        if(left == right)
-		        { return sub; }
+		        { return rval; }
 
 	        /* Try to pick the concrete type */
 	        if(is<Type>(right) && is<Type>(left))
 		        {
 			        if(right.value < left.value)
-				        { return SubstituteMap({{unwrap<Type>(left), right}}); }
+				        { rval.emplace(unwrap<Type>(left), right); }
 			        else
-				        { return SubstituteMap({{unwrap<Type>(right), left}}); }
+				        { rval.emplace(unwrap<Type>(right), left); }
+			        return rval;
 		        }
 
 	        if(!is<Ast>(right))
-		        { return SubstituteMap({{typify(right), left}}); }
+		        {
+			        rval.emplace(typify(right), left);
+			        return rval;
+		        }
 
 	        if(!is<Ast>(left))
-		        { return SubstituteMap({{typify(left), right}}); }
+		        {
+			        rval.emplace(typify(left), right);
+			        return rval;
+		        }
 
-	        auto left_ast = unwrap<Ast>(left),
-		        right_ast = unwrap<Ast>(right);
+	        Marked<Ast> left_ast{gc._cxx_stack, left};
+	        Marked<Ast> right_ast{gc._cxx_stack, right};
 
 	        while(true)
 	            {
 		            auto u1 = most_general_unification
-			            (store, left_ast[0], right_ast[0]);
+			            (gc, (*left_ast)[0], (*right_ast)[0]);
 
-		            if(left_ast.size() > 1)
+		            if(left_ast->size() > 1)
 			            {
-				            auto left_store = ast_alloc(store),
-					            right_store = ast_alloc(store);
+				            if(left_ast->size() != right_ast->size())
+					            { arity_mismatch(left_ast.any, right_ast.any); }
 
-				            auto new_left = left_store.nest_ast(),
-					            new_right = right_store.nest_ast();
+				            auto left_store = gc.ast_builder(),
+					            right_store = gc.ast_builder();
+				            {
+					            NestAst nest_left(left_store);
+					            NestAst nest_right(right_store);
 
-				            if(left_ast.size() != right_ast.size())
-					            { arity_mismatch(wrap(left_ast), wrap(right_ast)); }
+					            for(auto inner_itr : slice(itritrs(left_ast->subex()), 1))
+						            { build_substitute_type(gc, left_store, u1, inner_itr); }
 
-				            for(auto inner_itr : slice(left_ast.modify_data(), 1))
-					            { substitute_type(left_store, u1, inner_itr); }
+					            for(auto inner_itr : slice(itritrs(right_ast->subex()), 1))
+						            { build_substitute_type(gc, right_store, u1, inner_itr); }
+				            }
+				            *left_ast = left_store.root();
+				            *right_ast = right_store.root();
 
-				            for(auto inner_itr : slice(right_ast.modify_data(), 1))
-					            { substitute_type(right_store, u1, inner_itr); }
-
-				            new_left.end_ast();
-				            new_right.end_ast();
-
-				            left_ast = *new_left;
-				            right_ast = *new_right;
-
-				            compose_subs(store, u1, sub);
-				            sub.swap(u1);
+				            compose_subs(gc, u1, rval);
+				            rval.swap(u1);
 			            }
 		            else
 			            {
-				            compose_subs(store, u1, sub);
-				            sub.swap(u1);
+				            compose_subs(gc, u1, rval);
+				            rval.swap(u1);
 				            break;
 			            }
 	            }
-
-            return sub;
+            return rval;
         }
 
 	    /* Adds symbols to the environment for the lifetime of the instance */
@@ -336,8 +396,8 @@ namespace atl
 		    Gamma old;
 		    std::vector<std::string> formals;
 
-		    FormalsScope(Gamma& gamma_, Type::value_type& new_types, Ast ast)
-			    : gamma(gamma_)
+		    FormalsScope(Gamma& gamma_, Type::value_type& new_types, Ast::Subex ast)
+			    : gamma(gamma_), old(*gamma_.manage_marking.gc)
 		    {
 			    for(auto var : ast)
 				    {
@@ -375,7 +435,7 @@ namespace atl
 		    return rval;
 	    }
 
-	    Scheme generalize(Gamma& gamma, Any& type)
+	    Scheme generalize(Gamma& gamma, Any const& type)
 	    {
 		    Scheme rval;
 
@@ -417,210 +477,232 @@ namespace atl
 		    return rval;
 	    }
 
+	    // WResult is meant to mark its members on a recieving
+	    // function, but not on the returning function (similar to the
+	    // logic for MarkedBase; see the comments there for an attempt
+	    // at an explanation).
 	    struct WResult
 	    {
 		    SubstituteMap subs;
-		    Any type;
+		    Marked<Any> type;
 
-		    WResult(SubstituteMap subs_, Any type_)
-			    : subs(subs_), type(type_)
+		    WResult(SubstituteMap&& subs_, Marked<Any>&& type_)
+			    : subs(std::move(subs_)), type(std::move(type_))
 		    {}
 
-		    WResult() = default;
+		    WResult(SubstituteMap&& subs_, Any const& type_)
+			    : WResult(std::move(subs_), subs_.manage_marking.gc->marked(type_))
+		    {}
+
+		    WResult(WResult&& other)
+			    : subs(std::move(other.subs)),
+			      type(std::move(other.type))
+		    {}
+
+		    WResult& operator=(WResult&& other)
+		    {
+			    subs = std::move(other.subs);
+			    type = std::move(other.type);
+			    return *this;
+		    }
 	    };
 
-        // Take a stab at the algorithm W
-	    WResult W(AllocatorBase& store, Type::value_type& new_types, Gamma& gamma, Any expr)
+	    struct AlgorithmW
 	    {
-		    auto new_var = [&](Scheme& scheme)
-			    {
-				    if(is<Undefined>(scheme.type))
-					    { scheme.type = wrap<Type>(++new_types); }
-			    };
+		    GC& gc;
+		    Type::value_type& new_types;
+		    Gamma& gamma;
 
-		    auto get_sym = [&](Symbol& sym) -> Symbol&
-			    {
-				    auto itr = gamma.find(sym.name);
-				    if(itr != gamma.end())
-					    { sym.scheme = itr->second; }
-				    else
-					    { new_var(sym.scheme); }
+		    AlgorithmW(GC& gc_, Type::value_type& new_types_, Gamma& gamma_)
+			    : gc(gc_), new_types(new_types_), gamma(gamma_)
+		    {}
 
-				    return sym;
-			    };
+		    void new_var(Scheme& scheme)
+		    {
+			    if(is<Undefined>(scheme.type))
+				    { scheme.type = wrap<Type>(++new_types); }
+		    }
 
-		    switch(expr._tag)
-			    {
-			    case tag<Symbol>::value:
+		    Symbol& get_sym(Symbol& sym)
+		    {
+			    auto itr = gamma.find(sym.name);
+			    if(itr != gamma.end())
+				    { sym.scheme = itr->second; }
+			    else
+				    { new_var(sym.scheme); }
+
+			    return sym;
+		    }
+
+		    WResult W(Ast::Subex subex)
+		    {
+			    auto itr = subex.begin();
+			    if(itr.is<Lambda>())
 				    {
-					    auto& sym = get_sym(unwrap<Symbol>(expr));
-					    return WResult(SubstituteMap(),
-					                   instantiate(AstAllocator(store),
-					                               new_types,
-					                               sym.scheme));
-				    }
+					    using namespace make_ast;
+					    if(subex.size() != 3)
+						    { throw ArityError("Lambda accepts only a formals and body lists"); }
 
-			    case tag<CxxFunctor>::value:
-				    {
-					    return WResult(SubstituteMap(),
-					                   wrap(unwrap<CxxFunctor>(expr).type));
-				    }
+					    auto metadata = unwrap<Lambda>(*itr).value;
+					    ++itr;
+					    auto formals = itr.subex();
 
-			    case tag<Ast>::value:
-				    {
-					    auto ast = unwrap<Ast>(expr);
+					    ++itr;
+					    Scheme::Quantified quantified;
+					    WResult body = WResult(SubstituteMap(gc), gc.marked(wrap<Null>()));
+					    {
+						    FormalsScope scope(gamma, new_types, formals);
+						    body = W(itr);
+					    }
+					    metadata->return_type = *body.type;
 
-					    if(is<Lambda>(ast[0]))
+					    if(formals.empty())
+						    { return WResult(std::move(body.subs), gc(fn_type::fn(*body.type)).wrap()); }
+					    else
 						    {
-							    using namespace make_ast;
-							    if(ast.size() != 3)
-								    { throw ArityError("Lambda accepts only a formals and body lists"); }
+							    auto builder = gc.ast_builder();
+							    fn_type::FnBuilder rtype_builder(builder);
 
-							    auto formals = unwrap<Ast>(ast[1]);
+							    apply_substitution(gc, body.subs, formals);
 
-							    Scheme::Quantified quantified;
-							    Ast result_type;
+							    for(auto raw_sym : formals)
+								    {
+									    auto& sym = get_sym(modify<Symbol>(raw_sym));
 
-							    WResult body;
-							    {
-								    FormalsScope scope(gamma, new_types, formals);
-								    body = W(store, new_types, gamma, ast[2]);
-							    }
+									    // pull substitutions of 'quantified' symbols out of body.subs:
+									    SubsScope scope(gc, body.subs, sym.scheme.quantified);
 
-							    if(formals.empty())
-								    { result_type = mk(wrap<Type>(tag<FunctionConstructor>::value), body.type)(ast_alloc(store)); }
+									    sym.scheme.type = substitute_type
+										    (gc,
+										     body.subs,
+										     sym.scheme.type);
+									    sym.scheme.type = substitute_type(gc, body.subs, sym.scheme.type);
+
+									    quantified.insert(sym.scheme.quantified.begin(),
+									                      sym.scheme.quantified.end());
+									    rtype_builder.other_arg(sym.scheme.type);
+								    }
+
+							    if(is<Scheme>(*body.type))
+								    { rtype_builder.last_arg(unwrap<Scheme>(*body.type).type); }
 							    else
-								    {
-									    fn_type::FnBuilder rtype_builder(ast_alloc(store));
+								    { rtype_builder.last_arg(*body.type); }
 
-									    apply_substitution(AstAllocator(store),
-									                       gamma, body.subs, ref_wrap(formals));
-
-									    for(auto raw_sym : formals)
-										    {
-											    auto& sym = get_sym(modify<Symbol>(raw_sym));
-											    SubsScope scope(body.subs, sym.scheme.quantified);
-											    sym.scheme.type = substitute_type
-												    (AstAllocator(store),
-												     body.subs,
-												     sym.scheme.type);
-
-											    quantified.insert(sym.scheme.quantified.begin(),
-											                      sym.scheme.quantified.end());
-											    rtype_builder.other_arg(sym.scheme.type);
-										    }
-
-									    if(is<Scheme>(body.type))
-										    { rtype_builder.last_arg(unwrap<Scheme>(body.type).type); }
-									    else
-										    { rtype_builder.last_arg(body.type); }
-
-									    result_type = rtype_builder.root();
-								    }
-
-							    if(is<Scheme>(body.type))
-								    {
-									    auto& scheme = unwrap<Scheme>(body.type);
-									    quantified.insert(scheme.quantified.begin(),
-									                      scheme.quantified.end());
-								    }
-
-							    auto metadata = unwrap<Lambda>(ast[0]).value;
-
-							    metadata->return_type = body.type;
-
-							    return WResult(body.subs, wrap(result_type));
+							    return WResult(std::move(body.subs), gc.marked(wrap(rtype_builder.root())));
 						    }
-					    else if(is<Define>(ast[0]))
+				    }
+			    else if(itr.is<Define>())
+				    {
+					    ++itr;
+					    auto& sym = get_sym(unwrap<Symbol>(itr.reference()));
+
+					    if(gamma.count(sym.name))
+						    { throw RedefinitionError("Can't redefine a symbol at the same scope."); }
+
+					    ++itr;
+					    auto e1 = W(itr);
+
+					    auto generalize_env = gamma;
+					    for(auto& item : generalize_env)
 						    {
-							    auto& sym = get_sym(modify<Symbol>(ast[1]));
+							    SubsScope knockout_subs(gc, e1.subs, item.second.quantified);
+							    item.second.type = substitute_type(gc, e1.subs, item.second.type);
+						    }
 
-							    if(gamma.count(sym.name))
-								    { throw RedefinitionError("Can't redefine a symbol at the same scope."); }
+					    sym.scheme = generalize(generalize_env, *e1.type);
 
-							    auto e1 = W(store, new_types, gamma, ast[2]);
+					    gamma[sym.name] = sym.scheme;
+					    return WResult(std::move(e1.subs), gc.marked(wrap(&sym.scheme)));
+				    }
+			    else
+				    {
+					    using namespace make_ast;
 
-							    auto generalize_env = gamma;
-							    for(auto& item : generalize_env)
+					    auto e1 = W(itr);
+
+					    if(subex.size() == 1) // thunk:
+						    {
+							    using namespace pattern_match;
+
+							    Any return_type;
+							    if(match(fnt(capture(return_type)),
+							             *e1.type))
+								    { return WResult(std::move(e1.subs), return_type); }
+
+							    else if(is<Type>(*e1.type))
 								    {
-									    SubsScope knockout_subs(e1.subs, item.second.quantified);
-									    substitute_type(AstAllocator(store), e1.subs, item.second.type);
+									    return_type = wrap<Type>(++new_types);
+									    e1.subs[unwrap<Type>(*e1.type)] = wrap(*gc(fn_type::fn(return_type)));
+									    return WResult(std::move(e1.subs), return_type);
 								    }
 
-							    sym.scheme = generalize(generalize_env, e1.type);
-
-							    gamma[sym.name] = sym.scheme;
-							    return WResult(e1.subs, wrap(&sym.scheme));
+							    std::cout << "no good: " << printer::print(*e1.type) << std::endl;
+							    throw AlgorithmWFailed("Thunk function of several args");
 						    }
 					    else
 						    {
-							    using namespace make_ast;
-
-							    auto e1 = W(store,  new_types, gamma, ast[0]);
-
-							    if(ast.size() == 1) // thunk:
+							    for(auto& item : gamma)
 								    {
-									    using namespace pattern_match;
-
-									    Any return_type;
-									    if(match(fnt(capture(return_type)), e1.type))
-										    { return WResult(e1.subs, return_type); }
-
-									    else if(is<Type>(e1.type))
-										    {
-											    return_type = wrap<Type>(++new_types);
-											    e1.subs[unwrap<Type>(e1.type)] = wrap(fn_type::fn(return_type)(ast_alloc(store)));
-											    return WResult(e1.subs, return_type);
-										    }
-
-									    std::cout << "no good: " << printer::print(e1.type) << std::endl;
-
-									    throw AlgorithmWFailed("Thunk function of several args");
+									    SubsScope knockout_subs(gc, e1.subs, item.second.quantified);
+									    new_var(item.second);
+									    item.second.type = substitute_type(gc, e1.subs, item.second.type);
 								    }
-							    else
+
+							    for(auto arg : slice(itritrs(subex), 1))
 								    {
-									    for(auto& item : gamma)
-										    {
-											    SubsScope knockout_subs(e1.subs, item.second.quantified);
-											    new_var(item.second);
-											    item.second.type = substitute_type
-												    (AstAllocator(store), e1.subs, item.second.type);
-										    }
+									    WResult e2 = W(arg);
 
-									    for(auto arg : slice(ast, 1))
-										    {
-											    WResult e2 = W(store, new_types, gamma, arg);
+									    auto beta = Type(++new_types);
 
-											    auto beta = Type(++new_types);
+									    auto left = gc.marked(substitute_type(gc, e2.subs, *e1.type));
+									    auto right = gc(fn_type::fn(*e2.type, beta.value()));
+									    auto V = most_general_unification(gc, left.any, right.any);
 
-											    auto V = most_general_unification
-												    (store,
-												     substitute_type
-												     (AstAllocator(store), e2.subs, e1.type),
-												     wrap(fn_type::fn(e2.type, beta.value())(ast_alloc(store))));
+									    auto subbed_beta = gc.marked(substitute_type(gc, V, ref_wrap(beta)));
 
-											    auto subbed_beta = substitute_type
-												    (AstAllocator(store), V, ref_wrap(beta));
+									    compose_subs(gc, V, e2.subs);
+									    compose_subs(gc, V, e1.subs);
 
-											    compose_subs(store, V, e2.subs);
-											    compose_subs(store, V, e1.subs);
-
-											    e1.subs = V;
-											    e1.type = subbed_beta;
-										    }
-
-									    return e1;
+									    e1.subs = std::move(V);
+									    e1.type = std::move(subbed_beta);
 								    }
+
+							    return e1;
 						    }
 				    }
+		    }
 
-			    case tag<Type>::value:
-				    return WResult(SubstituteMap(), expr);
+		    WResult W(Ast::iterator itr)
+		    {
+			    switch(itr.tag())
+				    {
+				    case tag<Symbol>::value:
+					    {
+						    auto& sym = get_sym(unwrap<Symbol>(itr.reference()));
+						    return WResult(SubstituteMap(gc),
+						                   gc.marked(instantiate(gc, new_types, sym.scheme)));
+					    }
 
-			    default:
-				    return WResult(SubstituteMap(), wrap<Type>(expr._tag));
-			    }
-	    }
+				    case tag<CxxFunctor>::value:
+					    {
+						    return WResult(SubstituteMap(gc),
+						                   gc.marked(wrap(unwrap<CxxFunctor>(*itr).type)));
+					    }
+
+				    case tag<Ast>::value:
+					    { return W(itr.subex()); }
+
+				    case tag<Type>::value:
+					    return WResult(SubstituteMap(gc), gc.marked(*itr));
+
+				    default:
+					    return WResult(SubstituteMap(gc), gc.marked(wrap<Type>(itr->_tag)));
+				    }
+		    }
+
+		    WResult W(Marked<Ast>& ast)
+		    { return W(ast->subex()); }
+	    };
     }
 }
 

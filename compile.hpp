@@ -11,7 +11,8 @@
 #include "./byte_code.hpp"
 #include "./type.hpp"
 #include "./utility.hpp"
-#include "./helpers/pattern_match.hpp"
+#include <helpers/pattern_match.hpp>
+#include <helpers/itritrs.hpp>
 
 #include <set>
 
@@ -22,11 +23,13 @@ namespace atl
 		typedef AssembleCode::const_iterator iterator;
 		typedef pcode::Offset Offset;
 
+		GC& gc;
 		Code code_store;
 		AssembleCode assemble;
 
-		Compile()
-			: assemble(&code_store)
+		Compile(GC &gc_)
+			: gc(gc_),
+			  assemble(&code_store)
 		{}
 
 		// Setup a VM jump instruction which skips over the code
@@ -66,24 +69,22 @@ namespace atl
 
 		/// \internal Take an input and generate byte-code.
 		///
-		/// @param input: the thing to compile
-		/// @param assemble: the "AssembleCode" helper we're using
+		/// @param itr: the thing to compile
 		/// @param context: relavent context, ie are we in a tail call
-		/// @return: Type information and other things a calling _compile needs to know about.
-		Any _compile(Any input, Context context)
+		void _compile(Ast::iterator& itr, Context context)
 		{
 			using namespace std;
 
-			switch(input._tag) {
+			switch(itr.tag()) {
 			case tag<Ast>::value:
 				{
-					auto ast = unwrap<Ast>(input);
-					auto head = ast[0];
+					auto subex = itr.subex();
+					auto inner = subex.begin();
 
 					/******************/
 					/* special forms: */
-                    /******************/
-					switch(head._tag)
+					/******************/
+					switch(inner.tag())
 						{
 						case tag<If>::value:
 							{
@@ -93,27 +94,31 @@ namespace atl
 								};
 
 								auto alt_address = will_jump();
-								_compile(ast[1], context.just_closure()); // get the predicate
+
+								++inner;
+								_compile(inner, context.just_closure()); // get the predicate
 								assemble.if_();
 
 								// consiquent
-								_compile(ast[2], context);
+								++inner;
+								_compile(inner, context);
 
 								auto after_alt = will_jump();
 								assemble.jump();
 
 								// alternate
+								++inner;
 								assemble[alt_address] = assemble.pos_end();
-								_compile(ast[3], context);
+								_compile(inner, context);
 
 								assemble[after_alt] = assemble.pos_end();
 
-								return wrap<Null>();
+								return;
 							}
 						case tag<Define>::value:
 							{
-								auto& sym = modify<Symbol>(ast[1]);
-								auto const& value = ast[2];
+								++inner;
+								auto& sym = modify<Symbol>(*inner);
 
 								// Just assign the function location if
 								// required; for other cases symbol's value
@@ -121,85 +126,110 @@ namespace atl
 								{
 									using namespace pattern_match;
 									Lambda func(nullptr);
+
+									++inner;
 									if(match(pattern_match::ast(capture(func), tag<Ast>::value, tag<Ast>::value),
-									         value))
+									         inner))
 										{
-											_compile(value,
-											         Context(context.closure, true));
+											_compile(inner, Context(context.closure, true));
 											assemble.define(sym.name);
 										}
 								}
 
 								assemble.add_label(sym.name);
 
-								return wrap<Null>();
+								return;
 							}
 						case tag<Lambda>::value:
 							{
-								auto& metadata = *unwrap<Lambda>(head).value;
+								auto& metadata = *unwrap<Lambda>(*inner).value;
 								{
 									SkipBlock my_def(assemble);
 
 									metadata.body_address = assemble.pos_end();
-									_compile(ast[2], Context(&metadata,
-									                         true));
+
+									++inner; // formals were processed in assign_free
+									++inner;
+									_compile(inner, Context(&metadata,
+									                        true));
 									assemble.return_();
 								}
 
 								assemble.constant(metadata.body_address);
 
-								for(auto item : metadata.closure)
-									{ _compile(item->value, context.just_closure()); }
+								if(!metadata.closure.empty())
+									{
+										// The 'free' variables in our
+										// closures are passed as
+										// implicit arguments.  Make
+										// the list of arguments so I
+										// can compile those
+										if(!metadata.has_closure_values)
+											{
+												auto builder = gc.ast_builder();
+												NestAst nest(builder);
+												for(auto sym : metadata.closure)
+													{ builder.emplace_back(sym->value); }
+
+												metadata.closure_values = builder.root();
+												metadata.has_closure_values = true;
+											}
+
+										for(auto params_itr : itritrs(metadata.closure_values.subex()))
+											{ _compile(params_itr, context.just_closure()); }
+									}
 
 								assemble.make_closure(metadata.formals.size(),
 								                      metadata.closure.size());
 
-								return head;
+								return;
 							}
 						case tag<Quote>::value:
 							{
 								// TODO: copy?  Not sure how to handle this with GC.
-								assemble.pointer(ast.address(1));
-								return wrap<Null>();
+								++inner;
+								assemble.pointer(inner.pointer());
+								return;
 							}
 						}
 
 					/*****************/
 					/* normal order: */
-                    /*****************/
+					/*****************/
 					// Compile the args:
-					for(auto vv : slice(ast, 1)) { _compile(vv, context.just_closure()); }
+					for(auto arg : slice(itritrs(subex), 1))
+						{ _compile(arg, context.just_closure()); }
 
-					switch(head._tag)
+					switch(inner.tag())
 						{
 						case tag<Ast>::value:
-						{
-							// The Ast must return a closure.
-							// TODO: wrap primitive functions in a
-							// closure if they're getting returned
+							{
+								// The Ast must return a closure.
+								// TODO: wrap primitive functions in a
+								// closure if they're getting returned
 
-							_compile(head, context.just_closure());
-							assemble.call_closure();
-							return wrap<Null>();
-						}
+								_compile(inner, context.just_closure());
+								assemble.call_closure();
+								return;
+							}
 						case tag<CxxFunctor>::value:
 							{
-								auto& fn = unwrap<CxxFunctor>(head);
+								auto& fn = unwrap<CxxFunctor>(*inner);
 								assemble.std_function(&fn.fn, fn.arity);
-								return wrap<Null>();
+								return;
 							}
 						case tag<Symbol>::value:
 							{
-								auto& sym = unwrap<Symbol>(head);
+								auto& sym = unwrap<Symbol>(*inner);
 								assemble
 									.deref_slot(sym.name)
 									.call_closure();
-								return sym.value;
+								return;
 							}
 						default:
 							throw WrongTypeError
 								(std::string("Dunno how to use ")
-								 .append(type_name(head))
+								 .append(type_name(*itr))
 								 .append(" as a function"));
 						}
 
@@ -207,57 +237,55 @@ namespace atl
 				}
 
 			case tag<Fixnum>::value:
-				assemble.constant(unwrap<Fixnum>(input).value);
-				return wrap<Null>();
+				assemble.constant(unwrap<Fixnum>(*itr).value);
+				return;
 
 			case tag<Bool>::value:
-				assemble.constant(unwrap<Bool>(input).value);
-				return wrap<Null>();
+				assemble.constant(unwrap<Bool>(*itr).value);
+				return;
 
 			case tag<Pointer>::value:
-				assemble.pointer(unwrap<Pointer>(input).value);
-				return wrap<Null>();
+				assemble.pointer(unwrap<Pointer>(*itr).value);
+				return;
 
 			case tag<String>::value:
-				assemble.pointer(&unwrap<String>(input));
-				return wrap<Null>();
+				assemble.pointer(&unwrap<String>(*itr));
+				return;
 
 			case tag<Parameter>::value:
 				{
 					assemble.argument
-						(context.closure->formals.size() - 1 - unwrap<Parameter>(input).value);
-					return wrap<Null>();
+						(context.closure->formals.size() - 1 - unwrap<Parameter>(*itr).value);
+					return;
 				}
 			case tag<ClosureParameter>::value:
 				{
-					assemble.closure_argument(unwrap<ClosureParameter>(input).value);
-					return wrap<Null>();
+					assemble.closure_argument(unwrap<ClosureParameter>(*itr).value);
+					return;
 				}
 			default:
 				{
 					throw std::string("Illegal syntax or something; got ")
-						.append(type_name(input._tag))
+						.append(type_name(itr->_tag))
 						.append(" where value was required.");
 				}
 			}
-			return wrap<Null>();
+			return;
 		}
 
-		void ast(Ast const& ast)
-		{ _compile(wrap(ast), Context(nullptr, false)); }
+		void compile(Ast::iterator itr)
+		{ _compile(itr, Context(nullptr, false)); }
 
-		// For most external use.  The generated code can be passed to
-		// the VM for evaluation.
-		void any(Any ast)
+		void compile(Marked<Ast>& ast)
 		{
-			value(ast);
+			auto itr = ast->self_iterator();
+			_compile(itr, Context(nullptr, false));
 		}
 
-		// For most external use.  The generated code can be passed to
-		// the VM for evaluation.
-		void value(Any ast)
+		void compile(Marked<Ast>&& ast)
 		{
-			_compile(ast, Context(nullptr, false));
+			auto marked = std::move(ast);
+			compile(marked);
 		}
 
 		void dbg();

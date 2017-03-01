@@ -23,35 +23,23 @@ using namespace atl;
 struct TestToplevelMap
 	: public ::testing::Test
 {
-	Arena store;
+	GC gc;
 	SymbolMap env;
 	BackPatch backpatch;
+	AssignFree assign_free;
+	AssignForms assign_forms;
 
-	GC gc;
-
-	void do_assign_free(Any& thing)
-	{ assign_free(env, gc, backpatch, thing); }
-
-	Any do_assign_forms(Any thing)
-	{ return assign_forms(env, AstAllocator(gc), thing); }
-
-	template<class T>
-	Any do_assign_forms(T thing)
-	{ return do_assign_forms(wrap(thing)); }
-
-	Any do_assign(Any thing)
+	Marked<Ast> do_assign(Marked<Ast>&& thing)
 	{
-		thing = do_assign_forms(thing);
-		do_assign_free(thing);
-		return thing;
+		thing = assign_forms(thing);
+		assign_free(thing);
+		return std::move(thing);
 	}
 
-	template<class T>
-	Any do_assign(T thing)
-	{ return do_assign(wrap(thing)); }
-
 	TestToplevelMap()
-		: env(store)
+		: env(gc),
+		  assign_free(gc, env, backpatch),
+		  assign_forms(gc, env)
 	{
 		init_types();
 		setup_basic_definitions(gc, env);
@@ -63,12 +51,14 @@ TEST_F(TestToplevelMap, test_assign_forms)
 {
 	using namespace make_ast;
 
-	auto expr = do_assign_forms
-		(store
+	auto expr = assign_forms
+		(gc
 		 (mk
 		  (wrap<Lambda>(),
 		   mk("a", "b"),
 		   mk("a", "b", "c"))));
+
+	gc.gc();
 
     {
 	    using namespace pattern_match;
@@ -79,22 +69,61 @@ TEST_F(TestToplevelMap, test_assign_forms)
 		    (match(ast(capture(fn),
 		               ast("a", "b"),
 		               ast("a", "b", "c")),
-		           wrap(expr)))
-		    << printer::with_type(expr);
+		           expr))
+		    << printer::print(*expr);
 
 	    ASSERT_NE(nullptr, fn.value);
 	    ASSERT_EQ(2, fn.value->formals.size());
     }
 }
 
-TEST_F(TestToplevelMap, test_assigning_bound_lambda)
+TEST_F(TestToplevelMap, test_assign_free)
 {
 	using namespace make_ast;
 
+	auto metadata = gc.make<LambdaMetadata>
+		(gc(mk("a", "b")), wrap<Null>());
+
+	auto expr = gc
+		(mk
+		 (wrap<Lambda>(metadata.pointer()),
+		  mk("a", "b"),
+		  mk("a", "b", "c")));
+
+	assign_free(expr);
+
+    {
+	    using namespace pattern_match;
+
+	    Symbol const *a, *b;
+	    Symbol c;
+	    Lambda fn(nullptr);
+	    Parameter param_a(-1), param_b(-1);
+
+	    ASSERT_TRUE
+		    (match(ast(capture(fn),
+		               ast(capture_ptr(a), capture_ptr(b)),
+		               ast(capture(param_a), capture(param_b), capture(c))),
+		           expr))
+		    << printer::print(*expr);
+
+	    ASSERT_EQ(0, param_a.value);
+	    ASSERT_EQ(1, param_b.value);
+	    ASSERT_TRUE(is<Undefined>(c.value));
+    }
+}
+
+TEST_F(TestToplevelMap, test_parameters)
+{
+	using namespace make_ast;
+
+	auto metadata = gc.make<LambdaMetadata>
+		(gc(mk("a", "b")), wrap<Null>());
+
 	auto expr = do_assign
-		(store
+		(gc
 		 (mk
-		  (wrap<Lambda>(),
+		  (wrap<Lambda>(metadata.pointer()),
 		   mk("a", "b"),
 		   mk("a", "b", "c"))));
 
@@ -110,8 +139,8 @@ TEST_F(TestToplevelMap, test_assigning_bound_lambda)
 		    (match(ast(capture(fn),
 		               ast(capture_ptr(a), capture_ptr(b)),
 		               ast(capture(param_a), capture(param_b), capture(c))),
-		           wrap(expr)))
-		    << printer::with_type(expr);
+		           expr))
+		    << printer::print(*expr);
 
 	    ASSERT_EQ(0, param_a.value);
 	    ASSERT_EQ(a, &unwrap<Symbol>(fn.value->formals[param_a.value]));
@@ -127,7 +156,7 @@ TEST_F(TestToplevelMap, test_define_form)
 {
 	using namespace make_ast;
 
-	auto expr = do_assign_forms
+	auto expr = assign_forms
 		(gc
 		 (mk("define",
 		     "recur",
@@ -138,8 +167,8 @@ TEST_F(TestToplevelMap, test_define_form)
 
 		ASSERT_TRUE(match(ast(tag<Define>::value, tag<Symbol>::value,
 		                      ast(tag<Lambda>::value, ast(), tag<Ast>::value)),
-		                  ref_wrap(expr)))
-			<< "got: " << printer::print(expr) << std::endl;
+		                  expr))
+			<< "got: " << printer::print(*expr) << std::endl;
 	}
 }
 
@@ -162,9 +191,11 @@ TEST_F(TestToplevelMap, test_getting_definitions)
 		                      ast(tag<Lambda>::value, ast(),
 		                          ast(capture_ptr(body_recur)))),
 		                  expr))
-			<< "got: " << printer::print(expr) << std::endl;
+			<< "got: " << printer::print(*expr) << std::endl;
 
-		ASSERT_EQ(body_recur, formal_recur);
+		ASSERT_EQ(body_recur, formal_recur)
+			<< "body_recur " << printer::print(const_cast<Symbol*>(body_recur)) << std::endl
+			<< " formal_recur " << printer::print(const_cast<Symbol*>(formal_recur)) << std::endl;
 	}
 }
 
@@ -172,7 +203,7 @@ TEST_F(TestToplevelMap, test_lambda_with_if)
 {
 	using namespace make_ast;
     auto expr = do_assign
-	    (store
+	    (gc
 	     (mk
 	      (mk(wrap<Lambda>(),
 	          mk("a", "b"),
@@ -192,8 +223,8 @@ TEST_F(TestToplevelMap, test_lambda_with_if)
 		                       types<Symbol, Parameter, Parameter>(),
 		                       types<Symbol, Parameter, Parameter>())),
 		               wrap<Fixnum>(7), wrap<Fixnum>(3)),
-		           wrap(expr)))
-		    << printer::print(expr) << std::endl;
+		           expr))
+		    << printer::print(*expr) << std::endl;
     }
 }
 
@@ -202,7 +233,7 @@ TEST_F(TestToplevelMap, test_closure_params)
 	using namespace make_ast;
 
 	auto expr = do_assign
-		(store
+		(gc
 		 (mk
 		  (wrap<Lambda>(),
 		   mk("a"),
@@ -221,8 +252,8 @@ TEST_F(TestToplevelMap, test_closure_params)
 		               ast(tag<Lambda>::value,
 		                   ast(capture_ptr(b)),
 		                   ast(capture(param_a), capture(param_b)))),
-		           wrap(expr)))
-		    << printer::print(expr);
+		           expr))
+		    << printer::print(*expr);
 
 	    ASSERT_EQ(0, param_a.value);
 	    ASSERT_EQ(0, param_b.value);
@@ -236,14 +267,14 @@ TEST_F(TestToplevelMap, test_define_leaves_sym)
 {
 	using namespace make_ast;
 
-	do_assign(store
+	do_assign(gc
 	          (mk
 	           (wrap<Define>(),
 	            "id",
 	            mk(wrap<Lambda>(), mk("a"), mk("a")))));
 
-	auto expr = do_assign(store(mk(wrap<Lambda>(),
-	                               mk("b"), mk("id", "b"))));
+	auto expr = do_assign(gc(mk(wrap<Lambda>(),
+	                            mk("b"), mk("id", "b"))));
 
     {
 	    using namespace pattern_match;
@@ -255,8 +286,8 @@ TEST_F(TestToplevelMap, test_define_leaves_sym)
 		    (match(ast(tag<Lambda>::value,
 		               tag<Ast>::value,
 		               ast(capture_ptr(id), capture(param_b))),
-		           wrap(expr)))
-		    << printer::print(expr);
+		           expr))
+		    << printer::print(*expr);
 
 	    ASSERT_EQ(0, param_b.value);
 	    ASSERT_TRUE(is<Lambda>(id->value));

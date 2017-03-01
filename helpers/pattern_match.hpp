@@ -1,7 +1,8 @@
 #ifndef ATL_HELPER_PATTERN_MATCH_HPP
 #define ATL_HELPER_PATTERN_MATCH_HPP
 
-#include <helpers.hpp>
+#include <helpers/misc.hpp>
+#include <gc/marked.hpp>
 #include <print.hpp>
 
 namespace atl
@@ -11,7 +12,7 @@ namespace atl
 		using make_type::tt;
 
 		struct Match;
-		typedef std::function<bool (Match&, Any const&)> Matcher;
+		typedef std::function<bool (Match&, Ast::iterator&)> Matcher;
 
 		struct Match
 		{
@@ -22,25 +23,25 @@ namespace atl
 			 * ast("a", "b", "a"), (1 "foo" 1) would match, but (1 1
 			 * "foo") would not)*/
 			std::map<std::string, Type> seen_types;
-			virtual bool operator()(std::string const& ss, Any const& tt)
+			virtual bool operator()(std::string const& ss, Ast::iterator& tt)
 			{
 				auto found = seen_types.find(ss);
 				if(found != seen_types.end())
-					{ return found->second == typify(tt); }
+					{ return found->second == typify(*tt); }
 				else
 					{
-						seen_types.emplace(ss, typify(tt));
+						seen_types.emplace(ss, typify(*tt));
 						return true;
 					}
 			}
 
-			virtual bool operator()(long expected_tag, Any const& tt)
-			{ return static_cast<Type::value_type>(expected_tag) == tt._tag; }
+			virtual bool operator()(long expected_tag, Ast::iterator& tt)
+			{ return static_cast<Type::value_type>(expected_tag) == tt.tag(); }
 
-			bool operator()(Any const& value, Any const& tt)
-			{ return value == tt; }
+			bool operator()(Any const& value, Ast::iterator& tt)
+			{ return value == *tt; }
 
-			bool operator()(Matcher const& fn, Any const& tt)
+			bool operator()(Matcher const& fn, Ast::iterator& tt)
 			{ return fn(*this, tt); }
 		};
 
@@ -50,21 +51,22 @@ namespace atl
 		struct LiteralMatch
 			: public Match
 		{
-			virtual bool operator()(std::string const& ss, Any const& tt) override
-			{ return is<Symbol>(tt) && unwrap<Symbol>(tt).name == ss; }
+			virtual bool operator()(std::string const& ss, Ast::iterator& tt) override
+			{ return tt.is<Symbol>() && unwrap<Symbol>(*tt).name == ss; }
 
-			virtual bool operator()(long fixnum, Any const& tt) override
-			{ return is<Fixnum>(tt) && unwrap<Fixnum>(tt).value == fixnum; }
+			virtual bool operator()(long fixnum, Ast::iterator& tt) override
+			{ return tt.is<Fixnum>() && unwrap<Fixnum>(*tt).value == fixnum; }
 		};
 
 		struct _DispatchMatcher
 		{
-			Ast::const_iterator itr, end;
+			typedef Ast::iterator iterator;
+			iterator itr, end;
 			Match& run;
 
-			_DispatchMatcher(Match& run_, Ast::const_iterator itr_, Ast::const_iterator end_)
-				: itr(itr_)
-				, end(end_)
+			_DispatchMatcher(Match& run_, Ast::Subex subex)
+				: itr(subex.begin())
+				, end(subex.end())
 				, run(run_)
 			{}
 
@@ -72,21 +74,51 @@ namespace atl
 			bool operator()(Test const& test)
 			{
 				if(itr == end) { return false; }
-				bool value = run(test, *itr);
+				bool value = run(test, itr);
 				++itr;
 				return value;
 			}
 		};
 
+		Matcher capture(Ast::Subex& subex)
+		{
+			auto hold = &subex;
+			return [hold](Match&, Ast::iterator& itr)
+				{
+					if(itr.is<Ast>())
+						{
+							*hold = itr.subex();
+							return true;
+						}
+					return false;
+				};
+		}
+
+		Matcher capture(Ast::iterator& capturing)
+		{
+			auto pointer_to_capturing = &capturing;
+			return [pointer_to_capturing](Match&, Ast::iterator& itr)
+				{
+					if(itr.is<Ast>())
+						{
+							*pointer_to_capturing = itr;
+							return true;
+						}
+					return false;
+				};
+		}
+
 		template<class T>
 		Matcher capture(T& passed_hold)
 		{
+			static_assert(!(std::is_same<T, Ast>::value || std::is_same<T, Ast>::value),
+			              "Capturing Ast's isn't safe.  Capture an Ast::Subex.");
 			auto hold = &passed_hold;
-			return [hold](Match&, Any const& expr)
+			return [hold](Match&, Ast::iterator& itr)
 				{
-					if(is<T>(expr))
+					if(itr.is<T>())
 						{
-							*hold = unwrap<T>(expr);
+							*hold = unwrap<T>(*itr);
 							return true;
 						}
 					return false;
@@ -97,11 +129,11 @@ namespace atl
 		Matcher capture_ptr(T const*& passed_hold)
 		{
 			auto hold = &passed_hold;
-			return [hold](Match&, Any const& expr)
+			return [hold](Match&, Ast::iterator& itr)
 				{
-					if(is<T>(expr))
+					if(itr.is<T>())
 						{
-							*hold = &unwrap<T>(expr);
+							*hold = &unwrap<T>(*itr);
 							return true;
 						}
 					return false;
@@ -111,26 +143,16 @@ namespace atl
 		template<class ... Args>
 		Matcher ast(Args ... args)
 		{
-			auto tup = make_tuple(args...);
-			return [tup](Match& match, Any const& expr) -> bool
+			auto tup = std::make_tuple(args...);
+			return [tup](Match& match, Ast::iterator& itr) -> bool
 				{
-					Ast::const_iterator begin, end;
-
-					switch(expr._tag)
+					if(itr.is<Ast>())
 						{
-						case tag<Ast>::value:
-							{
-								auto const& ast = reinterpret_cast<Ast const&>(expr);
-								begin = ast.begin();
-								end = ast.end();
-								break;
-							}
-						default:
-							return false;
+							auto run = _DispatchMatcher(match, itr.subex());
+							return and_tuple(run, tup) && (run.itr == run.end);
 						}
+					else { return false; }
 
-					auto run = _DispatchMatcher(match, begin, end);
-					return and_tuple(run, tup) && (run.itr == run.end);
 				};
 		}
 
@@ -154,28 +176,48 @@ namespace atl
 		Matcher types()
 		{ return ast(tag<Args>::value...); }
 
+		bool match(Matcher const& pattern, Marked<Ast>& expr)
+		{
+			Match context;
+			auto itr = expr->self_iterator();
+			return pattern(context, itr);
+		}
 
-		bool match(Matcher const& pattern, Any const& expr)
+		bool match(Matcher const& pattern, Ast::iterator expr)
 		{
 			Match context;
 			return pattern(context, expr);
 		}
 
+		// Matcher's only work with Ast's (or their iterators), not
+		// AstData or Any so if we're given an Any, check if it is
+		// an Ast first.
+		bool match(Matcher const& pattern, Any& expr)
+		{
+			Match context;
+			if(is<Ast>(expr))
+				{
+					auto itr = unwrap<Ast>(expr).self_iterator();
+					return pattern(context, itr);
+				}
+			return false;
+		}
+
 		template<class T>
-		bool match(T const& pattern, Any const& expr)
+		bool match(T const& pattern, Ast::iterator expr)
 		{
 			Match matcher;
 			return matcher(pattern, expr);
 		}
 
-		bool literal_match(Matcher const& pattern, Any const& expr)
+		bool literal_match(Matcher const& pattern, Ast::iterator expr)
 		{
 			LiteralMatch context;
 			return pattern(context, expr);
 		}
 
 		template<class T>
-		bool literal_match(T const& pattern, Any const& expr)
+		bool literal_match(T const& pattern, Ast::iterator expr)
 		{
 			LiteralMatch matcher;
 			return matcher(pattern, expr);

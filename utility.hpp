@@ -337,11 +337,21 @@ struct ForeachTuple
 		fn( std::get<elem>(tup) );
 		ForeachTuple<Tup,elem + 1, last>::apply(fn, tup);
 	}
+
+	template<class Fn>
+	static void apply(Fn& fn, Tup& tup)
+	{
+		fn( std::get<elem>(tup) );
+		ForeachTuple<Tup,elem + 1, last>::apply(fn, tup);
+	}
 };
 
 template<class Tup, size_t elem>
 struct ForeachTuple<Tup, elem, elem>
-{ template<class Fn>  static void apply(Fn&, Tup const&) {} };
+{
+	template<class Fn>  static void apply(Fn&, Tup const&) {}
+	template<class Fn>  static void apply(Fn&, Tup&) {}
+};
 
 template<class Fn, class Tup>
 void foreach_tuple(Fn& fn, Tup const& tup)
@@ -630,6 +640,31 @@ Output map_range(Fn fn, Input in)
         out.push_back(fn(vv));
 
     return out;
+}
+
+
+namespace detail
+{
+	template<class T>
+	struct Deref
+	{ static T& a(T* item) { return *item; } };
+
+	template<class T>
+	struct Passthrough
+	{
+		static T&& a(T&& item) { return std::move(item); }
+		static T& a(T& item) { return std::move(item); }
+	};
+}
+
+
+template<class T, class R = typename std::remove_pointer<T>::type>
+R& deref(T&& item)
+{
+	return std::conditional<std::is_pointer<T>::value,
+	                        detail::Deref<T>,
+	                        detail::Passthrough<T>
+	                        >::a(item);
 }
 
 

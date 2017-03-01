@@ -7,6 +7,8 @@
  */
 
 #include <string>
+#include <type_traits.hpp>
+
 #include "./type.hpp"
 #include "./type_traits.hpp"
 #include "./utility.hpp"
@@ -21,7 +23,7 @@ namespace atl {
 		struct Pimpl {
 			static_assert(type_mapping::unwrappable_type<T>::value, "T is not an unwrappable_type");
 			static inline constexpr T& a(atl::Any& aa) {return *reinterpret_cast<T*>(aa.value);}
-			static inline constexpr T const& a(atl::Any const& aa) {return *reinterpret_cast<T*>(aa.value);}};
+			static inline constexpr T& a(atl::Any const& aa) {return *reinterpret_cast<T*>(aa.value);}};
 
 		template<class T>
 		struct Reinterpret {
@@ -49,16 +51,20 @@ namespace atl {
 	template<class T>
 	static inline T& unwrap(Any& input)
 	{
-		// If you checked the tag and know something is an Ast or
-		// AstData, use explicit_unwrap. Otherwise use unwrap_slice
-		// (which does the dispatching for you).
+		// AstData needs to be passed as reference, so I it needs to
+		// be wrapped and unwrapped with care.  Use explicit_unwrap if
+		// you need to.
 		static_assert(!std::is_same<AstData, T>::value,
 		              "AstData type requires special handling");
 		return unwrapping::Any<T>::a(input);
 	}
 
 	template<class T>
-	static inline T const& unwrap(Any const& input)
+	static inline
+	typename std::conditional<is_pimpl<T>::value,
+	                          T&,
+	                          T>::type
+	unwrap(Any const& input)
 	{ return unwrapping::Any<T>::a(input); }
 
 	template<class T>

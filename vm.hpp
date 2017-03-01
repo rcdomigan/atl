@@ -42,7 +42,8 @@ namespace atl
 		typedef value_type* iterator;
 		static const size_t stack_size = 100;
 
-		AllocatorBase& store;
+		GC& _gc;
+
 		CodeBacker const* code;	// just the byte code
 		value_type* slots;
 
@@ -52,9 +53,16 @@ namespace atl
 
 		value_type stack[stack_size]; // the function argument and adress stack
 
-		TinyVM(AllocatorBase& store_)
-			: store(store_), top(stack), call_stack(stack)
+		TinyVM()=delete;
+
+		TinyVM(GC& gc)
+			: _gc(gc),
+			  slots(nullptr),
+			  top(stack),
+			  call_stack(stack)
 		{}
+
+		~TinyVM() { if(slots) { delete []slots; } }
 
 		value_type back() { return *(top - 1); }
 
@@ -169,7 +177,7 @@ namespace atl
 			auto captured = *(top - 1);
 
 			// the closure its self will be [formals-count][body_address][arg1]...
-			value_type *closure = store.closure(*(top-captured-3), formals, captured);
+			value_type *closure = _gc.closure(*(top-captured-3), formals, captured);
 
 			auto args_end = top - 2;
 			auto args_begin = args_end - captured;
@@ -315,6 +323,7 @@ namespace atl
 		 */
 		void enter_code(Code const& input)
 		{
+			if(slots) { delete []slots; }
 			slots = new value_type[input.slots];
 
 			call_stack = nullptr;

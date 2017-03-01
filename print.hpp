@@ -8,9 +8,11 @@
 #include <functional>
 #include <iostream>
 #include <utility>
+#include <cassert>
 
 #include "./utility.hpp"
-#include "./helpers.hpp"
+#include "./conversion.hpp"
+#include "./type_testing.hpp"
 
 namespace atl
 {
@@ -87,13 +89,16 @@ namespace atl
 				case tag<LambdaMetadata>::value:
 					{
 						out << "#<LambdaMetadata" << flush;
-						auto closure = unwrap<LambdaMetadata>(any).closure;
+						auto& closure = unwrap<LambdaMetadata>(any).closure;
 						if(!closure.empty())
 							{
 								out << "(" << closure.size() << " free vars)";
 							}
 						return out << ">" << flush;;
 					}
+				case tag<Lambda>::value:
+					{ return out << "#<Lambda " << any.value << ">" << flush;; }
+
 				default:
 					return out << "#<" << type_name(any._tag) << ">";
 				}
@@ -270,10 +275,10 @@ namespace atl
 	}
 
 	std::ostream& dbg_any(Any vv)
-	{ return cout << printer::print(vv) << endl; }
+	{ return std::cout << printer::print(vv) << std::endl; }
 
 	std::ostream& dbg_ast(Ast const& vv)
-	{ return cout << printer::print(vv) << endl; }
+	{ return std::cout << printer::print(vv) << std::endl; }
 
 	std::ostream& dbg_type(Any const& value)
 	{ return printer::print_type(value, std::cout) << std::endl; }
