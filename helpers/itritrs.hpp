@@ -2,8 +2,8 @@
 #define ATL_ITRITRS_HPP
 
 #include <utility.hpp>
-#include <type_testing.hpp>
-#include <conversion.hpp>
+#include <is.hpp>
+#include <wrap.hpp>
 #include <gc/gc.hpp>
 
 /* Small Ast helpers with minimal external dependencies */

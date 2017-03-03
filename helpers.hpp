@@ -4,9 +4,9 @@
 #include <algorithm>
 
 #include "./type.hpp"
-#include "./conversion.hpp"
+#include "./wrap.hpp"
 #include "./utility.hpp"
-#include "./type_testing.hpp"
+#include "./is.hpp"
 
 #include <helpers/make_ast.hpp>
 #include <helpers/pattern_match.hpp>

@@ -1,7 +1,7 @@
-#ifndef TYPE_TESTING_HH
-#define TYPE_TESTING_HH
+#ifndef ATL_IS_HH
+#define ATL_IS_HH
 /**
- * @file /home/ryan/programming/atl/type_testing.hpp
+ * @file /home/ryan/programming/atl/is.hpp
  * @author Ryan Domigan <ryan_domigan@sutdents@uml.edu>
  * Created on Jul 26, 2013
  */

@@ -2,8 +2,8 @@
 #define ATL_AST_ACCESS_HPP
 
 #include <utility.hpp>
-#include <type_testing.hpp>
-#include <conversion.hpp>
+#include <is.hpp>
+#include <wrap.hpp>
 
 #include <cassert>
 

@@ -11,8 +11,8 @@
 #include <cassert>
 
 #include "./utility.hpp"
-#include "./conversion.hpp"
-#include "./type_testing.hpp"
+#include "./wrap.hpp"
+#include "./is.hpp"
 
 namespace atl
 {

@@ -1,7 +1,7 @@
-#ifndef ATL_CONVERSION_HH
-#define ATL_CONVERSION_HH
+#ifndef ATL_WRAP_HH
+#define ATL_WRAP_HH
 /**
- * @file /home/ryan/programming/atl/conversion.hpp
+ * @file /home/ryan/programming/atl/wrap.hpp
  * @author Ryan Domigan <ryan_domigan@sutdents@uml.edu>
  * Created on Jul 10, 2013
  */

@@ -18,8 +18,8 @@
 
 #include "./exception.hpp"
 #include "./type.hpp"
-#include "./conversion.hpp"
-#include "./type_testing.hpp"
+#include "./wrap.hpp"
+#include "./is.hpp"
 #include "./helpers.hpp"
 #include "./print.hpp"
 
