@@ -197,8 +197,12 @@ namespace atl
 					/* normal order: */
 					/*****************/
 					// Compile the args:
+					size_t arg_count = 0;
 					for(auto arg : slice(itritrs(subex), 1))
-						{ _compile(arg, context.just_closure()); }
+						{
+							++arg_count;
+							_compile(arg, context.just_closure());
+						}
 
 					switch(inner.tag())
 						{
@@ -215,7 +219,17 @@ namespace atl
 						case tag<CxxFunctor>::value:
 							{
 								auto& fn = unwrap<CxxFunctor>(*inner);
-								assemble.std_function(&fn.fn, fn.arity);
+
+								if(!fn.variadic && (arg_count != fn.arity))
+									{
+										throw ArityError
+											(std::string("Bad arity; expected ") +
+											 std::to_string(fn.arity) +
+											 std::string(" arguments, but got ") +
+											 std::to_string(arg_count));
+									}
+
+								assemble.std_function(&fn.fn, arg_count);
 								return;
 							}
 						case tag<Symbol>::value:

@@ -659,12 +659,13 @@ namespace atl
 	    // A function signature (-> a (-> b c)), or (-> a) for a thunk
 	    Ast type;
 	    size_t arity;
+	    bool variadic;
 
 	    CxxFunctor(const Fn& fn
 	               , const std::string& name
 	               , Ast const& tt
 	               , size_t arity_)
-		    : name(name), fn(fn), type(tt), arity(arity_)
+		    : name(name), fn(fn), type(tt), arity(arity_), variadic(false)
 	    {}
     };
 
@@ -683,7 +684,6 @@ namespace atl
 	        : name(name_), fn(fn_)
         {}
     };
-
 
     /*********************/
     /**  _    Other     **/
