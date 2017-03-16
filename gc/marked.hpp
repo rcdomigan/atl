@@ -102,7 +102,6 @@ namespace atl
 		typedef Marked<Any> MarkedBase;
 		typedef T value_type;
 
-		Marked() : MarkedBase() {}
 		Marked(MarkedBase*& top, Any const& any) : MarkedBase(top, any) {}
 
 		Marked(Marked&& other) : MarkedBase(std::move(other)) {}
