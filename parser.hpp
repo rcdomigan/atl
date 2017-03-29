@@ -172,7 +172,7 @@ namespace atl
 		}
 
 		/* parse one S-expression from a string into an ast */
-		Any string_(const std::string& input)
+		Any parse(const std::string& input)
 		{
 			auto vec = _gc.ast_builder();
 
@@ -193,7 +193,7 @@ namespace atl
 		}
 
 		/* parse one S-expression from a stream into an ast */
-		Any stream(std::istream &stream)
+		Any parse(std::istream &stream)
 		{
 			auto initial_flags = stream.flags();
 			std::noskipws(stream);
