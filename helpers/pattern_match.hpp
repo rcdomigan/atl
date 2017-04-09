@@ -2,8 +2,11 @@
 #define ATL_HELPER_PATTERN_MATCH_HPP
 
 #include <helpers/misc.hpp>
+#include <helpers/ast_access.hpp>
 #include <gc/marked.hpp>
 #include <print.hpp>
+
+#include <sstream>
 
 namespace atl
 {
@@ -12,7 +15,7 @@ namespace atl
 		using make_type::tt;
 
 		struct Match;
-		typedef std::function<bool (Match&, Ast::iterator&)> Matcher;
+		typedef std::function<bool (Match&, WalkAst&)> Matcher;
 
 		struct Match
 		{
@@ -23,26 +26,32 @@ namespace atl
 			 * ast("a", "b", "a"), (1 "foo" 1) would match, but (1 1
 			 * "foo") would not)*/
 			std::map<std::string, Type> seen_types;
-			virtual bool operator()(std::string const& ss, Ast::iterator& tt)
+			virtual bool operator()(std::string const& ss, WalkAst& tt)
 			{
 				auto found = seen_types.find(ss);
 				if(found != seen_types.end())
-					{ return found->second == typify(*tt); }
+					{ return found->second == typify(tt.value()); }
 				else
 					{
-						seen_types.emplace(ss, typify(*tt));
+						seen_types.emplace(ss, typify(tt.value()));
 						return true;
 					}
 			}
 
-			virtual bool operator()(long expected_tag, Ast::iterator& tt)
+			virtual bool operator()(long expected_tag, WalkAst& tt)
 			{ return static_cast<Type::value_type>(expected_tag) == tt.tag(); }
 
-			bool operator()(Any const& value, Ast::iterator& tt)
-			{ return value == *tt; }
+			virtual bool operator()(Any const& value, WalkAst& tt)
+			{ return value == tt.value(); }
 
-			bool operator()(Matcher const& fn, Ast::iterator& tt)
+			virtual bool operator()(Matcher const& fn, WalkAst& tt)
 			{ return fn(*this, tt); }
+
+			virtual bool at_end(WalkAst& tt)
+			{ return tt.at_end(); }
+
+			virtual bool is_subex(WalkAst& tt)
+			{ return tt.is_subex(); }
 		};
 
 		/* Like Match, but assumes an unwrapped string is matching a
@@ -51,57 +60,44 @@ namespace atl
 		struct LiteralMatch
 			: public Match
 		{
-			virtual bool operator()(std::string const& ss, Ast::iterator& tt) override
-			{ return tt.is<Symbol>() && unwrap<Symbol>(*tt).name == ss; }
+			virtual bool operator()(std::string const& ss, WalkAst& tt) override
+			{ return is<Symbol>(tt.tag()) && unwrap<Symbol>(tt.value()).name == ss; }
 
-			virtual bool operator()(long fixnum, Ast::iterator& tt) override
-			{ return tt.is<Fixnum>() && unwrap<Fixnum>(*tt).value == fixnum; }
+			virtual bool operator()(long fixnum, WalkAst& tt) override
+			{ return is<Fixnum>(tt.tag()) && unwrap<Fixnum>(tt.value()).value == fixnum; }
 		};
 
 		struct _DispatchMatcher
 		{
-			typedef Ast::iterator iterator;
-			iterator itr, end;
+			WalkAst& walker;
 			Match& run;
 
-			_DispatchMatcher(Match& run_, Ast::Subex subex)
-				: itr(subex.begin())
-				, end(subex.end())
+			_DispatchMatcher(Match& run_, WalkAst& walker_)
+				: walker(walker_)
 				, run(run_)
 			{}
 
 			template<class Test>
 			bool operator()(Test const& test)
 			{
-				if(itr == end) { return false; }
-				bool value = run(test, itr);
-				++itr;
-				return value;
+				if(walker.has_value())
+					{
+						bool value = run(test, walker);
+						walker.next();
+						return value;
+					}
+				return false;
 			}
 		};
 
 		Matcher capture(Ast::Subex& subex)
 		{
 			auto hold = &subex;
-			return [hold](Match&, Ast::iterator& itr)
+			return [hold](Match&, WalkAst& walker)
 				{
-					if(itr.is<Ast>())
+					if(walker.is_subex())
 						{
-							*hold = itr.subex();
-							return true;
-						}
-					return false;
-				};
-		}
-
-		Matcher capture(Ast::iterator& capturing)
-		{
-			auto pointer_to_capturing = &capturing;
-			return [pointer_to_capturing](Match&, Ast::iterator& itr)
-				{
-					if(itr.is<Ast>())
-						{
-							*pointer_to_capturing = itr;
+							*hold = walker.subex();
 							return true;
 						}
 					return false;
@@ -114,11 +110,12 @@ namespace atl
 			static_assert(!(std::is_same<T, Ast>::value || std::is_same<T, Ast>::value),
 			              "Capturing Ast's isn't safe.  Capture an Ast::Subex.");
 			auto hold = &passed_hold;
-			return [hold](Match&, Ast::iterator& itr)
+			return [hold](Match&, WalkAst& walker)
 				{
-					if(itr.is<T>())
+					auto value = walker.value();
+					if(is<T>(value))
 						{
-							*hold = unwrap<T>(*itr);
+							*hold = unwrap<T>(value);
 							return true;
 						}
 					return false;
@@ -128,31 +125,95 @@ namespace atl
 		template<class T>
 		Matcher capture_ptr(T const*& passed_hold)
 		{
+			static_assert(!is_reinterperable<T>::value,
+			              "reinterperable types are passed by value in this context");
 			auto hold = &passed_hold;
-			return [hold](Match&, Ast::iterator& itr)
+			return [hold](Match&, WalkAst& walker)
 				{
-					if(itr.is<T>())
+					auto value = walker.value();
+					if(is<T>(value))
 						{
-							*hold = &unwrap<T>(*itr);
+							*hold = &unwrap<T>(value);
 							return true;
 						}
 					return false;
 				};
 		}
 
+		template<class T>
+		Matcher capture_ptr(T *& passed_hold)
+		{
+			static_assert(!is_reinterperable<T>::value,
+			              "reinterperable types are passed by value in this context");
+			auto hold = &passed_hold;
+			return [hold](Match&, WalkAst& walker)
+				{
+					auto value = walker.value();
+					if(is<T>(value))
+						{
+							*hold = &unwrap<T>(value);
+							return true;
+						}
+					return false;
+				};
+		}
+
+		// Assumes the walker is supposed to be _on_ an Ast (ie
+		// walker.is_subex() is true).
 		template<class ... Args>
 		Matcher ast(Args ... args)
 		{
 			auto tup = std::make_tuple(args...);
-			return [tup](Match& match, Ast::iterator& itr) -> bool
+			return [tup](Match& match, WalkAst& walker) -> bool
 				{
-					if(itr.is<Ast>())
+					if(match.is_subex(walker))
 						{
-							auto run = _DispatchMatcher(match, itr.subex());
-							return and_tuple(run, tup) && (run.itr == run.end);
+							auto subex = walker.walk_subex();
+							auto run = _DispatchMatcher(match, walker);
+							return and_tuple(run, tup) && match.at_end(walker);
 						}
 					else { return false; }
 
+				};
+		}
+
+		// assumes we're matching based on an Ast we're already
+		// walking _in_.
+		template<class ... Args>
+		Matcher rest(Args ... args)
+		{
+			auto tup = std::make_tuple(args...);
+			return [tup](Match& match, WalkAst& walker) -> bool
+				{
+					auto run = _DispatchMatcher(match, walker);
+					return and_tuple(run, tup) && match.at_end(walker);
+				};
+		}
+
+		template<class ... Args>
+		Matcher rest_begins(Args ... args)
+		{
+			auto tup = std::make_tuple(args...);
+			return [tup](Match& match, WalkAst& walker) -> bool
+				{
+					auto run = _DispatchMatcher(match, walker);
+					return and_tuple(run, tup);
+				};
+		}
+
+		template<class ... Args>
+		Matcher ast_begins(Args ... args)
+		{
+			auto tup = std::make_tuple(args...);
+			return [tup](Match& match, WalkAst& walker) -> bool
+				{
+					if(match.is_subex(walker))
+						{
+							auto subex = walker.walk_subex();
+							auto run = _DispatchMatcher(match, walker);
+							return and_tuple(run, tup);
+						}
+					else { return false; }
 				};
 		}
 
@@ -171,59 +232,107 @@ namespace atl
 		Matcher fnt(T const& arg0, Rest ... rest)
 		{ return ast(wrap<Type>(tag<FunctionConstructor>::value), arg0, fnt(rest...)); }
 
+		template<class T>
+		Matcher fnt_rest(T const& arg0)
+		{ return rest(wrap<Type>(tag<FunctionConstructor>::value), arg0); }
+
+		template<class T, class ... Rest>
+		Matcher fnt_rest(T const& arg0, Rest ... args)
+		{ return rest(wrap<Type>(tag<FunctionConstructor>::value), arg0, fnt(args...)); }
+		template<class T, class U>
+
+		Matcher fnt_rest(T const& arg0, U const& arg1)
+		{ return rest(wrap<Type>(tag<FunctionConstructor>::value), arg0, arg1); }
+
 		/* Helper for declaring asts of types (something that seems to come up a bit in tests). */
 		template<class ... Args>
 		Matcher types()
 		{ return ast(tag<Args>::value...); }
 
-		bool match(Matcher const& pattern, Marked<Ast>& expr)
-		{
-			Match context;
-			auto itr = expr->self_iterator();
-			return pattern(context, itr);
-		}
 
-		bool match(Matcher const& pattern, Ast::iterator expr)
-		{
-			Match context;
-			return pattern(context, expr);
-		}
+		template<class T, class U>
+		bool match(T const& pattern, U&& traversable);
 
-		// Matcher's only work with Ast's (or their iterators), not
-		// AstData or Any so if we're given an Any, check if it is
-		// an Ast first.
-		bool match(Matcher const& pattern, Any& expr)
+ 		namespace detail
 		{
-			Match context;
-			if(is<Ast>(expr))
+			template<class Context,
+			         class Walker,
+			         bool is_walker=std::is_base_of<WalkAst, Walker>::value>
+			struct DoMatch;
+
+			template<class Context, class Traversable>
+			struct DoMatch<Context, Traversable, true>
+			{
+				static bool match(Matcher const& pattern, WalkAst& walker)
 				{
-					auto itr = unwrap<Ast>(expr).self_iterator();
-					return pattern(context, itr);
+					Context context;
+					auto copy = walker.clone();
+
+					if(pattern(context, *copy))
+						{
+							walker.reset(*copy);
+							return true;
+						}
+					return false;
 				}
+			};
+
+			template<class Context>
+			struct DoMatch<Context, Any, false>
+			{
+				static bool match(Matcher const& pattern, Any& expr)
+				{
+					if(is<Ast>(expr))
+						{
+							auto walker = walk(unwrap<Ast>(expr));
+							return DoMatch<Context, WalkAstIterator>::match(pattern, walker);
+						}
+					return false;
+				}
+			};
+
+			template<class Context, class Traversable>
+			struct DoMatch<Context, Traversable, false>
+			{
+				static bool match(Matcher const& pattern, Traversable& expr)
+				{
+					auto walker = walk(expr);
+					return DoMatch<Context, WalkAstIterator>::match(pattern, walker);
+				}
+			};
+		}
+
+		template<class T>
+		bool match(Matcher const& pattern, T& traversable)
+		{
+			return detail::DoMatch
+				<Match, typename std::remove_reference<T>::type>::match
+				(pattern, traversable);
+		}
+
+		template<class T>
+		bool match(Matcher const& pattern, T&& traversable)
+		{ return match(pattern, traversable); }
+
+		bool match(Matcher const& pattern, Ast::iterator& itr)
+		{
+			if(itr.is<Ast>())
+				{ return match(pattern, subex(itr)); }
 			return false;
 		}
 
 		template<class T>
-		bool match(T const& pattern, Ast::iterator expr)
+		bool literal_match(Matcher const& pattern, T& traversable)
 		{
-			Match matcher;
-			return matcher(pattern, expr);
-		}
-
-		bool literal_match(Matcher const& pattern, Ast::iterator expr)
-		{
-			LiteralMatch context;
-			return pattern(context, expr);
+			return detail::DoMatch
+				<LiteralMatch, typename std::remove_reference<T>::type>::match
+				(pattern, traversable);
 		}
 
 		template<class T>
-		bool literal_match(T const& pattern, Ast::iterator expr)
-		{
-			LiteralMatch matcher;
-			return matcher(pattern, expr);
-		}
+		bool literal_match(Matcher const& pattern, T&& traversable)
+		{ return literal_match(pattern, traversable); }
 	}
-
 }
 
 #endif

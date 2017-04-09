@@ -33,6 +33,58 @@ TEST_F(TestHelpers, test_nested_mk)
 	          unwrap<Ast>(ast[0])[1]._tag);
 }
 
+
+// The same '(1 (2 3) 4) Ast is going to be wrapped in a couple
+// different walkers, so factor out the test steps
+void _test_walker(WalkAst& walker)
+{
+	ASSERT_TRUE(walker.at_begin());
+	ASSERT_TRUE(walker.has_value());
+	ASSERT_EQ(wrap<Fixnum>(1), walker.value());
+	walker.next();
+
+	ASSERT_FALSE(walker.at_begin());
+	ASSERT_TRUE(walker.has_value());
+	ASSERT_TRUE(walker.is_subex());
+
+	{
+		auto sub = walker.walk_subex();
+
+		ASSERT_FALSE(walker.at_begin());
+		ASSERT_TRUE(walker.has_value());
+		ASSERT_EQ(wrap<Fixnum>(2), walker.value());
+		walker.next();
+
+		ASSERT_TRUE(walker.has_value());
+		ASSERT_EQ(wrap<Fixnum>(3), walker.value());
+		walker.next();
+
+		ASSERT_TRUE(walker.at_end());
+	}
+	walker.next();
+
+	ASSERT_TRUE(walker.has_value());
+	ASSERT_EQ(wrap<Fixnum>(4), walker.value())
+		<< "got: " << printer::print(walker.value()) << std::endl;
+	walker.next();
+
+	ASSERT_FALSE(walker.has_value());
+}
+
+
+TEST_F(TestHelpers, test_itr_walker)
+{
+	using namespace make_ast;
+
+	auto expr = store(mk(1, mk(2, 3), 4));
+
+	auto walker = walk(expr);
+	auto clone = walker.clone();
+
+	_test_walker(walker);
+	_test_walker(*clone);
+}
+
 TEST_F(TestHelpers, test_trivial_pattern_match)
 {
 	using namespace make_ast;
