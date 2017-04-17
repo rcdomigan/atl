@@ -538,25 +538,16 @@ namespace atl
 
     struct Symbol
     {
-	    enum Subtype {variable, constant};
-	    Subtype subtype;
-
 	    std::string name;
 	    Scheme scheme;
 
-	    Any value;
-
 	    Symbol(std::string const& name_="")
-		    : subtype(Subtype::variable)
-		    , name(name_)
-		    , value(tag<Undefined>::value)
+		    : name(name_)
 	    {}
 
 	    Symbol(std::string const& name_, Scheme const& type_)
-		    : subtype(Subtype::variable)
-		    , name(name_)
-		    , scheme(type_)
-		    , value(tag<Undefined>::value)
+		    : name(name_),
+		    scheme(type_)
 	    {}
     };
 
@@ -598,7 +589,9 @@ namespace atl
 	    // added as implicit arguments to the lambda expression.
 	    // Because free-variables are added as they are encountered in
 	    // the body, I need to use an appendable container.
-	    typedef std::vector<Symbol*> Closure;
+	    //
+	    // Values may be Parameter or ClosureParameter types.
+	    typedef std::vector<Any> Closure;
 	    Closure closure;
 
 	    Ast closure_values;
@@ -607,32 +600,27 @@ namespace atl
 	    // bind to.
 	    std::map<std::string, size_t> closure_index_map;
 
-	    size_t slot;
-
 	    pcode::Offset body_address;
 
-	    Any return_type;
-	    bool has_slot, has_closure_values;
-
+	    bool has_closure_values;
 
 	    LambdaMetadata()=delete;
 
-	    LambdaMetadata(Ast formals_, Any return_type_)
+	    LambdaMetadata(Ast formals_)
 		    : formals(formals_),
 		      closure_values(nullptr),
-		      return_type(return_type_),
-		      has_slot(false),
 		      has_closure_values(false)
 	    {}
 
-	    ClosureParameter closure_parameter(Symbol* sym)
+	    ClosureParameter closure_parameter(std::string const& name,
+	                                       Any value)
 	    {
-		    auto found = closure_index_map.find(sym->name);
+		    auto found = closure_index_map.find(name);
 		    if(found == closure_index_map.end())
 			    {
 				    auto idx = closure_index_map.size();
-				    closure_index_map[sym->name] = idx;
-				    closure.push_back(sym);
+				    closure_index_map[name] = idx;
+				    closure.push_back(value);
 				    return ClosureParameter(idx);
 			    }
 		    else

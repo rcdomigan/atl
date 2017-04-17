@@ -168,8 +168,8 @@ namespace atl
 											{
 												auto builder = gc.ast_builder();
 												NestAst nest(builder);
-												for(auto sym : metadata.closure)
-													{ builder.emplace_back(sym->value); }
+												for(auto bound_var : metadata.closure)
+													{ builder.emplace_back(bound_var); }
 
 												metadata.closure_values = builder.root();
 												metadata.has_closure_values = true;

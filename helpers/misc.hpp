@@ -35,34 +35,6 @@ namespace atl
 		return Type(tag<T>::value);
 	}
 
-	/** Assign `sym` a constant `value`. */
-	void symbol_assign(Symbol& sym, Any value)
-	{
-		sym.subtype = Symbol::Subtype::constant;
-		switch(value._tag)
-			{
-			case tag<CxxFunctor>::value:
-				{
-					auto fn = unwrap<CxxFunctor>(value);
-					sym.scheme.quantified.clear();
-					sym.scheme.type = wrap(fn.type);
-					break;
-				}
-
-			case tag<Ast>::value:
-				break;
-
-			default:
-				{
-					sym.scheme.quantified.clear();
-					sym.scheme.type = wrap<Type>(value._tag);
-					break;
-				}
-			}
-
-		sym.value = value;
-	}
-
 	namespace make_type
 	{
 		/** Make a Type with T's tag.  Not much to it, but used in a bunch of tests.

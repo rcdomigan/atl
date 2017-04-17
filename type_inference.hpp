@@ -231,22 +231,6 @@ namespace atl
 					    sym.scheme.type = substitute_type(store, subs, sym.scheme.type);
 					    break;
 				    }
-			    case tag<Lambda>::value:
-				    {
-					    auto& lambda = unwrap<Lambda>(value);
-					    assert(lambda.value);
-
-					    if(is<Scheme>(lambda.value->return_type))
-						    {
-							    auto& scheme = unwrap<Scheme>(lambda.value->return_type);
-							    SubsScope scope(store, subs, scheme.quantified);
-							    scheme.type = substitute_type(store, subs, scheme.type);
-						    }
-					    else
-						    { lambda.value->return_type = substitute_type(store, subs, lambda.value->return_type); }
-
-					    break;
-				    }
 			    case tag<Ast>::value:
 				    {
 					    apply_substitution(store, subs, unwrap<Ast>(value).subex());
@@ -543,7 +527,6 @@ namespace atl
 					    if(subex.size() != 3)
 						    { throw ArityError("Lambda accepts only a formals and body lists"); }
 
-					    auto metadata = unwrap<Lambda>(*itr).value;
 					    ++itr;
 					    auto formals = atl::subex(itr);
 
@@ -554,7 +537,6 @@ namespace atl
 						    FormalsScope scope(gamma, new_types, formals);
 						    body = W(itr);
 					    }
-					    metadata->return_type = *body.type;
 
 					    if(formals.empty())
 						    { return WResult(std::move(body.subs),

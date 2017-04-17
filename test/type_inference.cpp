@@ -568,7 +568,7 @@ TEST_F(Inference, test_lambda)
     using namespace make_ast;
 
     auto foo = gc.make<LambdaMetadata>
-	    (gc(mk("a")), wrap<Null>());
+	    (gc(mk("a")));
 
     auto e1 = gc(mk(wrap<Lambda>(foo.pointer()),
                     mk("a"),
@@ -591,7 +591,7 @@ TEST_F(Inference, test_multi_arg_lambda)
     using namespace make_ast;
 
     auto metadata = gc.make<LambdaMetadata>
-	    (gc(mk("a", "b")), wrap<Null>());
+	    (gc(mk("a", "b")));
     auto e1 = gc(mk(wrap<Lambda>(metadata.pointer()),
                     mk("a", "b"),
                     "a"));
@@ -632,7 +632,7 @@ TEST_F(Inference, test_simple_lambda)
 	using namespace make_ast;
 
 	auto metadata = gc.make<LambdaMetadata>
-		(gc(mk("a", "b")), wrap<Null>());
+		(gc(mk("a", "b")));
 	auto expr = gc(mk(wrap<Lambda>(metadata.pointer()),
 	                  mk("a", "b"),
 	                  mk("add2", "a", "b")));
@@ -655,7 +655,7 @@ TEST_F(Inference, test_application)
     using namespace inference;
 
 	auto metadata = gc.make<LambdaMetadata>
-		(gc(mk("x", "y")), wrap<Null>());
+		(gc(mk("x", "y")));
 	auto e1 = gc(mk(wrap<Lambda>(metadata.pointer()),
 	                mk("x", "y"),
 	                mk("x", "y")));
@@ -698,7 +698,7 @@ TEST_F(Inference, test_apply_defined)
 
     // id function
     auto metadata = gc.make<LambdaMetadata>
-	    (gc(mk("x")), wrap<Null>());
+	    (gc(mk("x")));
 
     auto e1 = gc(mk(wrap<Define>(), "id",
                     mk(wrap<Lambda>(metadata.pointer()), mk("x"), "x")));
@@ -749,7 +749,7 @@ TEST_F(Inference, test_nested_application)
     using namespace inference;
 
     auto metadata = gc.make<LambdaMetadata>
-	    (gc(mk("x", "y", "z")), wrap<Null>());
+	    (gc(mk("x", "y", "z")));
     auto e1 = gc(mk(wrap<Lambda>(metadata.pointer()),
                     mk("x", "y", "z"),
                     mk("x", mk("y", "z"))));
@@ -771,7 +771,7 @@ TEST_F(Inference, test_multi_arg_application)
     using namespace inference;
 
     auto metadata = gc.make<LambdaMetadata>
-	    (gc(mk("x", "y", "z")), wrap<Null>());
+	    (gc(mk("x", "y", "z")));
     auto e1 = gc(mk(wrap<Lambda>(metadata.pointer()),
                     mk("x", "y", "z"),
                     mk("x", "y", "z")));
@@ -825,7 +825,7 @@ TEST_F(Inference, test_recursive_fn)
     using namespace inference;
 
     auto metadata = gc.make<LambdaMetadata>
-	    (gc(mk("x")), wrap<Null>());
+	    (gc(mk("x")));
     auto rec = gc(mk(wrap<Define>(),
                      "rec", mk(wrap<Lambda>(metadata.pointer()),
                                mk("x"),
@@ -915,20 +915,17 @@ TEST_F(Inference, test_thunk)
 	using namespace make_ast;
 	using namespace inference;
 
-	auto add = atl::cxx_functions::WrapStdFunction<bool (long, long)>::a
-		([](long a, long b) { return a + b; },
+	auto equal2 = atl::cxx_functions::WrapStdFunction<bool (long, long)>::a
+		([](long a, long b) { return a == b; },
 		 gc,
-		 "add2");
-
-	Symbol fn("add2");
-	symbol_assign(fn, add.any);
+		 "eqal2");
 
 	auto metadata = gc.make<LambdaMetadata>
-		(gc(mk()), wrap<Null>());
+		(gc(mk()));
 
 	auto expr = gc(mk(wrap<Lambda>(metadata.pointer()),
 	               mk(),
-	               mk(wrap(&fn), "foo", "foo")));
+	               mk(equal2.any, "foo", "foo")));
 
 	auto inferred = w.W(expr);
 
@@ -937,7 +934,8 @@ TEST_F(Inference, test_thunk)
 		ASSERT_TRUE
 			(match(ast(wrap<Type>(tag<FunctionConstructor>::value),
 			           wrap<Type>(tag<Bool>::value)),
-			       *inferred.type));
+			       *inferred.type))
+			<< "got: " << printer::print(*inferred.type) << std::endl;
 	}
 
 }
@@ -948,7 +946,7 @@ TEST_F(Inference, test_applying_defined_lambda)
 	using namespace inference;
 
     auto metadata = gc.make<LambdaMetadata>
-	    (gc(mk()), wrap<Null>());
+	    (gc(mk()));
     auto def = gc(mk(wrap<Define>(), "foo", 3)),
 
 	    expr = gc(mk(wrap<Define>(), "main",
@@ -996,7 +994,6 @@ TEST_F(Inference, test_if_constant_results)
 	auto inferred = w.W(expr);
 
 	apply_substitution(gc, inferred.subs, expr.any);
-	std::cout << printer::with_type(*expr) << std::endl;
 
 	ASSERT_EQ(tt<Fixnum>(), inferred.type.any)
 			<< " " << printer::print(inferred.type.any) << std::endl;

@@ -291,7 +291,6 @@ namespace atl
 		void mark(Symbol& sym)
 		{
 			_symbol_heap.mark(&sym);
-			mark(sym.value);
 			// The Scheme is on the Symbol, not the Scheme heap, so
 			// just check its type part.
 			mark(sym.scheme.type);
@@ -301,14 +300,10 @@ namespace atl
 		{
 			_lambda_metadata_heap.mark(&metadata);
 
-			if(metadata.has_closure_values)
-				{ mark(metadata.closure_values); }
-
-			for(auto sym : metadata.closure)
-				{ mark(*sym); }
+			for(auto& item : metadata.closure)
+				{ mark(item); }
 
 			mark(metadata.formals);
-			mark(metadata.return_type);
 		}
 
 		void mark(Ast& ast)

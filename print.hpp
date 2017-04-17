@@ -18,6 +18,9 @@ namespace atl
 {
 	namespace printer
 	{
+		long _trim_addr(void *pntr)
+		{ return reinterpret_cast<long>(pntr) & (256 - 1); };
+
 		/* Print a Type atom */
 		std::ostream& _print_type_atom(Any value, std::ostream& out)
 		{
@@ -40,15 +43,13 @@ namespace atl
 		std::ostream& print_atom(Any any, std::ostream& out)
 		{
 			using namespace std;
-			auto trim_addr = [](void *pntr)
-				{ return reinterpret_cast<long>(pntr) & (256 - 1); };
 
 			switch(any._tag)
 				{
 				case tag<Undefined>::value:
 					{
 						out << "#<Undefined ";
-						return out << ":" << hex << trim_addr(any.value) << ">";
+						return out << ":" << hex << _trim_addr(any.value) << ">";
 					}
 
 				case tag<Symbol>::value:
@@ -249,14 +250,7 @@ namespace atl
 					case tag<Lambda>::value:
 						{
 							auto metadata = unwrap<Lambda>(value).value;
-
-							out << "#<fn: ";
-							if(metadata != nullptr)
-								{ print_type(unwrap<Lambda>(value).value->return_type, out); }
-							else
-								{ out << "null"; }
-
-							return out << ">";
+							return out << "#<fn: " << _trim_addr(&metadata) << ">";
 						}
 					case tag<Scheme>::value:
 						{ return print_type(value, out); }
