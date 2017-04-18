@@ -104,7 +104,7 @@ namespace atl
 					for(auto& itr : itritrs(input))
 						{
 							if(itr.is<Ast>())
-								{ copy(itr.subex())(store); }
+								{ copy(subex(itr))(store); }
 							else
 								{ store.push_back(*itr); }
 						}

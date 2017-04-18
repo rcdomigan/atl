@@ -4,9 +4,8 @@
 #include <atl/utility.hpp>
 #include <atl/is.hpp>
 #include <atl/wrap.hpp>
-#include <atl/gc/gc.hpp>
+#include <atl/gc/marked.hpp>
 
-/* Small Ast helpers with minimal external dependencies */
 namespace atl
 {
 	// An iterator like wrapper around Ast's iterator like
@@ -43,10 +42,13 @@ namespace atl
 	};
 
 	Range<ItrItr> itritrs(Ast::Subex subex)
-	{ return make_range(ItrItr(subex.begin()), ItrItr(subex.end())); }
+	{ return make_range(ItrItr(std::get<0>(subex)), ItrItr(std::get<1>(subex))); }
 
 	Range<ItrItr> itritrs(Range<Ast::iterator>& ast)
 	{ return make_range(ItrItr(ast.begin()), ItrItr(ast.end())); }
+
+	Range<ItrItr> itritrs(Range<Ast::iterator>&& ast)
+	{ return itritrs(ast); }
 
 	Range<ItrItr> itritrs(Marked<Ast>& ast)
 	{ return make_range(ItrItr(ast->begin()), ItrItr(ast->end())); }

@@ -253,7 +253,7 @@ namespace atl
 	{
 		using namespace std;
 
-		template<class Ast, class AstData, class Any>
+		template<class Any>
 		typename remove_const<Any>::type
 		wrap_ast_data(Any& value)
 		{
@@ -263,10 +263,10 @@ namespace atl
 			return value;
 		}
 
-		template<class Ast, class AstData, class Any>
+		template<class Ast, class Any>
 		struct Iterator
 		{
-			typedef Iterator<Ast, AstData, Any> Self;
+			typedef Iterator<Ast, Any> Self;
 
 			Ast* ast;
 			size_t position;
@@ -274,9 +274,8 @@ namespace atl
 			Iterator() : ast(nullptr), position(0)
 			{}
 
-			Iterator(Ast& ast_,
-			         size_t pos)
-				: ast(&ast_), position(pos)
+			Iterator(Ast* ast_, size_t pos)
+				: ast(ast_), position(pos)
 			{}
 
 			typename add_const<Any>::type* pointer() const { return ast->flat_begin() + position; }
@@ -287,10 +286,10 @@ namespace atl
 			// 'reference' method and deal with AstData explicitly if
 			// that's what you need.
 			typename remove_const<Any>::type operator*() const
-			{ return wrap_ast_data<Ast, AstData>(*pointer()); }
+			{ return wrap_ast_data(*pointer()); }
 
 			typename remove_const<Any>::type operator*()
-			{ return wrap_ast_data<Ast, AstData>(*pointer()); }
+			{ return wrap_ast_data(*pointer()); }
 
 			Any& reference() { return *pointer(); }
 			typename add_const<Any>::type& reference() const { return *pointer(); }
@@ -301,7 +300,7 @@ namespace atl
 			Iterator& operator++()
 			{
 				if(pointer()->_tag == atl::tag<AstData>::value)
-					{ position += reinterpret_cast<AstData*>(pointer())->value + 1; }
+					{ position += reinterpret_cast<size_t>(pointer()->value) + 1; }
 				else
 					{ ++position; }
 				return *this;
@@ -328,43 +327,6 @@ namespace atl
 				return n;
 			}
 
-			struct Subex
-			{
-				Iterator _begin, _end;
-				Subex(Iterator const& begin, Iterator const& end)
-					: _begin(begin), _end(end)
-				{}
-
-				Subex()=default;
-
-				Iterator begin() { return _begin; }
-				Iterator end() { return _end; }
-				size_t size() { return end() - begin(); }
-				size_t empty() { return end() == begin(); }
-			};
-
-			// Assuming 'this' is on an Ast or AstData, return the
-			// Range describing that subexpression's start and end in
-			// terms of the appropriate base Ast.
-			Subex subex()
-			{
-				if(reference()._tag == atl::tag<AstData>::value)
-					{
-						return Subex
-							(Iterator(*ast, position+1),
-							 Iterator
-							 (*ast,
-							  reinterpret_cast<AstData&>(reference()).value + position +1));
-					}
-				else
-					{
-						// An Ast should be pointing out to a
-						// different array; we need to get its own
-						// iterators
-						return reinterpret_cast<Ast&>(reference()).subex();
-					}
-			}
-
 			// returns the approximate tag of our value (Ast for AstData)
 			tag_t tag() const
 			{
@@ -377,6 +339,26 @@ namespace atl
 			template<class T>
 			bool is() const
 			{ return std::is_same<T, Any>::value || tag() == atl::tag<T>::value; }
+		};
+
+		template<class Iterator>
+		struct Subex
+			: public std::tuple<Iterator, Iterator>
+		{
+			typedef Iterator iterator;
+			typedef std::tuple<Iterator, Iterator> Base;
+
+			Subex(iterator _begin, iterator _end)
+				: Base(_begin, _end)
+			{}
+
+			Subex() : Base() {}
+
+			iterator begin() { return get<0>(*this); }
+			iterator end() { return get<1>(*this); }
+
+			bool empty() { return begin() == end(); }
+			size_t size() { return end() - begin(); }
 		};
 	}
 
@@ -400,7 +382,8 @@ namespace atl
 
 		bool empty() const { return value == 0; }
 
-		size_t flat_size() const { return flat_end() - flat_begin(); }
+		// Size of the range, including ourself and any sub-expressions
+		size_t flat_size() const { return value + 1; }
 	};
 
 	struct Ast
@@ -415,9 +398,9 @@ namespace atl
 		Ast() : _tag(tag<Ast>::value), value(nullptr) {}
 		Ast(const Ast&) = default;
 
-		typedef ast_helper::Iterator<Ast, AstData, Any> iterator;
-		typedef ast_helper::Iterator<Ast const, AstData const, Any const> const_iterator;
-		typedef iterator::Subex Subex;
+		typedef ast_helper::Iterator<Ast, Any> iterator;
+		typedef ast_helper::Iterator<Ast const, Any const> const_iterator;
+		typedef ast_helper::Subex<iterator> Subex;
 
 		typedef Any* flat_iterator;
 		typedef Any const* const_flat_iterator;
@@ -447,11 +430,11 @@ namespace atl
 		const_flat_iterator flat_end() const { return value->flat_end(); }
 
 
-		iterator begin() { return iterator(*this, 1); }
-		iterator end() { return iterator(*this, value->value + 1); }
+		iterator begin() { return iterator(this, 1); }
+		iterator end() { return iterator(this, value->value + 1); }
 
-		const_iterator begin() const { return const_iterator(*this, 1); }
-		const_iterator end() const { return const_iterator(*this, value->value + 1); }
+		const_iterator begin() const { return const_iterator(this, 1); }
+		const_iterator end() const { return const_iterator(this, value->value + 1); }
 
 		size_t flat_size() const { return value->flat_size(); }
 
@@ -463,10 +446,34 @@ namespace atl
 
 		// An iterator with our range as its subex()
 		iterator self_iterator()
-		{ return iterator(*this, 0); }
+		{ return iterator(this, 0); }
 
-		Subex subex() { return Subex(begin(), end()); }
+		Subex subex()
+		{ return Subex(begin(), end()); }
 	};
+
+	Ast::Subex subex(Ast& ast) { return ast.subex(); }
+
+	Ast::Subex subex(Ast::iterator& itr)
+	{
+		return Ast::Subex
+			(Ast::iterator(itr.ast, itr.position + 1),
+			 Ast::iterator(itr.ast,
+			               itr.position
+			               + reinterpret_cast<size_t>(itr.reference().value)
+			               + 1));
+	}
+
+	Ast::Subex subex(Any& any)
+	{
+		switch(any._tag)
+			{
+			case tag<Ast>::value:
+				return subex(reinterpret_cast<Ast&>(any));
+			default:
+				throw WrongTypeError("Can't get subex from non-Ast or AstData");
+			}
+	}
 
 	// Return an Ast pointing to an AstData `input` which was cast to
 	// Any.

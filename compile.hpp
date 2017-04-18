@@ -78,7 +78,7 @@ namespace atl
 			switch(itr.tag()) {
 			case tag<Ast>::value:
 				{
-					auto subex = itr.subex();
+					auto subex = atl::subex(itr);
 					auto inner = subex.begin();
 
 					/******************/

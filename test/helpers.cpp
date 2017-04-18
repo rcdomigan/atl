@@ -127,7 +127,28 @@ TEST_F(TestHelpers, test_pattern_match_capture)
 	}
 }
 
+TEST_F(TestHelpers, test_pattern_match_capture_subex)
+{
+	using namespace make_ast;
+	auto expr = store(mk(wrap<Lambda>(),
+	                     mk("a", "b"),
+	                     mk("+", "a", "b")));
 
+	Ast::Subex formals, body;
+
+	{
+		using namespace pattern_match;
+
+		ASSERT_TRUE(match(ast(tag<Lambda>::value, capture(formals), capture(body)),
+		                  expr));
+
+
+		ASSERT_EQ(*formals.begin(), subscript(*expr, 1, 0));
+		ASSERT_EQ(*(formals.begin() + 1), subscript(*expr, 1, 1));
+
+		ASSERT_EQ(*body.begin(), subscript(*expr, 2, 0));
+	}
+}
 
 TEST_F(TestHelpers, test_make_ast_mk)
 {

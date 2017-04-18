@@ -47,7 +47,7 @@ TEST(TestType, test_ast_self_iterator)
 	auto self_itr = ast.self_iterator();
 	ASSERT_TRUE(self_itr.is<Ast>());
 
-	auto subex = self_itr.subex();
+	auto subex = atl::subex(self_itr);
 	ASSERT_EQ(3, subex.size());
 
 	auto itr = subex.begin();

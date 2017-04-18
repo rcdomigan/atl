@@ -139,7 +139,7 @@ namespace atl
 			    case tag<Ast>::value:
 				    {
 					    NestAst nest(building);
-					    for(auto vv : itritrs(itr.subex()))
+					    for(auto vv : itritrs(atl::subex(itr)))
 						    {
 							    // values goes to `building`
 							    build_substitute_type(gc, building, subs, vv);
@@ -545,7 +545,7 @@ namespace atl
 
 					    auto metadata = unwrap<Lambda>(*itr).value;
 					    ++itr;
-					    auto formals = itr.subex();
+					    auto formals = atl::subex(itr);
 
 					    ++itr;
 					    Scheme::Quantified quantified;
@@ -557,7 +557,8 @@ namespace atl
 					    metadata->return_type = *body.type;
 
 					    if(formals.empty())
-						    { return WResult(std::move(body.subs), gc(fn_type::fn(*body.type)).wrap()); }
+						    { return WResult(std::move(body.subs),
+						                     gc(fn_type::fn(*body.type)).wrap()); }
 					    else
 						    {
 							    auto builder = gc.ast_builder();
@@ -690,7 +691,7 @@ namespace atl
 					    }
 
 				    case tag<Ast>::value:
-					    { return W(itr.subex()); }
+					    { return W(atl::subex(itr)); }
 
 				    case tag<Type>::value:
 					    return WResult(SubstituteMap(gc), gc.marked(*itr));

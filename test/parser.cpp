@@ -72,7 +72,7 @@ TEST_F(ParserTest, nested_int_list)
     ASSERT_TRUE
 	    (literal_match
 	     (ast(1, 2, ast(4, 5), 3),
-	      unwrap<Ast>(parsed).self_iterator()))
+	      parsed))
 	    << printer::print(parsed) << std::endl;;
 }
 
@@ -85,9 +85,8 @@ TEST_F(ParserTest, test_parsing_int_list_from_stream)
     auto parsed = parser.stream(input);
 
     ASSERT_TRUE
-	    (literal_match
-	     (ast(1, 2, ast(4, 5), 3),
-	      unwrap<Ast>(parsed).self_iterator()))
+	    (literal_match(ast(1, 2, ast(4, 5), 3),
+	                   parsed))
 	    << printer::print(parsed) << std::endl;;
 }
 
@@ -97,9 +96,8 @@ TEST_F(ParserTest, TestQuote) {
 
     auto parsed = parser.string_("'(2 3)");
     ASSERT_TRUE
-	    (literal_match
-	     (ast(wrap<Quote>(), ast(2, 3)),
-	      unwrap<Ast>(parsed).self_iterator()))
+	    (literal_match(ast(wrap<Quote>(), ast(2, 3)),
+	                   parsed))
 	    << printer::print(parsed) << std::endl;;
 }
 
@@ -110,9 +108,8 @@ TEST_F(ParserTest, test_nested_quote)
 	auto parsed = parser.string_("(1 '(2 3) 4)");
 
 	ASSERT_TRUE
-		(literal_match
-		 (ast(1, ast(wrap<Quote>(), ast(2, 3)), 4),
-		  unwrap<Ast>(parsed).self_iterator()));
+		(literal_match(ast(1, ast(wrap<Quote>(), ast(2, 3)), 4),
+		               parsed));
 }
 
 
