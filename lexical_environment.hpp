@@ -104,10 +104,7 @@ namespace atl
 		void formal(Symbol& sym,
 		            size_t offset)
 		{
-			sym.subtype = Symbol::Subtype::variable;
-			sym.value = wrap<Parameter>(offset);
-
-			auto rval = local.emplace(sym.name, sym.value);
+			auto rval = local.emplace(sym.name, wrap<Parameter>(offset));
 
 			if(!rval.second)
 				{ throw RedefinitionError(std::string("Can't redefine ").append(sym.name)); }
@@ -174,19 +171,15 @@ namespace atl
 			if(up) up->dbg();
 		}
 
-		std::pair<Any, bool> current_value(Any key)
+		Any current_value(Any const& key)
 		{
 			if(is<Symbol>(key))
 				{
-					auto& sym = unwrap<Symbol>(key);
-					all_iterator found = std::get<0>(find(sym.name));
-
+					all_iterator found = std::get<0>(find(unwrap<Symbol>(key).name));
 					if(found != very_end())
-						{ return std::make_pair(found->second, true); }
-					else
-						{ return std::make_pair(key, false); }
+						{ return found->second; }
 				}
-			return std::make_pair(key, false);
+			return key;
 		}
 	};
 
@@ -207,6 +200,40 @@ namespace atl
 
 	typedef std::map<std::string, std::vector<Ast::iterator> > BackPatch;
 
+	// Ast::iteator wrapper which implicitly fetches Symbol's values
+	struct WalkValues
+		: public WalkAstIterator
+	{
+		SymbolMap& env;
+		WalkValues(SymbolMap& env_, Ast::iterator const& itr_, Ast::iterator const& end_)
+			: WalkAstIterator(itr_, end_), env(env_)
+		{}
+
+		virtual Any value() override
+		{ return env.current_value(*itr); }
+
+		virtual tag_t tag() override
+		{ return env.current_value(*itr)._tag; }
+
+		virtual WalkerPtr walk_subex() override
+		{
+			auto range = _range();
+			return std::make_unique<WalkValues>(env, range.begin(), range.end());
+		}
+
+		virtual WalkerPtr clone() const override
+		{ return _clone(this); }
+	};
+
+	WalkValues walk_values(SymbolMap& env, Ast::Subex& subex)
+	{ return WalkValues(env, subex.begin(), subex.end()); }
+
+	WalkValues walk_values(SymbolMap& env, Ast::Subex&& subex)
+	{ return walk_values(env, subex); }
+
+	WalkValues subex_values(WalkValues& walker)
+	{ return walk_values(walker.env, subex(walker.itr)); }
+
 	/** Replace symbols in `value` with their values.  This doesn't
 	 * setup back-patches or lexical scope, it's just meant to define
 	 * the special forms (like Lambda) before type inference occurs.
@@ -220,65 +247,55 @@ namespace atl
 			: gc(gc_), env(env_)
 		{}
 
-		void assign_forms(AstBuilder& builder, Ast::Subex subex)
-		{ for(auto itr : itritrs(subex)) { assign_forms(builder, itr); } }
-
-		void assign_forms(AstBuilder& builder, Ast::iterator& itr)
+		void _ast(AstBuilder& builder, WalkValues& walker)
 		{
-			switch(itr.tag())
+			NestAst nesting(builder);
+
+			using namespace pattern_match;
+			namespace pm = pattern_match;
+			Ast::Subex formals, body;
+
+			if(match(ast(tag<Lambda>::value, capture(formals), capture(body)),
+			         walker))
 				{
-				case tag<Ast>::value:
-					{
-						NestAst nesting(builder);
-						{
-							using namespace pattern_match;
-							namespace pm = pattern_match;
-							Ast::iterator formals, body;
+					auto metadata = gc.make<LambdaMetadata>
+						(gc(ast_hof::copy(formals)));
 
-							if(match(ast(tag<Lambda>::value, capture(formals), capture(body)),
-							         itr))
+					builder.push_back(wrap<Lambda>(metadata.pointer()));
 
-								{
-									auto metadata = gc.make<LambdaMetadata>
-										(gc(ast_hof::copy(formals.subex())),
-										 wrap<Null>());
+					ast_hof::copy(formals)(builder);
 
-									builder.push_back(wrap<Lambda>(metadata.pointer()));
-
-									ast_hof::copy(formals.subex())(builder);
-
-									assign_forms(builder, body);
-								}
-							else
-								{ assign_forms(builder, itr.subex()); }
-						}
-						return;
-					}
-				case tag<Symbol>::value:
-					{
-						// Assign forms; ints and other atoms are also
-						// safe.  Just no Asts.
-						auto sym_value = env.current_value(*itr);
-
-						Any rval;
-						if(sym_value.second && !is<Ast>(sym_value.first))
-							{ rval = sym_value.first; }
-						else
-							{ rval = *itr; }
-						builder.push_back(rval);
-						return;
-					}
-				default:
-					builder.push_back(*itr);
-					return;
+					auto walk_body = walk_values(env, body);
+					_ast(builder, walk_body);
 				}
+			else
+				{
+					for(; walker.has_value(); walker.next())
+						{ _dispatch(builder, walker); }
+				}
+		}
+
+		void _atom(AstBuilder& builder, WalkValues& walker)
+		{ builder.push_back(walker.value()); }
+
+		void _dispatch(AstBuilder& builder, WalkValues& walker)
+		{
+			if(walker.is_subex())
+				{
+					auto inner = subex_values(walker);
+					_ast(builder, inner);
+				}
+			else
+				{ _atom(builder, walker); }
 		}
 
 		Marked<Ast> operator()(Marked<Ast>& ast)
 		{
 			auto builder = gc.ast_builder();
-			auto itr = ast->self_iterator();
-			assign_forms(builder, itr);
+			auto walker = walk_values(env, ast->subex());
+
+			_ast(builder, walker);
+
 			return gc.marked(builder.root());
 		}
 
@@ -286,10 +303,8 @@ namespace atl
 		{ return (*this)(ast); }
 	};
 
-
-	/** Replace a symbol with its value (where that makes sense),
-	 * setup backpatches, and keep track of what the closure will need
-	 * to capture.
+	/** setup backpatches, and keep track of what the closure will
+	 * need to capture.
 	 *
 	 * @param closure: The closure needs to include symbol which are
 	 * not in the toplevel or local lambda.
@@ -313,7 +328,7 @@ namespace atl
 				if(from_parent_closure && itr.is<Parameter>())
 					{
 						Symbol& sym = unwrap<Symbol>(closure->formals[unwrap<Parameter>(*itr).value]);
-						itr.reference() = wrap(env.closure->closure_parameter(&sym));
+						itr.reference() = wrap(env.closure->closure_parameter(sym.name, *itr));
 					}
 			}
 		else
@@ -347,7 +362,6 @@ namespace atl
 		void operator()(Ast::iterator itr)
 		{ assign_free(toplevel, itr); }
 
-
 		void operator()(Marked<Ast>& ast)
 		{ (*this)(ast->self_iterator()); }
 
@@ -363,7 +377,7 @@ namespace atl
 					return;
 				case tag<Ast>::value:
 					{
-						auto subex = outer.subex();
+						auto subex = atl::subex(outer);
 						auto itr = subex.begin();
 
 						if(is<Symbol>(*itr))
@@ -381,26 +395,12 @@ namespace atl
 										namespace pm = pattern_match;
 										Lambda func(nullptr);
 
+										auto copy = itr;
 										if(match(pm::ast(pm::capture(func), tag<Ast>::value, tag<Ast>::value),
-										         itr))
+										         copy))
 											{
-												symbol_assign(sym, wrap(func));
-												env.define(sym.name, wrap(&sym));
+												env.define(sym.name, wrap<Function>(func.value));
 												(*this)(itr);
-											}
-										else
-											{
-												(*this)(itr);
-												if(itr.is<Ast>())
-													{
-														symbol_assign(sym, wrap<Undefined>());
-														env.define(sym.name, wrap<Undefined>());
-													}
-												else
-													{
-														symbol_assign(sym, *itr);
-														env.define(sym.name, *itr);
-													}
 											}
 									}
 								}
@@ -411,7 +411,7 @@ namespace atl
 
 									++itr; // formals
 									size_t idx = 0;
-									for(auto const& sym : itr.subex())
+									for(auto const& sym : atl::subex(itr))
 										{
 											assert(is<Symbol>(sym));
 											inner_map.formal(unwrap<Symbol>(sym),
