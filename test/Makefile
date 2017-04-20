@@ -1,4 +1,4 @@
-COMMON_FLAGS=-pipe -std=c++11 -ggdb -Wall
+COMMON_FLAGS=-pipe -std=c++14 -ggdb -Wall
 GTEST_LINK=-lgtest -lgtest_main -pthread -O0
 CXXFLAGS=$(CFLAGS) $(COMMON_FLAGS)
 
