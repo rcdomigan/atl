@@ -10,10 +10,7 @@
 #include <fstream>
 
 #include "./type.hpp"
-#include "./environment.hpp"
-#include "./interface_helpers.hpp"
-
-#include "ffi.hpp"
+#include "./ffi_helper.hpp"
 
 namespace atl
 {

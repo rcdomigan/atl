@@ -1,9 +1,9 @@
 #include <iostream>
 #include <vector>
 
-#include <gc/ast_builder.hpp>
-#include <gc/gc.hpp>
-#include <print.hpp>
+#include <atl/gc/ast_builder.hpp>
+#include <atl/gc/gc.hpp>
+#include <atl/print.hpp>
 
 #include <gtest/gtest.h>
 

@@ -23,14 +23,14 @@
 #include <boost/mpl/insert.hpp>
 #include <boost/mpl/apply.hpp>
 
-#include <debug.hpp>
-#include <byte_code.hpp>
+#include <atl/debug.hpp>
+#include <atl/byte_code.hpp>
 
-#include <gc/ast_pool.hpp>
-#include <gc/pool.hpp>
-#include <gc/ast_builder.hpp>
-#include <gc/marked.hpp>
-#include <gc/vm_closure.hpp>
+#include <atl/gc/ast_pool.hpp>
+#include <atl/gc/pool.hpp>
+#include <atl/gc/ast_builder.hpp>
+#include <atl/gc/marked.hpp>
+#include <atl/gc/vm_closure.hpp>
 
 namespace atl
 {

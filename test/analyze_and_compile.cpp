@@ -8,12 +8,7 @@
 
 #include <gtest/gtest.h>
 
-#include <vm.hpp>
-#include <print.hpp>
-#include <lexical_environment.hpp>
-#include <type_inference.hpp>
-#include <compile.hpp>
-#include <gc.hpp>
+#include <atl/atl.hpp>
 
 #include "./testing_utils.hpp"
 #include "./trivial_functions.hpp"

@@ -7,14 +7,13 @@
  */
 
 
-#include <lexical_environment.hpp>
-#include <gc.hpp>
+#include <atl/lexical_environment.hpp>
+#include <atl/gc.hpp>
 
 #include <iostream>
 #include <gtest/gtest.h>
-#include <print.hpp>
-#include <helpers.hpp>
-#include <helpers/pattern_match.hpp>
+#include <atl/print.hpp>
+#include <atl/helpers.hpp>
 
 using namespace std;
 using namespace atl;

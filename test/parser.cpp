@@ -7,8 +7,9 @@
 
 #include <gtest/gtest.h>
 
-#include <parser.hpp>
-#include <helpers/pattern_match.hpp>
+#include <atl/parser.hpp>
+#include <atl/helpers/pattern_match.hpp>
+#include <atl/helpers/make_ast.hpp>
 
 #include <iostream>
 #include <vector>

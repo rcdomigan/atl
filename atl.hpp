@@ -6,16 +6,17 @@
  * Created on Feb 07, 2015
  */
 
-#include <type.hpp>
-#include <vm.hpp>
-#include <primitive_callable.hpp>
-#include <compile.hpp>
-#include <gc.hpp>
-#include <parser.hpp>
-#include <lexical_environment.hpp>
-#include <environment.hpp>
-#include <compile.hpp>
-#include <print.hpp>
+#include <iostream>                 // for cout, ostream
+#include <atl/compile.hpp>              // for Compile
+#include <atl/lexical_environment.hpp>  // for AssignForms, AssignFree, BackPatch
+#include <atl/parser.hpp>               // for ParseString
+#include <atl/type.hpp>                 // for init_types, Any, LAST_CONCRETE_TYPE
+#include <atl/type_inference.hpp>       // for AlgorithmW, apply_substitution
+#include <atl/vm.hpp>                   // for TinyVM, TinyVM::value_type
+#include "gc/gc.hpp"                // for GC, ast_composer
+#include "gc/marked.hpp"            // for Marked
+#include "wrap.hpp"                 // for unwrap
+
 
 namespace atl
 {

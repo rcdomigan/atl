@@ -4,7 +4,7 @@
  * Created on Dec 21, 2014
  */
 
-#include <vm.hpp>
+#include <atl/vm.hpp>
 #include "./trivial_functions.hpp"
 #include "./testing_utils.hpp"
 #include <gtest/gtest.h>

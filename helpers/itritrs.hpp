@@ -1,10 +1,10 @@
 #ifndef ATL_ITRITRS_HPP
 #define ATL_ITRITRS_HPP
 
-#include <utility.hpp>
-#include <is.hpp>
-#include <wrap.hpp>
-#include <gc/gc.hpp>
+#include <atl/utility.hpp>
+#include <atl/is.hpp>
+#include <atl/wrap.hpp>
+#include <atl/gc/gc.hpp>
 
 /* Small Ast helpers with minimal external dependencies */
 namespace atl

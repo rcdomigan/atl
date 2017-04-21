@@ -1,10 +1,10 @@
 #ifndef ATL_HELPER_PATTERN_MATCH_HPP
 #define ATL_HELPER_PATTERN_MATCH_HPP
 
-#include <helpers/misc.hpp>
-#include <helpers/ast_access.hpp>
-#include <gc/marked.hpp>
-#include <print.hpp>
+#include <atl/helpers/misc.hpp>
+#include <atl/helpers/ast_access.hpp>
+#include <atl/gc/marked.hpp>
+#include <atl/print.hpp>
 
 #include <sstream>
 

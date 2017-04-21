@@ -1,7 +1,8 @@
 #ifndef RHAS_TRIVIAL_FUNCTIONS_FOR_TEST
 #define RHAS_TRIVIAL_FUNCTIONS_FOR_TEST
 
-#include <ffi.hpp>
+#include <atl/ffi.hpp>
+#include <atl/lexical_environment.hpp>
 
 
 long add2(long a, long b) { return a + b; }

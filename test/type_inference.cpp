@@ -7,10 +7,10 @@
 
 #include <gtest/gtest.h>
 
-#include <lexical_environment.hpp>
-#include <type_inference.hpp>
-#include <ffi.hpp>
-#include <helpers/pattern_match.hpp>
+#include <atl/lexical_environment.hpp>
+#include <atl/type_inference.hpp>
+#include <atl/ffi.hpp>
+#include <atl/helpers/pattern_match.hpp>
 
 using namespace atl;
 

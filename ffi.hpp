@@ -6,14 +6,22 @@
  * Created on Dec 29, 2013
  */
 
-#include <utility>
-#include <type_traits>
-#include <boost/mpl/vector.hpp>
-#include <boost/mpl/push_back.hpp>
-#include <boost/mpl/at.hpp>
+#include <array>                           // for tuple_element
+#include <boost/mpl/aux_/adl_barrier.hpp>  // for mpl
+#include <cstddef>                         // for size_t
+#include <functional>                      // for function
+#include <string>                          // for string
+#include <tuple>                           // for tuple
+#include <type_traits>                     // for remove_pointer
 
-#include "./helpers.hpp"
-#include "./utility.hpp"
+#include "./helpers/make_ast.hpp"          // for fn
+#include "./type.hpp"                      // for iterator, Ast, tag, value_...
+#include "./type_traits.hpp"               // for cxx_to_atl
+#include "./utility.hpp"                   // for Apply, BuildIndicies, Indexer
+#include "gc/marked.hpp"                   // for Marked
+#include "helpers/misc.hpp"                // for from_bytes, to_bytes
+#include "wrap.hpp"                        // for value
+
 
 namespace atl {
 	namespace mpl = boost::mpl;

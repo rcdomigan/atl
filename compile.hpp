@@ -11,8 +11,8 @@
 #include "./byte_code.hpp"
 #include "./type.hpp"
 #include "./utility.hpp"
-#include <helpers/pattern_match.hpp>
-#include <helpers/itritrs.hpp>
+#include "./helpers/pattern_match.hpp"
+#include "./helpers/itritrs.hpp"
 
 #include <set>
 

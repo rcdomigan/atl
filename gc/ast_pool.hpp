@@ -1,7 +1,7 @@
 #ifndef ATL_GC_AST_POOL_HPP
 #define ATL_GC_AST_POOL_HPP
 
-#include <helpers/ast_access.hpp>
+#include <atl/helpers/ast_access.hpp>
 
 #include <list>
 

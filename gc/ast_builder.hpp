@@ -1,7 +1,7 @@
 #ifndef ATL_GC_AST_BUILDER_RAII_HPP
 #define ATL_GC_AST_BUILDER_RAII_HPP
 
-#include <gc/ast_pool.hpp>
+#include <atl/gc/ast_pool.hpp>
 
 namespace atl
 {

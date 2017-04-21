@@ -1,9 +1,9 @@
 #ifndef ATL_HELPERS_MAKE_AST_HH
 #define ATL_HELPERS_MAKE_AST_HH
 
-#include <gc/gc.hpp>
-#include <helpers/misc.hpp>
-#include <helpers/itritrs.hpp>
+#include <atl/gc/gc.hpp>
+#include <atl/helpers/misc.hpp>
+#include <atl/helpers/itritrs.hpp>
 
 /**
  * Make Asts along various patterns
@@ -95,7 +95,6 @@ namespace atl
 						{ store.push_back(fn(vv)); }
 				};
 		}
-
 
 		ast_composer copy(Ast::Subex const& input)
 		{

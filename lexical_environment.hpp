@@ -6,17 +6,29 @@
  * Created on Sep 23, 2014
  */
 
-#include <map>
-#include <vector>
+#include <stddef.h>
 #include <cassert>
-#include <unordered_set>
-
-#include <exception.hpp>
-#include <type.hpp>
-#include <helpers/itritrs.hpp>
-#include <helpers.hpp>
-#include "./gc.hpp"
+#include <atl/exception.hpp>
+#include <functional>
+#include <atl/helpers/itritrs.hpp>
+#include <atl/helpers/make_ast.hpp>
+#include <atl/helpers/pattern_match.hpp>
+#include <iostream>
+#include <map>
+#include <set>
+#include <string>
+#include <tuple>
+#include <atl/type.hpp>
+#include <atl/type_traits.hpp>
+#include <utility>
+#include <vector>
 #include "./print.hpp"
+#include "gc/ast_builder.hpp"
+#include "gc/gc.hpp"
+#include "gc/marked.hpp"
+#include "helpers/misc.hpp"
+#include "is.hpp"
+#include "wrap.hpp"
 
 
 namespace atl

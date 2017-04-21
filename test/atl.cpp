@@ -8,10 +8,12 @@
  * - loading form a file
  */
 
+#include <atl/atl.hpp>
+#include <atl/primitive_callable.hpp>
+
 #include <gtest/gtest.h>
 #include <fstream>
 #include <sstream>
-#include <atl.hpp>
 #include <iterator>
 
 using namespace atl;

@@ -9,10 +9,10 @@
 
 #include <gtest/gtest.h>
 
-#include <vm.hpp>
-#include <print.hpp>
-#include <compile.hpp>
-#include <test/trivial_functions.hpp>
+#include <atl/vm.hpp>
+#include <atl/print.hpp>
+#include <atl/compile.hpp>
+#include <atl/test/trivial_functions.hpp>
 
 #include "./testing_utils.hpp"
 

@@ -8,10 +8,9 @@
 #include "./utility.hpp"
 #include "./is.hpp"
 
-#include <helpers/make_ast.hpp>
-#include <helpers/pattern_match.hpp>
-#include <helpers/misc.hpp>
-#include <helpers/itritrs.hpp>
-
+#include <atl/helpers/make_ast.hpp>
+#include <atl/helpers/pattern_match.hpp>
+#include <atl/helpers/misc.hpp>
+#include <atl/helpers/itritrs.hpp>
 
 #endif

@@ -1,12 +1,12 @@
 #ifndef ATL_AST_ACCESS_HPP
 #define ATL_AST_ACCESS_HPP
 
-#include <utility.hpp>
-#include <is.hpp>
-#include <wrap.hpp>
-#include <gc/marked.hpp>
+#include <atl/utility.hpp>
+#include <atl/is.hpp>
+#include <atl/wrap.hpp>
+#include <atl/gc/marked.hpp>
 
-#include <print.hpp>
+#include <atl/print.hpp>
 
 #include <cassert>
 #include <memory>

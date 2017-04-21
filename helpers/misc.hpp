@@ -1,10 +1,10 @@
 #ifndef ATL_HELPERS_MISC_HPP
 #define ATL_HELPERS_MISC_HPP
 
-#include <utility.hpp>
-#include <type.hpp>
-#include <is.hpp>
-#include <wrap.hpp>
+#include <atl/utility.hpp>
+#include <atl/type.hpp>
+#include <atl/is.hpp>
+#include <atl/wrap.hpp>
 
 namespace atl
 {
