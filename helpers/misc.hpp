@@ -10,55 +10,6 @@ namespace atl
 {
 	typedef Range<Any*> AnyRange;
 
-	namespace byte_code
-	{
-		typedef typename vm_stack::value_type value_type;
-		template<class T>
-		vm_stack::value_type to_bytes(T input)
-		{ return reinterpret_cast<vm_stack::value_type>(input); }
-
-		// TODO: use the `std::is_integral` and static cast for all integral (and floating?) types.
-		value_type to_bytes(long input)
-		{ return static_cast<value_type>(input); }
-
-		value_type to_bytes(bool input)
-		{ return static_cast<value_type>(input); }
-
-		value_type to_bytes(void* input)
-		{ return reinterpret_cast<value_type>(input); }
-
-		value_type to_bytes(Pointer input)
-		{ return reinterpret_cast<value_type>(input.value); }
-
-		template<class R>
-		struct PntrCaster
-		{
-			typedef PntrCaster<R> type;
-			static R a(value_type input)
-			{ return reinterpret_cast<R>(input); }
-		};
-
-		template<class I>
-		struct StaticCaster
-		{
-			typedef StaticCaster<I> type;
-			static I a(value_type input)
-			{ return static_cast<I>(input); }
-		};
-
-
-		template<class T>
-		struct Caster
-			: public std::conditional<std::is_integral<T>::value,
-			                          StaticCaster<T>,
-			                          PntrCaster<T>
-			                          >::type
-		{};
-
-		template<class R>
-		R from_bytes(value_type input) { return Caster<R>::a(input); }
-	}
-
 	Type typify(Type const& input)
 	{ return input; }
 
