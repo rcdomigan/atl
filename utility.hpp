@@ -236,17 +236,17 @@ namespace tmpl
 	};
 
 
-	/* http://loungecpp.wikidot.com/tips-and-tricks%3Aindices
-	 * tricky tricky, never gets instantiated, but can get filled out by
-	 * the template inference engine.
-	 */
+	/* http://loungecpp.wikidot.com/tips-and-tricks%3Aindices` */
 	template<std::size_t ...Is> struct Indexer {};
 
-	template <std::size_t N, std::size_t... Is> struct
-	BuildIndicies : BuildIndicies<N-1, N-1, Is...> {};
+	template <std::size_t N, std::size_t... Is>
+	struct BuildIndicies
+		: BuildIndicies<N-1, N-1, Is...>
+	{};
 
-	template <std::size_t... Is> struct
-	BuildIndicies<0, Is...> : Indexer<Is...> {};
+	template <std::size_t... Is>
+	struct BuildIndicies<0, Is...>
+	{ typedef Indexer<Is...> type; };
 }
 
 
@@ -257,7 +257,7 @@ static typename std::result_of<Fn (Args...)>::type _apply_tuple(Fn& fn, std::tup
 template<class Fn, class ... Args>
 static typename std::result_of<Fn (Args...)>::type apply_tuple(Fn& fn, std::tuple<Args...>& args)
 {
-	return _apply_tuple(fn, args, tmpl::BuildIndicies<sizeof...(Args)> {});
+	return _apply_tuple(fn, args, typename tmpl::BuildIndicies<sizeof...(Args)>::type {});
 }
 
 
