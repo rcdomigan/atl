@@ -26,21 +26,58 @@
 namespace atl {
 	namespace mpl = boost::mpl;
 
+	namespace byte_code
+	{
+		typedef typename vm_stack::value_type value_type;
+		template<class T>
+		vm_stack::value_type to_bytes(T input)
+		{ return reinterpret_cast<vm_stack::value_type>(input); }
+
+		// TODO: use the `std::is_integral` and static cast for all integral (and floating?) types.
+		value_type to_bytes(long input)
+		{ return static_cast<value_type>(input); }
+
+		value_type to_bytes(bool input)
+		{ return static_cast<value_type>(input); }
+
+		value_type to_bytes(void* input)
+		{ return reinterpret_cast<value_type>(input); }
+
+		value_type to_bytes(Pointer input)
+		{ return reinterpret_cast<value_type>(input.value); }
+
+		template<class R>
+		struct PntrCaster
+		{
+			typedef PntrCaster<R> type;
+			static R a(value_type input)
+			{ return reinterpret_cast<R>(input); }
+		};
+
+		template<class I>
+		struct StaticCaster
+		{
+			typedef StaticCaster<I> type;
+			static I a(value_type input)
+			{ return static_cast<I>(input); }
+		};
+
+
+		template<class T>
+		struct Caster
+			: public std::conditional<std::is_integral<T>::value,
+			                          StaticCaster<T>,
+			                          PntrCaster<T>
+			                          >::type
+		{};
+
+		template<class R>
+		R from_bytes(value_type input) { return Caster<R>::a(input); }
+	}
+
 	namespace cxx_functions
 	{
 		using namespace tmpl;
-
-		namespace unpack_fn {
-			template<class Dest, class R, class ... Sig> struct Signature;
-			template<class Dest, class R, class ... Sig>
-			struct Signature<Dest, R (Sig...)>
-				: public Dest::template apply<R, Sig...> {};
-
-			template<class Dest, class R, class ... Sig> struct Pointer;
-			template<class Dest, class R, class ... Sig>
-			struct Pointer<Dest, R (*)(Sig...)>
-				: public Dest::template apply<R, Sig...> {};
-		}
 
 		template<class T>
 		struct GuessTag
@@ -89,12 +126,13 @@ namespace atl {
 			 */
 			template<class Alloc>
 			static Marked<CxxFunctor> a(std::function<R (Sig...)> const& fn, Alloc &gc
-			                     , std::string const & name = "#<Unnamed-CxxFunctor>")
+			                            , std::string const & name = "#<Unnamed-CxxFunctor>")
 			{
 				return gc.template make<CxxFunctor>
 					([fn](vm_stack::iterator vv, vm_stack::iterator _)
 					 {
-						 return call_packed(fn, vv, tmpl::BuildIndicies<WrapStdFunction::arity()> {});
+						 return call_packed(fn, vv,
+						                    typename tmpl::BuildIndicies<WrapStdFunction::arity()>::type {});
 					 }
 					 , name
 					 , WrapStdFunction::parameter_types(gc)
@@ -103,9 +141,63 @@ namespace atl {
 		};
 	}
 
-
 	template<class Sig>
 	using WrapStdFunction = cxx_functions::WrapStdFunction<Sig>;
+
+	namespace signature
+	{
+		template<class R, class ... Sig>
+		struct Pack;
+
+		template<class R, class ... Sig>
+		struct Pack<R (Sig...)>
+		{
+			typedef Pack<R (Sig...)> type;
+
+			typedef R Return;
+			typedef std::tuple<Sig...> Args;
+
+			static constexpr std::size_t arity = sizeof...(Sig);
+		};
+
+		template<class R, class Fn, class Args, class Indexes>
+		struct _Unpack;
+
+		template<class R, class Target, class Args, std::size_t... Index>
+		struct _Unpack<R, Target, Args, tmpl::Indexer<Index...> >
+		{ typedef typename Target::template type<R, typename std::tuple_element<Index, Args>::type...> type; };
+
+		// Unpack Pack to instantiate Target
+		template<class Pack, class Target>
+		struct Unpack
+			: public _Unpack<typename Pack::Return,
+			                 Target,
+			                 typename Pack::Args,
+			                 typename tmpl::BuildIndicies<Pack::arity>::type >
+		{};
+
+		struct _StdFunction
+		{
+			template<class R, class ... Args>
+			using type = std::function<R (Args...)>;
+		};
+
+		template<class Pack>
+		struct StdFunction
+			: public Unpack<Pack, _StdFunction>
+		{};
+
+		struct _Wrapper
+		{
+			template<class R, class ... Args>
+			using type = cxx_functions::WrapStdFunction<R (Args...)>;
+		};
+
+		template<class Pack>
+		struct Wrapper
+			: public Unpack<Pack, _Wrapper>
+		{};
+	}
 }
 
 #endif
