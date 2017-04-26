@@ -20,7 +20,7 @@
 #include "./type.hpp"
 #include "./wrap.hpp"
 #include "./is.hpp"
-#include "./helpers.hpp"
+#include "./gc.hpp"
 #include "./print.hpp"
 
 
@@ -61,7 +61,6 @@ namespace atl
 						++_line;
 				}
 		}
-
 
 		GC &_gc;
 		unsigned long _line;
@@ -166,43 +165,28 @@ namespace atl
 		}
 
 	public:
-		ParseString(GC &gc) : _gc(gc) {
-			_line = 1;
-			//_gc.mark_callback( [this](GC &gc) { _gc.mark(_mark); });
-		}
+		ParseString(GC &gc) : _gc(gc) { _line = 1; }
 
 		/* parse one S-expression from a string into an ast */
-		Any parse(const std::string& input)
+		Marked<Any> parse(const std::string& input)
 		{
-			auto vec = _gc.ast_builder();
+			auto backer = _gc.ast_builder();
+			parse(backer, input.begin(), input.end());
 
-			auto itr = input.begin(),
-				end = input.end();
-			parse(vec, itr, end);
-
-			// Check that there was just one expression in our string
-			while(itr != input.end() && std::isspace(*itr)) ++itr;
-			if(itr != input.end())
-				throw MultiExpressionString(std::string("More than one expression in `")
-				                            .append(input)
-				                            .append("`"));
-
-			if(vec.backer->begin()->_tag == tag<AstData>::value)
-				{ return Any(tag<Ast>::value, vec.backer->begin()); }
-			return *vec.backer->begin();
+			return _gc.marked(backer.built());
 		}
 
 		/* parse one S-expression from a stream into an ast */
-		Any parse(std::istream &stream)
+		Marked<Any> parse(std::istream &stream)
 		{
 			auto initial_flags = stream.flags();
 			std::noskipws(stream);
 
-			auto vec = _gc.ast_builder();
+			auto backer = _gc.ast_builder();
 
 			auto itr = std::istreambuf_iterator<char>(stream),
 				end = std::istreambuf_iterator<char>();
-			parse(vec, itr, end);
+			parse(backer, itr, end);
 
 			// Swallow any following whitepace or comments so the caller
 			// of the parser doesn't have to check.
@@ -210,10 +194,7 @@ namespace atl
 
 			stream.flags(initial_flags);
 
-			if(vec.backer->begin()->_tag == tag<AstData>::value)
-				{ return Any(tag<Ast>::value, reinterpret_cast<AstData*>(vec.backer->begin())); }
-			return *vec.backer->begin();
-
+			return _gc.marked(backer.built());
 		}
 
 		void reset_line_number() { _line = 1; }

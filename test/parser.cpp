@@ -30,19 +30,13 @@ struct ParserTest
 	{ init_types(); }
 };
 
-TEST_F(ParserTest, test_atoms)
-{
-    ASSERT_EQ(2, unwrap<Fixnum>(parser.parse("2")).value);
-    ASSERT_EQ("Hello, world!", unwrap<String>(parser.parse("\"Hello, world!\"")).value);
-}
-
 TEST_F(ParserTest, test_simple_int_list) {
 	using namespace make_ast;
     auto parsed = parser.parse("(1 2 3)");
 
     auto expected = store(mk(1, 2, 3));
 
-    for(auto& vv : zip(unwrap<Ast>(parsed), *expected))
+    for(auto& vv : zip(*parsed, *expected))
 	    {
 #ifdef DEBUGGING
 		    cout << "parsed: " << printer::print(*get<0>(vv)) << "\nexpected: " << printer::print(*get<1>(vv)) << endl;
@@ -52,17 +46,15 @@ TEST_F(ParserTest, test_simple_int_list) {
 
 }
 
-
 TEST_F(ParserTest, test_empty_list)
 {
 	using namespace pattern_match;
     auto parsed = parser.parse("()");
 
 
-    ASSERT_TRUE(match(ast(), unwrap<Ast>(parsed).self_iterator()))
-	    << printer::print(parsed) << std::endl;
+    ASSERT_TRUE(match(ast(), parsed))
+	    << printer::print(*parsed) << std::endl;
 }
-
 
 TEST_F(ParserTest, nested_int_list)
 {
@@ -73,9 +65,8 @@ TEST_F(ParserTest, nested_int_list)
 	    (literal_match
 	     (ast(1, 2, ast(4, 5), 3),
 	      parsed))
-	    << printer::print(parsed) << std::endl;;
+	    << printer::print(*parsed) << std::endl;;
 }
-
 
 TEST_F(ParserTest, test_parsing_int_list_from_stream)
 {
@@ -87,9 +78,8 @@ TEST_F(ParserTest, test_parsing_int_list_from_stream)
     ASSERT_TRUE
 	    (literal_match(ast(1, 2, ast(4, 5), 3),
 	                   parsed))
-	    << printer::print(parsed) << std::endl;;
+	    << printer::print(*parsed) << std::endl;;
 }
-
 
 TEST_F(ParserTest, TestQuote) {
 	using namespace pattern_match;
@@ -98,9 +88,8 @@ TEST_F(ParserTest, TestQuote) {
     ASSERT_TRUE
 	    (literal_match(ast(wrap<Quote>(), ast(2, 3)),
 	                   parsed))
-	    << printer::print(parsed) << std::endl;;
+	    << printer::print(*parsed) << std::endl;;
 }
-
 
 TEST_F(ParserTest, test_nested_quote)
 {
@@ -112,16 +101,17 @@ TEST_F(ParserTest, test_nested_quote)
 		               parsed));
 }
 
-
 TEST_F(ParserTest, test_stream_parsing)
 {
 	string contents = "(a b c)";
 	stringstream as_stream(contents);
 
-	for(auto& vv : zip(unwrap<Ast>(parser.parse(contents)),
-	                   unwrap<Ast>(parser.parse(as_stream))))
-		ASSERT_EQ(unwrap<Symbol>(*get<0>(vv)).name,
-		          unwrap<Symbol>(*get<1>(vv)).name);
+	auto from_string = parser.parse(contents);
+	auto from_stream = parser.parse(as_stream);
+
+	for(auto& vv : zip(*from_string, *from_stream))
+		{ ASSERT_EQ(unwrap<Symbol>(*get<0>(vv)).name,
+		            unwrap<Symbol>(*get<1>(vv)).name); }
 }
 
 TEST_F(ParserTest, test_multi_line_stream_parsing)
@@ -130,13 +120,13 @@ TEST_F(ParserTest, test_multi_line_stream_parsing)
 	stringstream as_stream(contents);
 
 	vector<int> expected = {1, 2, 3};
-	for(auto& vv : zip(unwrap<Ast>(parser.parse(as_stream)),
+	for(auto& vv : zip(*parser.parse(as_stream),
 	                   expected))
 		ASSERT_EQ(unwrap<Fixnum>(*get<0>(vv)).value,
 		          *get<1>(vv));
 
 	expected = {4, 5, 6};
-	for(auto& vv : zip(unwrap<Ast>(parser.parse(as_stream)),
+	for(auto& vv : zip(*parser.parse(as_stream),
 	                   expected))
 		{
 			ASSERT_EQ(unwrap<Fixnum>(*get<0>(vv)).value,
@@ -155,7 +145,7 @@ TEST_F(ParserTest, test_comments)
         wrap(4)
     };
 
-    for(auto& vv : zip(unwrap<Ast>(parser.parse(contents)),
+    for(auto& vv : zip(*parser.parse(contents),
                        expected))
 		ASSERT_EQ(unwrap<Fixnum>(*get<0>(vv)).value,
 		          unwrap<Fixnum>(*get<1>(vv)).value);
