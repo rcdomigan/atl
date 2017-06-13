@@ -63,6 +63,10 @@ namespace atl
 	struct PatternMatchFailed : public std::runtime_error {
 		PatternMatchFailed(const std::string& what_arg) : std::runtime_error(what_arg) {}
 	};
+
+	struct CxxNotImplemented : public std::runtime_error {
+		CxxNotImplemented(const std::string& what_arg) : std::runtime_error(what_arg) {}
+	};
 }
 
 #endif
