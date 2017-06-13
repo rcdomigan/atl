@@ -97,6 +97,57 @@ TEST_F(TestHelpers, test_trivial_pattern_match)
 		ASSERT_FALSE(match(ast(tag<Lambda>::value, ast(tag<Lambda>::value)), ast_raii));
 		ASSERT_FALSE(match(ast(tag<Lambda>::value), ast_raii));
 		ASSERT_FALSE(match(ast(tag<Lambda>::value, ast(tag<Symbol>::value, tag<Symbol>::value)), ast_raii));
+TEST_F(TestHelpers, test_throwing_pattern_match)
+{
+	using namespace make_ast;
+	auto ast_raii = store(mk(wrap<Lambda>(), mk("a")));
+
+	{
+		using namespace pattern_match;
+		throwing_match(rest(tag<Lambda>::value, ast(tag<Symbol>::value)),
+		               ast_raii);
+
+		bool caught = false;
+		try
+			{ throwing_match(rest(tag<Lambda>::value, ast(tag<Lambda>::value)), ast_raii); }
+		catch(PatternMatchFailed)
+			{ caught = true; }
+		ASSERT_TRUE(caught);
+
+		caught = false;
+		try
+			{ throwing_match(rest(tag<Lambda>::value), ast_raii); }
+		catch(PatternMatchFailed)
+			{ caught = true; }
+		ASSERT_TRUE(caught);
+
+		caught = false;
+		try
+			{ throwing_match(rest(tag<Lambda>::value, ast(tag<Symbol>::value, tag<Symbol>::value)),
+			                 ast_raii); }
+		catch(PatternMatchFailed)
+			{ caught = true; }
+		ASSERT_TRUE(caught);
+	}
+}
+
+TEST_F(TestHelpers, test_nested_pattern_match)
+{
+	using namespace make_ast;
+	auto ast_raii = store(mk(mk("a")));
+
+	{
+		using namespace pattern_match;
+
+		ASSERT_TRUE
+			(match(rest(ast(tag<Symbol>::value)),
+			       ast_raii))
+			<< printer::print(*ast_raii) << std::endl;
+
+		ASSERT_FALSE
+			(match(rest(tag<Symbol>::value),
+			       ast_raii))
+			<< printer::print(*ast_raii) << std::endl;
 	}
 }
 

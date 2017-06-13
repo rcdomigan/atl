@@ -54,6 +54,40 @@ namespace atl
 			{ return tt.is_subex(); }
 		};
 
+		struct MatchOrThrow : public Match
+		{
+			bool lob(bool input, WalkAst& walker)
+			{
+				if(input) { return true; }
+
+				std::stringstream output;
+				output << printer::walker(walker) << std::flush;
+
+				throw PatternMatchFailed
+					(std::string("Match failed got: ").append(output.str()));
+			}
+
+			std::map<std::string, Type> seen_types;
+			virtual bool operator()(std::string const& ss, WalkAst& tt) override
+			{ return lob(Match::operator()(ss, tt), tt); }
+
+			virtual bool operator()(long expected_tag, WalkAst& tt) override
+			{ return lob(Match::operator()(expected_tag, tt), tt); }
+
+			virtual bool operator()(Any const& value, WalkAst& tt) override
+			{ return lob(Match::operator()(value, tt), tt); }
+
+			virtual bool operator()(Matcher const& fn, WalkAst& tt) override
+			{ return lob(Match::operator()(fn, tt), tt); }
+
+			virtual bool at_end(WalkAst& tt) override
+			{ return lob(Match::at_end(tt), tt); }
+
+			virtual bool is_subex(WalkAst& tt)
+			{ return lob(Match::is_subex(tt), tt); }
+
+		};
+
 		/* Like Match, but assumes an unwrapped string is matching a
 		 * particular symbol and an int is referring to a Fixnum.
 		 */
@@ -332,6 +366,18 @@ namespace atl
 		template<class T>
 		bool literal_match(Matcher const& pattern, T&& traversable)
 		{ return literal_match(pattern, traversable); }
+
+		template<class T>
+		bool throwing_match(Matcher const& pattern, T& traversable)
+		{
+			return detail::DoMatch
+				<MatchOrThrow, typename std::remove_reference<T>::type>::match
+				(pattern, traversable);
+		}
+
+		template<class T>
+		bool throwing_match(Matcher const& pattern, T&& traversable)
+		{ return throwing_match(pattern, traversable); }
 	}
 }
 
