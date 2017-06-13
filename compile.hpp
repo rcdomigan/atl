@@ -71,14 +71,15 @@ namespace atl
 		///
 		/// @param itr: the thing to compile
 		/// @param context: relavent context, ie are we in a tail call
-		void _compile(Ast::iterator& itr, Context context)
+		void _compile(Any& any, Context context)
 		{
 			using namespace std;
 
-			switch(itr.tag()) {
+			switch(any._tag) {
+			case tag<AstData>::value:
 			case tag<Ast>::value:
 				{
-					auto subex = atl::subex(itr);
+					auto subex = atl::subex(any);
 					auto inner = subex.begin();
 
 					/******************/
@@ -243,7 +244,7 @@ namespace atl
 						default:
 							throw WrongTypeError
 								(std::string("Dunno how to use ")
-								 .append(type_name(*itr))
+								 .append(type_name(any))
 								 .append(" as a function"));
 						}
 
@@ -251,56 +252,62 @@ namespace atl
 				}
 
 			case tag<Fixnum>::value:
-				assemble.constant(unwrap<Fixnum>(*itr).value);
+				assemble.constant(unwrap<Fixnum>(any).value);
 				return;
 
 			case tag<Bool>::value:
-				assemble.constant(unwrap<Bool>(*itr).value);
+				assemble.constant(unwrap<Bool>(any).value);
 				return;
 
 			case tag<Pointer>::value:
-				assemble.pointer(unwrap<Pointer>(*itr).value);
+				assemble.pointer(unwrap<Pointer>(any).value);
 				return;
 
 			case tag<String>::value:
-				assemble.pointer(&unwrap<String>(*itr));
+				assemble.pointer(&unwrap<String>(any));
 				return;
 
 			case tag<Parameter>::value:
 				{
 					assemble.argument
-						(context.closure->formals.size() - 1 - unwrap<Parameter>(*itr).value);
+						(context.closure->formals.size() - 1 - unwrap<Parameter>(any).value);
 					return;
 				}
 			case tag<ClosureParameter>::value:
 				{
-					assemble.closure_argument(unwrap<ClosureParameter>(*itr).value);
+					assemble.closure_argument(unwrap<ClosureParameter>(any).value);
 					return;
 				}
 			default:
 				{
 					throw std::string("Illegal syntax or something; got ")
-						.append(type_name(itr->_tag))
+						.append(type_name(any._tag))
 						.append(" where value was required.");
 				}
 			}
 			return;
 		}
 
+		void _compile(Ast::iterator& itr, Context context)
+		{
+			auto value = *itr;
+			_compile(value, context);
+		}
+
 		void compile(Ast::iterator itr)
 		{ _compile(itr, Context(nullptr, false)); }
 
-		void compile(Marked<Ast>& ast)
+		void compile(Ast& ast)
 		{
-			auto itr = ast->self_iterator();
+			auto itr = ast.self_iterator();
 			_compile(itr, Context(nullptr, false));
 		}
 
+		void compile(Marked<Ast>& ast)
+		{ return compile(*ast); }
+
 		void compile(Marked<Ast>&& ast)
-		{
-			auto marked = std::move(ast);
-			compile(marked);
-		}
+		{ compile(ast); }
 
 		void dbg();
 	};
