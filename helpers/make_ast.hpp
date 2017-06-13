@@ -197,7 +197,7 @@ namespace atl
 				fn(space);
 			}
 
-			Ast root() { return space.root(); }
+			Ast root() { return unwrap<Ast>(space.built()); }
 		};
 
 		template<typename Tuple,

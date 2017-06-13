@@ -69,7 +69,17 @@ namespace atl
 			void nest_ast() { backer->nest_ast(); }
 			void end_ast() { backer->end_ast(); }
 
-			Ast root() { return Ast(reinterpret_cast<AstData*>(backer->begin())); }
+			Any built()
+			{
+				switch(backer->begin()->_tag)
+					{
+					case tag<AstData>::value:
+						return wrap<Ast>
+							(reinterpret_cast<AstData*>(backer->begin()));
+					default:
+						return *backer->begin();
+					}
+			}
 		};
 
 		template<class AstBuilder>

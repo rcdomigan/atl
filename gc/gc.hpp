@@ -399,14 +399,14 @@ namespace atl
 		{
 			auto ast = ast_builder();
 			func(ast);
-			return ast.root();
+			return unwrap<Ast>(ast.built());
 		}
 
 		Marked<Ast> operator()(ast_composer const& func)
 		{
 			auto ast = ast_builder();
 			func(ast);
-			return Marked<Ast>(_cxx_stack, wrap(ast.root()));
+			return Marked<Ast>(_cxx_stack, ast.built());
 		}
 
 		size_t cells_allocated()

@@ -184,7 +184,7 @@ namespace atl
 					                          builder,
 					                          subs,
 					                          unwrap<Ast>(value).self_iterator());
-					    return wrap(builder.root());
+					    return wrap(unwrap<Ast>(builder.built()));
 				    }
 			    default:
 				    throw WrongTypeError(std::string("Type expressions can only be 'Type' and Asts of Type.  Got a ")
@@ -357,8 +357,8 @@ namespace atl
 					            for(auto inner_itr : slice(itritrs(right_ast->subex()), 1))
 						            { build_substitute_type(gc, right_store, u1, inner_itr); }
 				            }
-				            *left_ast = left_store.root();
-				            *right_ast = right_store.root();
+				            *left_ast = unwrap<Ast>(left_store.built());
+				            *right_ast = unwrap<Ast>(right_store.built());
 
 				            compose_subs(gc, u1, rval);
 				            rval.swap(u1);
