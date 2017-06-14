@@ -37,12 +37,12 @@ namespace atl
 
 	namespace make_type
 	{
-		/** Make a Type with T's tag.  Not much to it, but used in a bunch of tests.
+		/** Make a (rigid)Type with T's tag.  Not much to it, but used in a bunch onf tests.
 		 * @tparam T: the type whose tag to use
 		 * @return: a wraped Type
 		 */
 		template<class T>
-		Any tt() { return wrap<Type>(tag<T>::value); }
+		Any tt() { return wrap(Type(tag<T>::value, true)); }
 	}
 }
 
