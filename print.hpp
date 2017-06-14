@@ -13,6 +13,7 @@
 #include "./utility.hpp"
 #include "./wrap.hpp"
 #include "./is.hpp"
+#include "./helpers/itritrs.hpp"
 
 namespace atl
 {
@@ -156,7 +157,10 @@ namespace atl
 
 			PrintAny(Any const& vv)
 				: root(vv)
-			{ assert(!is<AstData>(vv)); }
+			{
+				if(is<AstData>(vv))
+					{ root = wrap<Ast>(&explicit_unwrap<AstData>(const_cast<Any&>(vv))); }
+			}
 
 			std::ostream& _print(Any const& value, std::ostream& out) const
 			{
@@ -196,7 +200,12 @@ namespace atl
 		{
 			Any root;
 
-			PrintWithType(Any const& vv) : root(vv) { assert(!is<AstData>(vv)); }
+			PrintWithType(Any const& vv)
+				: root(vv)
+			{
+				if(is<AstData>(vv))
+					{ root = wrap<Ast>(&explicit_unwrap<AstData>(const_cast<Any&>(vv))); }
+			}
 
 			std::ostream& _print(Any const& value, std::ostream& out) const
 			{
@@ -209,20 +218,38 @@ namespace atl
 
 				switch(value._tag)
 					{
+					case tag<AstData>::value:
 					case tag<Ast>::value:
 						{
-							auto ast = unwrap<Ast>(value);
-							out << "(";
+							bool is_data = is<AstData>(value);
+							Ast ast;
+							if(is_data)
+								{
+									out << "(";
+									ast.value = reinterpret_cast<AstData*>(&const_cast<Any&>(value));
+								}
+							else
+								{
+									out << "[";
+									ast.value = reinterpret_cast<Ast&>(const_cast<Any&>(value)).value;
+								}
+
 							if(!ast.empty())
 								{
-									_print(ast[0], out);
-									for(auto vv : slice(ast, 1))
+									auto itr = ast.begin();
+									_print(itr.reference(), out);
+
+									++itr;
+									for(auto& inner : itritrs(make_range(itr, ast.end())))
 										{
 											out << ' ';
-											_print(vv, out);
+											_print(inner.reference(), out);
 										}
 								}
-							return out << ")";
+							if(is_data)
+								{ return out << ")"; }
+							else
+								{ return out << "]"; }
 						}
 					case tag<Parameter>::value:
 						{
