@@ -293,7 +293,22 @@ namespace atl
 		PrintWithType with_type(T const& aa) { return PrintWithType(wrap(aa)); }
 
 		std::ostream& operator<<(std::ostream& out, const printer::Printer& p) { return p.print(out); }
+
+		std::ostream& callback_nop(std::ostream& out) { return out; }
 	}
+
+	struct CallbackPrinter
+		: public printer::Printer
+	{
+		typedef std::function<std::ostream& (std::ostream&)> Callback;
+		Callback callback;
+
+		CallbackPrinter(Callback const& cb) : callback(cb) {}
+		CallbackPrinter() : CallbackPrinter(printer::callback_nop) {}
+
+		virtual std::ostream& print(std::ostream& out) const override
+		{ return callback(out); }
+	};
 
 	std::ostream& dbg_any(Any vv)
 	{ return std::cout << printer::print(vv) << std::endl; }
