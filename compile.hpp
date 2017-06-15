@@ -118,26 +118,26 @@ namespace atl
 							}
 						case tag<Define>::value:
 							{
+								using namespace pattern_match;
+
 								++inner;
-								auto& sym = modify<Symbol>(*inner);
+								auto sym = unwrap<Symbol>(*inner);
 
-								// Just assign the function location if
-								// required; for other cases symbol's value
-								// should have been set by assign_free
-								{
-									using namespace pattern_match;
-									Lambda func(nullptr);
+								++inner;
+								if(match(rest_begins(wrap<Type>(tag<FunctionConstructor>::value)),
+								         sym.scheme.type))
+									{
+										_compile(inner, Context(context.closure, true));
 
-									++inner;
-									if(match(pattern_match::ast(capture(func), tag<Ast>::value, tag<Ast>::value),
-									         inner))
-										{
-											_compile(inner, Context(context.closure, true));
-											assemble.define(sym.name);
-										}
-								}
+										assemble.add_label(sym.name);
+										assemble.define(sym.slot);
+									}
+								else
+									{
+										// need to backpatch atoms in the source
+										throw CxxNotImplemented("No support for defining constants");
+									}
 
-								assemble.add_label(sym.name);
 
 								return;
 							}
@@ -158,27 +158,8 @@ namespace atl
 
 								assemble.constant(metadata.body_address);
 
-								if(!metadata.closure.empty())
-									{
-										// The 'free' variables in our
-										// closures are passed as
-										// implicit arguments.  Make
-										// the list of arguments so I
-										// can compile those
-										if(!metadata.has_closure_values)
-											{
-												auto builder = gc.ast_builder();
-												NestAst nest(builder);
-												for(auto bound_var : metadata.closure)
-													{ builder.emplace_back(bound_var); }
-
-												metadata.closure_values = builder.root();
-												metadata.has_closure_values = true;
-											}
-
-										for(auto params_itr : itritrs(metadata.closure_values.subex()))
-											{ _compile(params_itr, context.just_closure()); }
-									}
+								for(auto& var : metadata.closure)
+									{ _compile(var, context.just_closure()); }
 
 								assemble.make_closure(metadata.formals.size(),
 								                      metadata.closure.size());
@@ -235,9 +216,8 @@ namespace atl
 							}
 						case tag<Symbol>::value:
 							{
-								auto& sym = unwrap<Symbol>(*inner);
 								assemble
-									.deref_slot(sym.name)
+									.deref_slot(unwrap<Symbol>(*inner).slot)
 									.call_closure();
 								return;
 							}

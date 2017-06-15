@@ -150,12 +150,12 @@ namespace atl
 		typedef typename CodeBacker::const_iterator const_iterator;
 
 		OffsetTable offset_table;
-		size_t slots;
+		size_t num_slots;
 
 		CodeBacker code;
 
-		Code() : slots(0) {};
-		Code(size_t initial_size) : slots(0), code(initial_size) {}
+		Code() : num_slots(0) {};
+		Code(size_t initial_size) : num_slots(0), code(initial_size) {}
 
 		iterator begin() { return code.begin(); }
 		iterator end() { return code.end(); }
@@ -242,24 +242,7 @@ namespace atl
 		typedef uintptr_t value_type;
 		typedef Code::const_iterator const_iterator;
 
-		std::unordered_map<std::string, size_t> slots;
-
 		Code *code;
-
-		size_t get_slot(std::string const& key)
-		{
-			auto found = slots.find(key);
-			if(found == slots.end())
-				{
-					auto slot = slots.size();
-					code->slots = slot + 1;
-
-					slots[key] = slot;
-					return slot;
-				}
-			else
-				{ return found->second; }
-		}
 
 		AssembleCode() = default;
 		AssembleCode(Code *code_) : code(code_) {}
@@ -304,16 +287,19 @@ namespace atl
 			return closure_argument();
 		}
 
-		AssembleCode& define(std::string const& key)
+		AssembleCode& define(size_t slot)
 		{
-			constant(get_slot(key));
+			constant(slot);
+			if(slot + 1 > code->num_slots)
+				{ code->num_slots = slot + 1; }
+
 			_push_back(vm_codes::Tag<vm_codes::define>::value);
 			return *this;
 		}
 
-		AssembleCode& deref_slot(std::string const& key)
+		AssembleCode& deref_slot(size_t slot)
 		{
-			constant(get_slot(key));
+			constant(slot);
 			_push_back(vm_codes::Tag<vm_codes::deref_slot>::value);
 			return *this;
 		}

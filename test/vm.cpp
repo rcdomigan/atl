@@ -241,6 +241,8 @@ TEST_F(VmTest, test_define)
 {
 	auto closure = store.closure(0, 2, 0);
 
+	size_t foo_slot = 0;
+
 	// (function 1 2)
 	// (define function (\ (a b) (sub a b)))
 	assemble
@@ -257,11 +259,11 @@ TEST_F(VmTest, test_define)
 
 		.get_label("function")
 		.make_closure(2, 0)
-		.define("foo")
+		.define(foo_slot)
 
 		.constant(3)
 		.constant(1)
-		.deref_slot("foo")
+		.deref_slot(foo_slot)
 		.call_closure()
 		.finish();
 

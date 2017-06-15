@@ -322,6 +322,7 @@ TEST_F(CompilerTest, test_define_first)
 
 	Parameter p_a(0), p_b(1), p_c(2);
 
+	foo->slot = 0;
 	foo->scheme.type = wrap
 		(store.raw_ast(fn_type::fn(tag<Fixnum>::value,
 		                           tag<Fixnum>::value,
@@ -354,10 +355,12 @@ TEST_F(CompilerTest, test_define_after)
 		b = store.make<Symbol>("b");
 	Parameter p_a(0), p_b(1);
 
+	do_it->slot = 0;
 	do_it->scheme.type = wrap
 		(store.raw_ast
 		 (fn_type::fn(tag<Fixnum>::value)));
 
+	foo->slot = 1;
 	foo->scheme.type = wrap
 		(store.raw_ast
 		 (fn_type::fn(tag<Fixnum>::value,
