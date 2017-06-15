@@ -26,6 +26,13 @@ namespace atl
 				wsub(WrapStdFunction<long (long, long)>::a(sub2, gc)),
 				wadd3(WrapStdFunction<long (long, long, long)>::a(add3, gc))
 			{}
+
+			void add_to_env(SymbolMap& env)
+			{
+				env.define("equal2", weq.any);
+				env.define("add2", wadd.any);
+				env.define("sub2", wsub.any);
+			}
 		};
 
 	}

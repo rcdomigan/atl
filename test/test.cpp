@@ -16,7 +16,7 @@
 #include "./type_inference.cpp"
 #include "./analyze_and_compile.cpp"
 
-// #include "./atl.cpp"
+#include "./atl.cpp"
 
 int main(int argc, char *argv[]) {
   ::testing::InitGoogleTest(&argc, argv);
