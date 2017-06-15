@@ -198,6 +198,8 @@ namespace atl
 	        : _tag(tag<Lambda>::value),
 	          value(value_)
 	    {}
+
+        Lambda() : Lambda(nullptr) {}
     };
 
     struct DeclareType
@@ -568,6 +570,8 @@ namespace atl
 			: _tag(tag<Parameter>::value)
 			, value(offset)
 		{}
+
+		Parameter() : Parameter(-1) {}
 	};
 
 	struct ClosureParameter
@@ -579,6 +583,9 @@ namespace atl
 			: _tag(tag<ClosureParameter>::value)
 			, value(offset)
 		{}
+
+		ClosureParameter() : ClosureParameter(-1) {}
+
 	};
 
 	// Implemenation detail; maps symbol names to the expressions
