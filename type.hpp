@@ -615,38 +615,35 @@ namespace atl
 	    typedef std::vector<Any> Closure;
 	    Closure closure;
 
-	    Ast closure_values;
-
 	    // Map a free symbol's name to the closure parameter it'll
 	    // bind to.
 	    std::map<std::string, size_t> closure_index_map;
 
 	    pcode::Offset body_address;
 
-	    bool has_closure_values;
-
 	    LambdaMetadata()=delete;
 
 	    LambdaMetadata(Ast formals_)
-		    : formals(formals_),
-		      closure_values(nullptr),
-		      has_closure_values(false)
+		    : formals(formals_)
 	    {}
 
-	    ClosureParameter closure_parameter(std::string const& name,
-	                                       Any value)
+	    ClosureParameter new_closure_parameter(std::string const& name,
+	                                           Any value)
 	    {
-		    auto found = closure_index_map.find(name);
-		    if(found == closure_index_map.end())
-			    {
-				    auto idx = closure_index_map.size();
-				    closure_index_map[name] = idx;
-				    closure.push_back(value);
-				    return ClosureParameter(idx);
-			    }
-		    else
-			    { return ClosureParameter(found->second); }
+		    auto idx = closure_index_map.size();
+		    closure_index_map[name] = idx;
+		    closure.push_back(value);
+		    return ClosureParameter(idx);
 	    }
+
+	    ClosureParameter get_closure_parmeter(std::string const& name)
+	    { return ClosureParameter(closure_index_map[name]); }
+
+	    bool has_closure_parmeter(std::string const& name)
+	    { return closure_index_map.count(name); }
+
+	    Any closure_parmeter_value(std::string const& name)
+	    { return closure[closure_index_map.count(name)]; }
     };
 
 	struct String {

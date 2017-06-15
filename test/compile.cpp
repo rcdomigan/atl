@@ -189,7 +189,7 @@ TEST_F(CompilerTest, test_dummy_closure)
 	auto inner = store.make<LambdaMetadata>
 		(*store(mk(b.any)));
 
-	inner->closure_parameter("a", wrap<Parameter>(0));
+	inner->new_closure_parameter("a", wrap<Parameter>(0));
 
 	// (\ (a) (\ (b) (+ a b)))
 	auto expr = store
@@ -264,7 +264,7 @@ TEST_F(CompilerTest, test_simple_closure)
 
 	auto inner = store.make<LambdaMetadata>
 		(store.raw_ast(mk(b.any)));
-	inner->closure_parameter("a", wrap<Parameter>(0));
+	inner->new_closure_parameter("a", wrap<Parameter>(0));
 
 	// (\ (a) (\ (b) (+ a b)))
 	auto expr = store
@@ -296,8 +296,8 @@ TEST_F(CompilerTest, test_two_arg_closure)
 	auto inner = store.make<LambdaMetadata>
 		(store.raw_ast(mk(c.any)));
 
-	inner->closure_parameter("a", wrap<Parameter>(0));
-	inner->closure_parameter("b", wrap<Parameter>(1));
+	inner->new_closure_parameter("a", wrap<Parameter>(0));
+	inner->new_closure_parameter("b", wrap<Parameter>(1));
 
 	auto expr = store
 		(mk(mk(mk(wrap<Lambda>(&*outer), mk(a.any, b.any),
