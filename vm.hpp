@@ -324,7 +324,7 @@ namespace atl
 		void enter_code(Code const& input)
 		{
 			if(slots) { delete []slots; }
-			slots = new value_type[input.slots];
+			slots = new value_type[input.num_slots];
 
 			call_stack = nullptr;
 			pc = 0;

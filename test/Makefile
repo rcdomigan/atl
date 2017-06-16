@@ -1,8 +1,8 @@
-COMMON_FLAGS=-pipe -std=c++11 -ggdb -Wall
+COMMON_FLAGS=-pipe -std=c++14 -ggdb -Wall
 GTEST_LINK=-lgtest -lgtest_main -pthread -O0
 CXXFLAGS=$(CFLAGS) $(COMMON_FLAGS)
 
-GCC_INCLUDE=-I../ -fuse-ld=gold
+GCC_INCLUDE=-I../../ -fuse-ld=gold
 CLANG_INCLUDE=$(GCC_INCLUDE) -isystem /usr/lib/clang/3.6/include
 
 IWYU=iwyu -std=c++11 $(CLANG_INCLUDE)

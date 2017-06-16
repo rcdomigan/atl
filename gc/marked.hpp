@@ -72,7 +72,9 @@ namespace atl
 			*_top = this;
 		}
 
-		Marked()=delete;
+		Marked()
+			: _top(nullptr), _up(nullptr), any(wrap<Null>()), _owner(false)
+		{}
 
 		Marked(Marked*& top, Any const& any_)
 			: _top(&top), _up(*_top), any(any_), _owner(true)
@@ -101,6 +103,8 @@ namespace atl
 	{
 		typedef Marked<Any> MarkedBase;
 		typedef T value_type;
+
+		Marked() : MarkedBase() {}
 
 		Marked(MarkedBase*& top, Any const& any) : MarkedBase(top, any) {}
 

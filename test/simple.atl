@@ -1,2 +1,3 @@
 ;; used to test atl.cpp
-(define-value foo (__\__ (a) (print-int (add2 a 3))))
+(define foo (__\__ (a) (print-int (add2 a 3))))
+(foo)

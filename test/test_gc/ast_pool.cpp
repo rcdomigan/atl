@@ -1,8 +1,8 @@
 #include <iostream>
 #include <vector>
 
-#include <gc/ast_pool.hpp>
-#include <print.hpp>
+#include <atl/gc/ast_pool.hpp>
+#include <atl/print.hpp>
 
 #include <gtest/gtest.h>
 

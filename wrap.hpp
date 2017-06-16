@@ -7,7 +7,7 @@
  */
 
 #include <string>
-#include <type_traits.hpp>
+#include <atl/type_traits.hpp>
 
 #include "./type.hpp"
 #include "./type_traits.hpp"

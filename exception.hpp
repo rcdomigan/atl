@@ -6,12 +6,19 @@
  * Created on Aug 31, 2014
  */
 
-#include <exception>
+#include <string>
+#include <stdexcept>
 
-namespace atl {
+namespace atl
+{
 	struct WrongTypeError : public std::runtime_error {
 		WrongTypeError(const std::string& what_arg) : std::runtime_error(what_arg) {}
 		WrongTypeError(const char* what_arg) : std::runtime_error(what_arg) {}
+	};
+
+	struct RangeError : public std::runtime_error {
+		RangeError(const std::string& what_arg) : std::runtime_error(what_arg) {}
+		RangeError(const char* what_arg) : std::runtime_error(what_arg) {}
 	};
 
 	struct ArityError : public std::runtime_error {
@@ -51,6 +58,14 @@ namespace atl {
 
 	struct AlgorithmWFailed : public std::runtime_error {
 		AlgorithmWFailed(const std::string& what_arg) : std::runtime_error(what_arg) {}
+	};
+
+	struct PatternMatchFailed : public std::runtime_error {
+		PatternMatchFailed(const std::string& what_arg) : std::runtime_error(what_arg) {}
+	};
+
+	struct CxxNotImplemented : public std::runtime_error {
+		CxxNotImplemented(const std::string& what_arg) : std::runtime_error(what_arg) {}
 	};
 }
 

@@ -236,17 +236,17 @@ namespace tmpl
 	};
 
 
-	/* http://loungecpp.wikidot.com/tips-and-tricks%3Aindices
-	 * tricky tricky, never gets instantiated, but can get filled out by
-	 * the template inference engine.
-	 */
+	/* http://loungecpp.wikidot.com/tips-and-tricks%3Aindices` */
 	template<std::size_t ...Is> struct Indexer {};
 
-	template <std::size_t N, std::size_t... Is> struct
-	BuildIndicies : BuildIndicies<N-1, N-1, Is...> {};
+	template <std::size_t N, std::size_t... Is>
+	struct BuildIndicies
+		: BuildIndicies<N-1, N-1, Is...>
+	{};
 
-	template <std::size_t... Is> struct
-	BuildIndicies<0, Is...> : Indexer<Is...> {};
+	template <std::size_t... Is>
+	struct BuildIndicies<0, Is...>
+	{ typedef Indexer<Is...> type; };
 }
 
 
@@ -257,7 +257,7 @@ static typename std::result_of<Fn (Args...)>::type _apply_tuple(Fn& fn, std::tup
 template<class Fn, class ... Args>
 static typename std::result_of<Fn (Args...)>::type apply_tuple(Fn& fn, std::tuple<Args...>& args)
 {
-	return _apply_tuple(fn, args, tmpl::BuildIndicies<sizeof...(Args)> {});
+	return _apply_tuple(fn, args, typename tmpl::BuildIndicies<sizeof...(Args)>::type {});
 }
 
 
@@ -453,7 +453,6 @@ struct RangeItr
 
 template<class Itr>
 struct Range_base {
-    typedef Range_base<Itr> type;
     typedef Itr iterator;
     typedef const Itr const_iterator;
     Itr _begin, _end;
@@ -539,6 +538,7 @@ typename Zipper<true, Ranges const...>::type zip(Ranges const& ... rr)
 
 template<class IteratorType>
 struct Range : public Range_base<IteratorType> {
+    typedef Range<IteratorType> type;
 
     typedef Range_base<IteratorType> base_type;
     typedef typename base_type::iterator iterator;
@@ -558,6 +558,20 @@ struct Range : public Range_base<IteratorType> {
 	bool empty() const { return base_type::end() == base_type::begin(); }
 };
 
+template<typename T>
+struct HasBegin
+{
+	template<class R> struct SFINAE {};
+
+	template<class U> static char Test
+	(SFINAE<decltype(std::declval<U>().begin())>*);
+
+    template<class U> static int Test(...);
+
+	typedef HasBegin<T> type;
+    static const bool value = sizeof(Test<T>(0)) == sizeof(char);
+};
+
 template<class Itr>
 Range<Itr> begin_end_to_range(Itr begin, Itr end) {
     return Range<Itr>(begin, end);
@@ -569,9 +583,22 @@ Range<Itr> make_range(Itr begin, Itr end) {
 }
 
 template<class Container>
-Range<typename GetIterator<Container>::type > make_range(Container& cc) {
-    return Range<typename GetIterator<Container>::type>(cc.begin(), cc.end());
-}
+typename std::enable_if<
+	HasBegin<Container>::value,
+	tmpl::Apply<Range, GetIterator<Container>>
+	>::type::type
+make_range(Container& cc)
+{ return make_range(cc.begin(), cc.end()); }
+
+
+// Make a range with the first two elements of a std::get-able thing.
+template<class Tuple>
+typename std::enable_if<
+	!HasBegin<Tuple>::value,
+	Range<typename std::tuple_element<0, Tuple>::type>
+	>::type
+make_range(Tuple& tuple)
+{ return make_range(std::get<0>(tuple), std::get<1>(tuple)); }
 
 template<class T>
 Range<typename GetIterator<T>::type >  slice(T&& container, size_t begin) {

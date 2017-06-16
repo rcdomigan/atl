@@ -1,7 +1,7 @@
 #ifndef ATL_GC_AST_POOL_HPP
 #define ATL_GC_AST_POOL_HPP
 
-#include <helpers/ast_access.hpp>
+#include <atl/helpers/ast_access.hpp>
 
 #include <list>
 
@@ -33,11 +33,14 @@ namespace atl
 
 		// Copies the src range to the 'end' pointer of some
 		// container, then moves the 'end' pointer the end of the copy
-		void copy_to_end(Range<Ast::flat_iterator>&& src, Any*& end)
+		void copy_to_end(Range<Ast::flat_iterator>& src, Any*& end)
 		{
 			std::memcpy(end, src.begin(), src.size() * sizeof(Any));
 			end += src.size();
 		}
+
+		void copy_to_end(Range<Ast::flat_iterator>&& src, Any*& end)
+		{ copy_to_end(src, end); }
 
 		/* Descrives the portion of some array which is being used to build an Ast */
 		template<class AstPool>  // template so I can mock
@@ -224,14 +227,24 @@ namespace atl
 		void grow_ast_backer(AstBacker& ast)
 		{ move_ast_backer(ast, ast.reserved() * RESIZE_FACTOR); }
 
+		// Copy ast over to a new backer, but don't mark the the input
+		// as moved
+		Ast just_move(Ast& ast)
+		{
+			auto building = unmarked_ast_backer(ast.flat_size());
+
+			Ast new_range(reinterpret_cast<AstData*>(building._itr));
+			ast_pool_detail::copy_to_end(flat_ast(ast), building._itr);
+			return new_range;
+		}
+
+
 		// Copy 'ast' over to the new 'backer' array, and mark it's
-		// contained items.  Ast's original AstData is invalidated,
+		// containedp items.  Ast's original AstData is invalidated,
 		// and used to store a pointer to its new location until the
 		// garbage collection finishes.
 		Ast move(Ast ast)
 		{
-			using namespace ast_pool_detail;
-
 			if(backer->is_contained(ast.value))
 				{ return ast; }
 
@@ -240,20 +253,21 @@ namespace atl
 
 			else
 				{
-					auto building = unmarked_ast_backer(ast.flat_size());
-					copy_to_end(flat_ast(ast), building._itr);
+					auto new_ast = just_move(ast);
 
+					// store the location of the new copy to avoid re-copying
+					reinterpret_cast<Any*>(ast.value)->value = new_ast.value;
 					ast.value->_tag = tag<MovedAstData>::value;
 
-					// ignores the tag
-					for(auto& item : flat_ast(ast))
-						{ store.mark(item); }
+					for(auto& item : slice(flat_ast(new_ast), 1))
+						{
+							if(is<Ast>(item))
+								{ item = wrap(just_move(unwrap<Ast>(item))); }
+							else
+								{ store.mark(item); }
+						}
 
-					// store the location to the new copy to avoid re-copying
-					reinterpret_cast<Any*>(ast.value)->value = building.begin();
-
-
-					return building.ast();
+					return new_ast;
 				}
 		}
 

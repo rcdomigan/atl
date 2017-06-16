@@ -2,7 +2,7 @@
 #define ATL_GC_POOL_HPP
 
 #include <limits>
-#include <debug.hpp>
+#include <atl/debug.hpp>
 
 namespace atl
 {

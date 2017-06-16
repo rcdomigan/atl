@@ -23,14 +23,14 @@
 #include <boost/mpl/insert.hpp>
 #include <boost/mpl/apply.hpp>
 
-#include <debug.hpp>
-#include <byte_code.hpp>
+#include <atl/debug.hpp>
+#include <atl/byte_code.hpp>
 
-#include <gc/ast_pool.hpp>
-#include <gc/pool.hpp>
-#include <gc/ast_builder.hpp>
-#include <gc/marked.hpp>
-#include <gc/vm_closure.hpp>
+#include <atl/gc/ast_pool.hpp>
+#include <atl/gc/pool.hpp>
+#include <atl/gc/ast_builder.hpp>
+#include <atl/gc/marked.hpp>
+#include <atl/gc/vm_closure.hpp>
 
 namespace atl
 {
@@ -291,7 +291,6 @@ namespace atl
 		void mark(Symbol& sym)
 		{
 			_symbol_heap.mark(&sym);
-			mark(sym.value);
 			// The Scheme is on the Symbol, not the Scheme heap, so
 			// just check its type part.
 			mark(sym.scheme.type);
@@ -301,14 +300,10 @@ namespace atl
 		{
 			_lambda_metadata_heap.mark(&metadata);
 
-			if(metadata.has_closure_values)
-				{ mark(metadata.closure_values); }
-
-			for(auto sym : metadata.closure)
-				{ mark(*sym); }
+			for(auto& item : metadata.closure)
+				{ mark(item); }
 
 			mark(metadata.formals);
-			mark(metadata.return_type);
 		}
 
 		void mark(Ast& ast)
@@ -404,14 +399,14 @@ namespace atl
 		{
 			auto ast = ast_builder();
 			func(ast);
-			return ast.root();
+			return unwrap<Ast>(ast.built());
 		}
 
 		Marked<Ast> operator()(ast_composer const& func)
 		{
 			auto ast = ast_builder();
 			func(ast);
-			return Marked<Ast>(_cxx_stack, wrap(ast.root()));
+			return Marked<Ast>(_cxx_stack, ast.built());
 		}
 
 		size_t cells_allocated()

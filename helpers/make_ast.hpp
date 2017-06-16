@@ -1,9 +1,9 @@
 #ifndef ATL_HELPERS_MAKE_AST_HH
 #define ATL_HELPERS_MAKE_AST_HH
 
-#include <gc/gc.hpp>
-#include <helpers/misc.hpp>
-#include <helpers/itritrs.hpp>
+#include <atl/gc/gc.hpp>
+#include <atl/helpers/misc.hpp>
+#include <atl/helpers/itritrs.hpp>
 
 /**
  * Make Asts along various patterns
@@ -96,7 +96,6 @@ namespace atl
 				};
 		}
 
-
 		ast_composer copy(Ast::Subex const& input)
 		{
 			return [input](AstBuilder& store) -> void
@@ -105,7 +104,7 @@ namespace atl
 					for(auto& itr : itritrs(input))
 						{
 							if(itr.is<Ast>())
-								{ copy(itr.subex())(store); }
+								{ copy(subex(itr))(store); }
 							else
 								{ store.push_back(*itr); }
 						}
@@ -198,7 +197,7 @@ namespace atl
 				fn(space);
 			}
 
-			Ast root() { return space.root(); }
+			Ast root() { return unwrap<Ast>(space.built()); }
 		};
 
 		template<typename Tuple,

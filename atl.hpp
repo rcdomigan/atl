@@ -6,52 +6,135 @@
  * Created on Feb 07, 2015
  */
 
-#include <type.hpp>
-#include <vm.hpp>
-#include <primitive_callable.hpp>
-#include <compile.hpp>
-#include <gc.hpp>
-#include <parser.hpp>
-#include <lexical_environment.hpp>
-#include <environment.hpp>
-#include <compile.hpp>
-#include <print.hpp>
+#include <iostream>                 // for cout, ostream
+#include <atl/compile.hpp>              // for Compile
+#include <atl/lexical_environment.hpp>  // for AssignForms, AssignFree, BackPatch
+#include <atl/parser.hpp>               // for ParseString
+#include <atl/type.hpp>                 // for init_types, Any, LAST_CONCRETE_TYPE
+#include <atl/type_inference.hpp>       // for AlgorithmW, apply_substitution
+#include <atl/vm.hpp>                   // for TinyVM, TinyVM::value_type
+#include <atl/vm.hpp>                   // for TinyVM, TinyVM::value_type
+#include "gc/gc.hpp"                // for GC, ast_composer
+#include "gc/marked.hpp"            // for Marked
+#include "wrap.hpp"                 // for unwrap
+
 
 namespace atl
 {
-    struct Atl
-    {
-        GC gc;
-        ParseString parse;
-        ToplevelMap lexical;
-        Compile compile;
-        TinyVM vm;
+	struct Atl
+	{
+		GC gc;
+		ParseString parser;
 
-	    Environment env;
+		Slots slots;
+		SymbolMap lexical;
 
-	    Atl() : parse(gc), compile(lexical, gc),
-	            env(gc, parse, lexical, compile, vm)
-	    { setup_interpreter(env); }
+		AssignForms assign_forms;
 
-	    void set_stdout(std::ostream& out)
-	    { env.stdout = &out; }
+		Type::value_type new_types;
+		inference::Gamma gamma;
+		inference::AlgorithmW w;
 
-        PassByValue eval(PassByValue value)
-	    { return env.eval(value); }
+		Compile compiler;
+		TinyVM vm;
 
-	    // Parse, compile, and run the first sexpr in a string
-        PassByValue string_(const std::string& ss)
-	    { return eval(parse.string_(ss)); }
+		std::ostream* stdout;
 
-	    // Parse, compile, and run all the sexprs in a stream
-        PassByValue stream(istream& ss)
-	    {
-		    PassByValue rval;
-		    while(ss.peek() != EOF)
-			    rval = eval(parse.stream(ss));
-		    return rval;
-	    }
-    };
+		Atl() :
+			parser(gc)
+			, slots(gc)
+			, lexical(gc, slots)
+			, assign_forms(gc, lexical)
+			, new_types(LAST_CONCRETE_TYPE)
+			, gamma(gc, new_types)
+			, w(gc, new_types, gamma)
+			, compiler(gc)
+			, vm(gc)
+		{
+			init_types();
+			setup_basic_definitions(gc, lexical);
+			stdout = &std::cout;
+		}
+
+		/**
+		 * @tparam T:
+		 * @param expr:
+		 * @return: Return type of the expression
+		 */
+		Any annotate(Ast& expr)
+		{
+			expr = *assign_forms(expr);
+
+			auto type_info = w.W(expr);
+			inference::apply_substitution(gc, type_info.subs, ref_wrap(expr));
+
+			return *type_info.type;
+		}
+
+		void compile(Ast& expr)
+		{
+			annotate(expr);
+			compiler.compile(expr);
+		}
+
+		void compile(Marked<Ast>& expr)
+		{
+			annotate(*expr);
+			compiler.compile(expr);
+		}
+
+		void compile(Marked<Ast>&& expr)
+		{
+			auto copy = std::move(expr);
+			compile(copy);
+		}
+
+		void compile(ast_composer const& compose)
+		{ compile(gc(compose)); }
+
+		pcode::value_type run()
+		{
+			compiler.assemble.finish();
+
+#ifdef DEBUGGING
+			auto printer = CodePrinter(code);
+			printer.dbg();
+			vm.run_debug(compiler.code_store, 100);
+#else
+			vm.run(compiler.code_store);
+#endif
+			compiler.code_store.pop_back();
+
+			return vm.stack[0];
+		}
+
+		Any eval_ast(Ast& ast)
+		{
+			auto type = gc.marked(annotate(ast));
+
+			compiler.compile(ast);
+
+			auto ran = run();
+
+			return Any(unwrap<Type>(*type).value(),
+			           reinterpret_cast<void*>(ran));
+		}
+
+		Any eval_ast(GC::ast_composer const& factory)
+		{
+			auto ast = gc(factory);
+			return eval_ast(*ast);
+		}
+
+		template<class Input>
+		Any eval(Input& expr)
+		{
+			auto parsed = parser.parse(expr);
+			if(is<Ast>(*parsed))
+				{ return eval_ast(unwrap<Ast>(*parsed)); }
+			throw WrongTypeError("Not yet dealing with evaling atoms");
+		}
+	};
 }
 
 #endif

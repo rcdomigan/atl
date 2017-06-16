@@ -11,8 +11,8 @@
 #include "./byte_code.hpp"
 #include "./type.hpp"
 #include "./utility.hpp"
-#include <helpers/pattern_match.hpp>
-#include <helpers/itritrs.hpp>
+#include "./helpers/pattern_match.hpp"
+#include "./helpers/itritrs.hpp"
 
 #include <set>
 
@@ -71,14 +71,15 @@ namespace atl
 		///
 		/// @param itr: the thing to compile
 		/// @param context: relavent context, ie are we in a tail call
-		void _compile(Ast::iterator& itr, Context context)
+		void _compile(Any& any, Context context)
 		{
 			using namespace std;
 
-			switch(itr.tag()) {
+			switch(any._tag) {
+			case tag<AstData>::value:
 			case tag<Ast>::value:
 				{
-					auto subex = itr.subex();
+					auto subex = atl::subex(any);
 					auto inner = subex.begin();
 
 					/******************/
@@ -117,26 +118,26 @@ namespace atl
 							}
 						case tag<Define>::value:
 							{
+								using namespace pattern_match;
+
 								++inner;
-								auto& sym = modify<Symbol>(*inner);
+								auto sym = unwrap<Symbol>(*inner);
 
-								// Just assign the function location if
-								// required; for other cases symbol's value
-								// should have been set by assign_free
-								{
-									using namespace pattern_match;
-									Lambda func(nullptr);
+								++inner;
+								if(match(rest_begins(wrap<Type>(tag<FunctionConstructor>::value)),
+								         sym.scheme.type))
+									{
+										_compile(inner, Context(context.closure, true));
 
-									++inner;
-									if(match(pattern_match::ast(capture(func), tag<Ast>::value, tag<Ast>::value),
-									         inner))
-										{
-											_compile(inner, Context(context.closure, true));
-											assemble.define(sym.name);
-										}
-								}
+										assemble.add_label(sym.name);
+										assemble.define(sym.slot);
+									}
+								else
+									{
+										// need to backpatch atoms in the source
+										throw CxxNotImplemented("No support for defining constants");
+									}
 
-								assemble.add_label(sym.name);
 
 								return;
 							}
@@ -157,27 +158,8 @@ namespace atl
 
 								assemble.constant(metadata.body_address);
 
-								if(!metadata.closure.empty())
-									{
-										// The 'free' variables in our
-										// closures are passed as
-										// implicit arguments.  Make
-										// the list of arguments so I
-										// can compile those
-										if(!metadata.has_closure_values)
-											{
-												auto builder = gc.ast_builder();
-												NestAst nest(builder);
-												for(auto sym : metadata.closure)
-													{ builder.emplace_back(sym->value); }
-
-												metadata.closure_values = builder.root();
-												metadata.has_closure_values = true;
-											}
-
-										for(auto params_itr : itritrs(metadata.closure_values.subex()))
-											{ _compile(params_itr, context.just_closure()); }
-									}
+								for(auto& var : metadata.closure)
+									{ _compile(var, context.just_closure()); }
 
 								assemble.make_closure(metadata.formals.size(),
 								                      metadata.closure.size());
@@ -234,16 +216,15 @@ namespace atl
 							}
 						case tag<Symbol>::value:
 							{
-								auto& sym = unwrap<Symbol>(*inner);
 								assemble
-									.deref_slot(sym.name)
+									.deref_slot(unwrap<Symbol>(*inner).slot)
 									.call_closure();
 								return;
 							}
 						default:
 							throw WrongTypeError
 								(std::string("Dunno how to use ")
-								 .append(type_name(*itr))
+								 .append(type_name(any))
 								 .append(" as a function"));
 						}
 
@@ -251,56 +232,62 @@ namespace atl
 				}
 
 			case tag<Fixnum>::value:
-				assemble.constant(unwrap<Fixnum>(*itr).value);
+				assemble.constant(unwrap<Fixnum>(any).value);
 				return;
 
 			case tag<Bool>::value:
-				assemble.constant(unwrap<Bool>(*itr).value);
+				assemble.constant(unwrap<Bool>(any).value);
 				return;
 
 			case tag<Pointer>::value:
-				assemble.pointer(unwrap<Pointer>(*itr).value);
+				assemble.pointer(unwrap<Pointer>(any).value);
 				return;
 
 			case tag<String>::value:
-				assemble.pointer(&unwrap<String>(*itr));
+				assemble.pointer(&unwrap<String>(any));
 				return;
 
 			case tag<Parameter>::value:
 				{
 					assemble.argument
-						(context.closure->formals.size() - 1 - unwrap<Parameter>(*itr).value);
+						(context.closure->formals.size() - 1 - unwrap<Parameter>(any).value);
 					return;
 				}
 			case tag<ClosureParameter>::value:
 				{
-					assemble.closure_argument(unwrap<ClosureParameter>(*itr).value);
+					assemble.closure_argument(unwrap<ClosureParameter>(any).value);
 					return;
 				}
 			default:
 				{
 					throw std::string("Illegal syntax or something; got ")
-						.append(type_name(itr->_tag))
+						.append(type_name(any._tag))
 						.append(" where value was required.");
 				}
 			}
 			return;
 		}
 
+		void _compile(Ast::iterator& itr, Context context)
+		{
+			auto value = *itr;
+			_compile(value, context);
+		}
+
 		void compile(Ast::iterator itr)
 		{ _compile(itr, Context(nullptr, false)); }
 
-		void compile(Marked<Ast>& ast)
+		void compile(Ast& ast)
 		{
-			auto itr = ast->self_iterator();
+			auto itr = ast.self_iterator();
 			_compile(itr, Context(nullptr, false));
 		}
 
+		void compile(Marked<Ast>& ast)
+		{ return compile(*ast); }
+
 		void compile(Marked<Ast>&& ast)
-		{
-			auto marked = std::move(ast);
-			compile(marked);
-		}
+		{ compile(ast); }
 
 		void dbg();
 	};

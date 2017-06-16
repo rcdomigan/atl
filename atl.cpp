@@ -11,15 +11,14 @@
 #include <fstream>
 
 using namespace atl;
-using namespace std;
 
 int main(int argc, char *argv[]) {
     atl::Atl interpreter;
 
     while( true ) {
-        cout << "> ";
-	auto rval = interpreter.stream(cin);
-        cout << dec << printer::any(rval) <<endl;
+	    std::cout << "> ";
+        auto rval = interpreter.eval(std::cin);
+        std::cout << std::dec << printer::print(rval) << std::endl;
     }
 
     return 0;

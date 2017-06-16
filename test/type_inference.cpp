@@ -7,10 +7,10 @@
 
 #include <gtest/gtest.h>
 
-#include <lexical_environment.hpp>
-#include <type_inference.hpp>
-#include <ffi.hpp>
-#include <helpers/pattern_match.hpp>
+#include <atl/lexical_environment.hpp>
+#include <atl/type_inference.hpp>
+#include <atl/ffi.hpp>
+#include <atl/helpers/pattern_match.hpp>
 
 using namespace atl;
 
@@ -368,9 +368,12 @@ struct SpecializeAndGeneralize
     : public ::testing::Test
 {
     GC gc;
+	Type::value_type new_types;
 	inference::Gamma gamma;
+
 	SpecializeAndGeneralize()
-		: gamma(gc)
+		: new_types(LAST_CONCRETE_TYPE),
+		  gamma(gc, new_types)
 	{ init_types(); }
 };
 
@@ -403,7 +406,6 @@ TEST_F(SpecializeAndGeneralize, test_instantiate)
 	ASSERT_EQ(tag<Ast>::value, instantiated->_tag);
 	ASSERT_NE(*expected, unwrap<Ast>(*instantiated));
 
-	std::cout << "Subbed: " << printer::print(*instantiated) << std::endl;
 	auto inner_ast = subscripter(unwrap<Ast>(*instantiated))[1];
 
 	ASSERT_TRUE(expected_subs.count(unwrap<Type>(inner_ast[0].value).value()))
@@ -479,8 +481,8 @@ TEST_F(SpecializeAndGeneralize, test_gamma_free_type_vars)
 	Type::value_type new_types = LAST_CONCRETE_TYPE;
 	auto aa = ++new_types;
 
-	gamma["foo"] = Scheme(Scheme::Quantified(),
-	                      wrap<Type>(aa));
+	gamma.symbols["foo"] = Scheme(Scheme::Quantified(),
+	                              wrap<Type>(aa));
 
 	auto free = free_type_variables(gamma);
 	ASSERT_EQ(1, free.size());
@@ -508,8 +510,8 @@ TEST_F(SpecializeAndGeneralize, test_generalize_free_in_something_else)
 	Type::value_type new_types = LAST_CONCRETE_TYPE;
 	auto aa = ++new_types;
 
-	gamma["foo"] = Scheme(Scheme::Quantified(),
-	                      wrap<Type>(aa));
+	gamma.symbols["foo"] = Scheme(Scheme::Quantified(),
+	                              wrap<Type>(aa));
 
 	Scheme scheme = generalize(gamma, wrap<Type>(aa));
 
@@ -557,7 +559,7 @@ struct Inference
 	Inference()
 		: Unification(),
 		  new_types(LAST_CONCRETE_TYPE),
-		  gamma(gc),
+		  gamma(gc, new_types),
 		  w(gc, new_types, gamma)
 	{}
 };
@@ -568,7 +570,7 @@ TEST_F(Inference, test_lambda)
     using namespace make_ast;
 
     auto foo = gc.make<LambdaMetadata>
-	    (gc(mk("a")), wrap<Null>());
+	    (gc(mk("a")));
 
     auto e1 = gc(mk(wrap<Lambda>(foo.pointer()),
                     mk("a"),
@@ -591,7 +593,7 @@ TEST_F(Inference, test_multi_arg_lambda)
     using namespace make_ast;
 
     auto metadata = gc.make<LambdaMetadata>
-	    (gc(mk("a", "b")), wrap<Null>());
+	    (gc(mk("a", "b")));
     auto e1 = gc(mk(wrap<Lambda>(metadata.pointer()),
                     mk("a", "b"),
                     "a"));
@@ -601,7 +603,7 @@ TEST_F(Inference, test_multi_arg_lambda)
     {
 	    using namespace pattern_match;
 	    ASSERT_TRUE
-		    (match(fnt("a", "b", "a"),
+		    (match(fnt_rest("a", "b", "a"),
 		           *We1.type))
 		    << printer::with_type(*e1);
     }
@@ -632,7 +634,7 @@ TEST_F(Inference, test_simple_lambda)
 	using namespace make_ast;
 
 	auto metadata = gc.make<LambdaMetadata>
-		(gc(mk("a", "b")), wrap<Null>());
+		(gc(mk("a", "b")));
 	auto expr = gc(mk(wrap<Lambda>(metadata.pointer()),
 	                  mk("a", "b"),
 	                  mk("add2", "a", "b")));
@@ -643,7 +645,7 @@ TEST_F(Inference, test_simple_lambda)
 	{
 		using namespace pattern_match;
 		ASSERT_TRUE
-			(match(fnt("x", "y", "z"),
+			(match(fnt_rest("x", "y", "z"),
 			       *inferred.type))
 			<< "\n" << printer::with_type(*inferred.type);
 	}
@@ -655,7 +657,7 @@ TEST_F(Inference, test_application)
     using namespace inference;
 
 	auto metadata = gc.make<LambdaMetadata>
-		(gc(mk("x", "y")), wrap<Null>());
+		(gc(mk("x", "y")));
 	auto e1 = gc(mk(wrap<Lambda>(metadata.pointer()),
 	                mk("x", "y"),
 	                mk("x", "y")));
@@ -665,7 +667,7 @@ TEST_F(Inference, test_application)
     {
 	    using namespace pattern_match;
 	    ASSERT_TRUE
-		    (match(fnt(fnt("a", "b"), fnt("a", "b")),
+		    (match(fnt_rest(fnt("a", "b"), fnt("a", "b")),
 		           *We1.type))
 		    << printer::with_type(*We1.type);
     }
@@ -698,7 +700,7 @@ TEST_F(Inference, test_apply_defined)
 
     // id function
     auto metadata = gc.make<LambdaMetadata>
-	    (gc(mk("x")), wrap<Null>());
+	    (gc(mk("x")));
 
     auto e1 = gc(mk(wrap<Define>(), "id",
                     mk(wrap<Lambda>(metadata.pointer()), mk("x"), "x")));
@@ -749,7 +751,7 @@ TEST_F(Inference, test_nested_application)
     using namespace inference;
 
     auto metadata = gc.make<LambdaMetadata>
-	    (gc(mk("x", "y", "z")), wrap<Null>());
+	    (gc(mk("x", "y", "z")));
     auto e1 = gc(mk(wrap<Lambda>(metadata.pointer()),
                     mk("x", "y", "z"),
                     mk("x", mk("y", "z"))));
@@ -759,7 +761,7 @@ TEST_F(Inference, test_nested_application)
     {
 	    using namespace pattern_match;
 	    ASSERT_TRUE
-		    (match(fnt(fnt("a", "b"), fnt(fnt("c", "a"), fnt("c", "b"))),
+		    (match(fnt_rest(fnt("a", "b"), fnt(fnt("c", "a"), fnt("c", "b"))),
 		           *We1.type))
 		    << "\n" << printer::print(*We1.type);
     }
@@ -771,7 +773,7 @@ TEST_F(Inference, test_multi_arg_application)
     using namespace inference;
 
     auto metadata = gc.make<LambdaMetadata>
-	    (gc(mk("x", "y", "z")), wrap<Null>());
+	    (gc(mk("x", "y", "z")));
     auto e1 = gc(mk(wrap<Lambda>(metadata.pointer()),
                     mk("x", "y", "z"),
                     mk("x", "y", "z")));
@@ -781,7 +783,7 @@ TEST_F(Inference, test_multi_arg_application)
     {
 	    using namespace pattern_match;
 	    ASSERT_TRUE
-		    (match(fnt(fnt("a", "b", "c"), "a", "b", "c"),
+		    (match(fnt_rest(fnt("a", "b", "c"), "a", "b", "c"),
 		           *We1.type))
 		    << "\n" << printer::print(*We1.type);
     }
@@ -812,7 +814,7 @@ TEST_F(Inference, test_multi_arg_application)
 	    auto x = AstSubscripter(*e1)[1][0].value;
 	    ASSERT_EQ(tag<Symbol>::value, x._tag);
 	    ASSERT_TRUE
-		    (match(fnt("a", "b", "c"),
+		    (match(fnt_rest("a", "b", "c"),
 		           unwrap<Symbol>(x).scheme.type))
 		    << "\n" << printer::print(unwrap<Symbol>(x).scheme.type);
     }
@@ -825,7 +827,7 @@ TEST_F(Inference, test_recursive_fn)
     using namespace inference;
 
     auto metadata = gc.make<LambdaMetadata>
-	    (gc(mk("x")), wrap<Null>());
+	    (gc(mk("x")));
     auto rec = gc(mk(wrap<Define>(),
                      "rec", mk(wrap<Lambda>(metadata.pointer()),
                                mk("x"),
@@ -834,7 +836,7 @@ TEST_F(Inference, test_recursive_fn)
     {
 	    using namespace pattern_match;
 	    ASSERT_TRUE
-		    (match(fnt("a", "b"),
+		    (match(fnt_rest("a", "b"),
 		           unwrap<Scheme>(*Wrec.type).type))
 		    << "\n" << printer::print(*Wrec.type);
     }
@@ -865,7 +867,7 @@ TEST_F(Inference, test_cxx_functor)
 		Symbol a(""), b("");
 
 		ASSERT_TRUE
-			(match(ast(tag<CxxFunctor>::value,
+			(match(rest(tag<CxxFunctor>::value,
 			           capture(a), capture(b)),
 			       expr))
 			<< "\n" << printer::with_type(*expr);
@@ -900,10 +902,8 @@ TEST_F(Inference, test_if_scheme)
 		using namespace pattern_match;
 
 		Symbol a, b;
-		ASSERT_TRUE
-			(match(ast("foo", capture(a), tt<Fixnum>(), capture(b)),
-			       expr.any))
-			<< "\n" << printer::with_type(*expr);
+		throwing_match(rest("foo", capture(a), tt<Fixnum>(), capture(b)),
+		               *expr);
 
 		ASSERT_EQ(tt<Bool>(), a.scheme.type);
 		ASSERT_EQ(tt<Fixnum>(), b.scheme.type);
@@ -915,31 +915,62 @@ TEST_F(Inference, test_thunk)
 	using namespace make_ast;
 	using namespace inference;
 
-	auto add = atl::cxx_functions::WrapStdFunction<bool (long, long)>::a
-		([](long a, long b) { return a + b; },
+	auto equal2 = atl::cxx_functions::WrapStdFunction<bool (long, long)>::a
+		([](long a, long b) { return a == b; },
 		 gc,
-		 "add2");
-
-	Symbol fn("add2");
-	symbol_assign(fn, add.any);
+		 "eqal2");
 
 	auto metadata = gc.make<LambdaMetadata>
-		(gc(mk()), wrap<Null>());
+		(gc(mk()));
 
 	auto expr = gc(mk(wrap<Lambda>(metadata.pointer()),
 	               mk(),
-	               mk(wrap(&fn), "foo", "foo")));
+	               mk(equal2.any, "foo", "foo")));
 
 	auto inferred = w.W(expr);
 
 	{
 		using namespace pattern_match;
 		ASSERT_TRUE
-			(match(ast(wrap<Type>(tag<FunctionConstructor>::value),
-			           wrap<Type>(tag<Bool>::value)),
-			       *inferred.type));
+			(match(rest(wrap<Type>(tag<FunctionConstructor>::value),
+			            wrap<Type>(tag<Bool>::value)),
+			       *inferred.type))
+			<< "got: " << printer::print(*inferred.type) << std::endl;
 	}
 
+}
+
+TEST_F(Inference, test_define_thunk)
+{
+	using namespace make_ast;
+	using namespace inference;
+
+	auto equal2 = atl::cxx_functions::WrapStdFunction<bool (long, long)>::a
+		([](long a, long b) { return a == b; },
+		 gc,
+		 "eqal2");
+
+	auto metadata = gc.make<LambdaMetadata>
+		(gc(mk()));
+
+	auto expr = gc
+		(mk(wrap<Define>(),
+		    "bar",
+		    mk(wrap<Lambda>(metadata.pointer()),
+		       mk(),
+		       mk(equal2.any, "foo", "foo"))));
+	w.W(expr);
+
+	auto expr2 = gc(mk("bar"));
+	auto inferred = w.W(expr2);
+
+	{
+		using namespace pattern_match;
+		ASSERT_TRUE(is<Type>(*inferred.type));
+
+		auto type = unwrap<Type>(*inferred.type);
+		ASSERT_EQ(tag<Bool>::value, type.value());
+	}
 }
 
 TEST_F(Inference, test_applying_defined_lambda)
@@ -948,7 +979,7 @@ TEST_F(Inference, test_applying_defined_lambda)
 	using namespace inference;
 
     auto metadata = gc.make<LambdaMetadata>
-	    (gc(mk()), wrap<Null>());
+	    (gc(mk()));
     auto def = gc(mk(wrap<Define>(), "foo", 3)),
 
 	    expr = gc(mk(wrap<Define>(), "main",
@@ -966,8 +997,8 @@ TEST_F(Inference, test_applying_defined_lambda)
 
 		auto scheme = unwrap<Scheme>(*inferred.type);
 		ASSERT_TRUE
-			(match(ast(wrap<Type>(tag<FunctionConstructor>::value),
-			           "a"),
+			(match(rest(wrap<Type>(tag<FunctionConstructor>::value),
+			            "a"),
 			       scheme.type))
 			<< " " << printer::print(scheme.type) << std::endl;
 	}
@@ -996,7 +1027,6 @@ TEST_F(Inference, test_if_constant_results)
 	auto inferred = w.W(expr);
 
 	apply_substitution(gc, inferred.subs, expr.any);
-	std::cout << printer::with_type(*expr) << std::endl;
 
 	ASSERT_EQ(tt<Fixnum>(), inferred.type.any)
 			<< " " << printer::print(inferred.type.any) << std::endl;

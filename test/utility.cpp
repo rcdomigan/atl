@@ -1,6 +1,6 @@
 // A little test of the `zip` function, and the Zipper and CountingRange class
 
-#include <utility.hpp>
+#include <atl/utility.hpp>
 #include <iostream>
 #include <vector>
 #include <tuple>
@@ -56,7 +56,7 @@ struct CheckIndicies
 TEST(Utilities, test_indexer)
 {
 	vector<size_t> vec;
-	CheckIndicies::a(vec, tmpl::BuildIndicies<4> {});
+	CheckIndicies::a(vec, tmpl::BuildIndicies<4>::type {});
 
 	ASSERT_EQ(4, (vec.size()));
 	ASSERT_EQ(0, (vec.front()));

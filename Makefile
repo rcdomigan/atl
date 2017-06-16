@@ -1,23 +1,23 @@
+COMMON_FLAGS=-pipe -std=c++14 -ggdb -Wall
+GTEST_LINK=-lgtest -lgtest_main -pthread -O0
 CXXFLAGS=$(CFLAGS) $(COMMON_FLAGS)
 
-GCC_INCLUDE=-I./ -fuse-ld=gold
-CLANG_INCLUDE=$(GCC_INCLUDE) -isystem /usr/lib/clang/3.5/include
+GCC_INCLUDE=-I../ -fuse-ld=gold
+CLANG_INCLUDE=$(GCC_INCLUDE) -isystem /usr/lib/clang/3.6/include
 
-IWYU=iwyu -std=c++11 $(CLANG_INCLUDE)
+IWYU=iwyu -std=c++14 $(CLANG_INCLUDE)
 
 CXX=g++ $(CXXFLAGS) $(GCC_INCLUDE)
 #CXX=clang $(CXXFLAGS) -lc++ -stdlib=libc++ $(CLANG_INCLUDE)
 
-all: main
+atl: atl.cpp *.hpp
+	$(CXX) atl.cpp -o atl
 
 # prints byte code name/value table
 table-bc: tiny_vm.hpp
 	ln -s tiny_vm.hpp tiny_vm.cpp
 	$(CXX) -DTINY_VM_PRINT_BYTE_CODES tiny_vm.cpp -o table-bc
 	rm tiny_vm.cpp
-
-main: Makefile main.cpp *.hpp
-	$(CXX) main.cpp -o main
 
 test: test.cpp *.hpp
 	$(CXX) test.cpp -o test

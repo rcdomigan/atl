@@ -83,7 +83,7 @@ namespace atl
     template<class T>
     struct is_pimpl : public std::false_type {};
 
-#define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(DeclareType)(Type)(Ast)(AstData)(MovedAstData)(Undefined)(FunctionConstructor)(ClosureParameter)(Parameter)
+#define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(DeclareType)(Type)(Ast)(AstData)(MovedAstData)(Undefined)(FunctionConstructor)(ClosureParameter)(Parameter)(GlobalSlot)
 #define ATL_PIMPL_SEQ (String)(Symbol)(Struct)(CxxFunctor)(CxxMacro)(Scheme)(LambdaMetadata)
 #define ATL_TYPES_SEQ ATL_REINTERPERABLE_SEQ ATL_PIMPL_SEQ
 
@@ -105,7 +105,7 @@ namespace atl
 #undef M
 
 
-    typedef mpl::vector26< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
+    typedef mpl::vector27< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
 
 	const static tag_t LAST_CONCRETE_TYPE = mpl::size<TypesVec>::value;
 
@@ -198,6 +198,8 @@ namespace atl
 	        : _tag(tag<Lambda>::value),
 	          value(value_)
 	    {}
+
+        Lambda() : Lambda(nullptr) {}
     };
 
     struct DeclareType
@@ -253,7 +255,7 @@ namespace atl
 	{
 		using namespace std;
 
-		template<class Ast, class AstData, class Any>
+		template<class Any>
 		typename remove_const<Any>::type
 		wrap_ast_data(Any& value)
 		{
@@ -263,10 +265,10 @@ namespace atl
 			return value;
 		}
 
-		template<class Ast, class AstData, class Any>
+		template<class Ast, class Any>
 		struct Iterator
 		{
-			typedef Iterator<Ast, AstData, Any> Self;
+			typedef Iterator<Ast, Any> Self;
 
 			Ast* ast;
 			size_t position;
@@ -274,9 +276,8 @@ namespace atl
 			Iterator() : ast(nullptr), position(0)
 			{}
 
-			Iterator(Ast& ast_,
-			         size_t pos)
-				: ast(&ast_), position(pos)
+			Iterator(Ast* ast_, size_t pos)
+				: ast(ast_), position(pos)
 			{}
 
 			typename add_const<Any>::type* pointer() const { return ast->flat_begin() + position; }
@@ -287,10 +288,10 @@ namespace atl
 			// 'reference' method and deal with AstData explicitly if
 			// that's what you need.
 			typename remove_const<Any>::type operator*() const
-			{ return wrap_ast_data<Ast, AstData>(*pointer()); }
+			{ return wrap_ast_data(*pointer()); }
 
 			typename remove_const<Any>::type operator*()
-			{ return wrap_ast_data<Ast, AstData>(*pointer()); }
+			{ return wrap_ast_data(*pointer()); }
 
 			Any& reference() { return *pointer(); }
 			typename add_const<Any>::type& reference() const { return *pointer(); }
@@ -301,7 +302,7 @@ namespace atl
 			Iterator& operator++()
 			{
 				if(pointer()->_tag == atl::tag<AstData>::value)
-					{ position += reinterpret_cast<AstData*>(pointer())->value + 1; }
+					{ position += reinterpret_cast<size_t>(pointer()->value) + 1; }
 				else
 					{ ++position; }
 				return *this;
@@ -328,43 +329,6 @@ namespace atl
 				return n;
 			}
 
-			struct Subex
-			{
-				Iterator _begin, _end;
-				Subex(Iterator const& begin, Iterator const& end)
-					: _begin(begin), _end(end)
-				{}
-
-				Subex()=default;
-
-				Iterator begin() { return _begin; }
-				Iterator end() { return _end; }
-				size_t size() { return end() - begin(); }
-				size_t empty() { return end() == begin(); }
-			};
-
-			// Assuming 'this' is on an Ast or AstData, return the
-			// Range describing that subexpression's start and end in
-			// terms of the appropriate base Ast.
-			Subex subex()
-			{
-				if(reference()._tag == atl::tag<AstData>::value)
-					{
-						return Subex
-							(Iterator(*ast, position+1),
-							 Iterator
-							 (*ast,
-							  reinterpret_cast<AstData&>(reference()).value + position +1));
-					}
-				else
-					{
-						// An Ast should be pointing out to a
-						// different array; we need to get its own
-						// iterators
-						return reinterpret_cast<Ast&>(reference()).subex();
-					}
-			}
-
 			// returns the approximate tag of our value (Ast for AstData)
 			tag_t tag() const
 			{
@@ -377,6 +341,26 @@ namespace atl
 			template<class T>
 			bool is() const
 			{ return std::is_same<T, Any>::value || tag() == atl::tag<T>::value; }
+		};
+
+		template<class Iterator>
+		struct Subex
+			: public std::tuple<Iterator, Iterator>
+		{
+			typedef Iterator iterator;
+			typedef std::tuple<Iterator, Iterator> Base;
+
+			Subex(iterator _begin, iterator _end)
+				: Base(_begin, _end)
+			{}
+
+			Subex() : Base() {}
+
+			iterator begin() { return get<0>(*this); }
+			iterator end() { return get<1>(*this); }
+
+			bool empty() { return begin() == end(); }
+			size_t size() { return end() - begin(); }
 		};
 	}
 
@@ -400,7 +384,8 @@ namespace atl
 
 		bool empty() const { return value == 0; }
 
-		size_t flat_size() const { return flat_end() - flat_begin(); }
+		// Size of the range, including ourself and any sub-expressions
+		size_t flat_size() const { return value + 1; }
 	};
 
 	struct Ast
@@ -415,9 +400,9 @@ namespace atl
 		Ast() : _tag(tag<Ast>::value), value(nullptr) {}
 		Ast(const Ast&) = default;
 
-		typedef ast_helper::Iterator<Ast, AstData, Any> iterator;
-		typedef ast_helper::Iterator<Ast const, AstData const, Any const> const_iterator;
-		typedef iterator::Subex Subex;
+		typedef ast_helper::Iterator<Ast, Any> iterator;
+		typedef ast_helper::Iterator<Ast const, Any const> const_iterator;
+		typedef ast_helper::Subex<iterator> Subex;
 
 		typedef Any* flat_iterator;
 		typedef Any const* const_flat_iterator;
@@ -447,11 +432,11 @@ namespace atl
 		const_flat_iterator flat_end() const { return value->flat_end(); }
 
 
-		iterator begin() { return iterator(*this, 1); }
-		iterator end() { return iterator(*this, value->value + 1); }
+		iterator begin() { return iterator(this, 1); }
+		iterator end() { return iterator(this, value->value + 1); }
 
-		const_iterator begin() const { return const_iterator(*this, 1); }
-		const_iterator end() const { return const_iterator(*this, value->value + 1); }
+		const_iterator begin() const { return const_iterator(this, 1); }
+		const_iterator end() const { return const_iterator(this, value->value + 1); }
 
 		size_t flat_size() const { return value->flat_size(); }
 
@@ -463,10 +448,34 @@ namespace atl
 
 		// An iterator with our range as its subex()
 		iterator self_iterator()
-		{ return iterator(*this, 0); }
+		{ return iterator(this, 0); }
 
-		Subex subex() { return Subex(begin(), end()); }
+		Subex subex()
+		{ return Subex(begin(), end()); }
 	};
+
+	Ast::Subex subex(Ast& ast) { return ast.subex(); }
+
+	Ast::Subex subex(Ast::iterator& itr)
+	{
+		return Ast::Subex
+			(Ast::iterator(itr.ast, itr.position + 1),
+			 Ast::iterator(itr.ast,
+			               itr.position
+			               + reinterpret_cast<size_t>(itr.reference().value)
+			               + 1));
+	}
+
+	Ast::Subex subex(Any& any)
+	{
+		switch(any._tag)
+			{
+			case tag<Ast>::value:
+				return subex(reinterpret_cast<Ast&>(any));
+			default:
+				throw WrongTypeError("Can't get subex from non-Ast or AstData");
+			}
+	}
 
 	// Return an Ast pointing to an AstData `input` which was cast to
 	// Any.
@@ -531,25 +540,24 @@ namespace atl
 
     struct Symbol
     {
-	    enum Subtype {variable, constant};
-	    Subtype subtype;
-
 	    std::string name;
 	    Scheme scheme;
 
-	    Any value;
+	    // Symbols have a particular value associated with them at a
+	    // particular scope.  For symbols which are not parameters or
+	    // closure-parameters, the 'slot' they are associated with has
+	    // the expression which yields their value.
+	    size_t slot;
 
 	    Symbol(std::string const& name_="")
-		    : subtype(Subtype::variable)
-		    , name(name_)
-		    , value(tag<Undefined>::value)
+		    : name(name_),
+		      slot(0)
 	    {}
 
 	    Symbol(std::string const& name_, Scheme const& type_)
-		    : subtype(Subtype::variable)
-		    , name(name_)
-		    , scheme(type_)
-		    , value(tag<Undefined>::value)
+		    : name(name_),
+		      scheme(type_),
+		      slot(0)
 	    {}
     };
 
@@ -562,6 +570,8 @@ namespace atl
 			: _tag(tag<Parameter>::value)
 			, value(offset)
 		{}
+
+		Parameter() : Parameter(-1) {}
 	};
 
 	struct ClosureParameter
@@ -571,6 +581,22 @@ namespace atl
 
 		ClosureParameter(size_t offset)
 			: _tag(tag<ClosureParameter>::value)
+			, value(offset)
+		{}
+
+		ClosureParameter() : ClosureParameter(-1) {}
+
+	};
+
+	// Implemenation detail; maps symbol names to the expressions
+	// which will define their values.
+	struct GlobalSlot
+	{
+		tag_t _tag;
+		size_t value;
+
+		GlobalSlot(size_t offset)
+			: _tag(tag<GlobalSlot>::value)
 			, value(offset)
 		{}
 	};
@@ -591,46 +617,40 @@ namespace atl
 	    // added as implicit arguments to the lambda expression.
 	    // Because free-variables are added as they are encountered in
 	    // the body, I need to use an appendable container.
-	    typedef std::vector<Symbol*> Closure;
+	    //
+	    // Values may be Parameter or ClosureParameter types.
+	    typedef std::vector<Any> Closure;
 	    Closure closure;
-
-	    Ast closure_values;
 
 	    // Map a free symbol's name to the closure parameter it'll
 	    // bind to.
 	    std::map<std::string, size_t> closure_index_map;
 
-	    size_t slot;
-
 	    pcode::Offset body_address;
-
-	    Any return_type;
-	    bool has_slot, has_closure_values;
-
 
 	    LambdaMetadata()=delete;
 
-	    LambdaMetadata(Ast formals_, Any return_type_)
-		    : formals(formals_),
-		      closure_values(nullptr),
-		      return_type(return_type_),
-		      has_slot(false),
-		      has_closure_values(false)
+	    LambdaMetadata(Ast formals_)
+		    : formals(formals_)
 	    {}
 
-	    ClosureParameter closure_parameter(Symbol* sym)
+	    ClosureParameter new_closure_parameter(std::string const& name,
+	                                           Any value)
 	    {
-		    auto found = closure_index_map.find(sym->name);
-		    if(found == closure_index_map.end())
-			    {
-				    auto idx = closure_index_map.size();
-				    closure_index_map[sym->name] = idx;
-				    closure.push_back(sym);
-				    return ClosureParameter(idx);
-			    }
-		    else
-			    { return ClosureParameter(found->second); }
+		    auto idx = closure_index_map.size();
+		    closure_index_map[name] = idx;
+		    closure.push_back(value);
+		    return ClosureParameter(idx);
 	    }
+
+	    ClosureParameter get_closure_parmeter(std::string const& name)
+	    { return ClosureParameter(closure_index_map[name]); }
+
+	    bool has_closure_parmeter(std::string const& name)
+	    { return closure_index_map.count(name); }
+
+	    Any closure_parmeter_value(std::string const& name)
+	    { return closure[closure_index_map.count(name)]; }
     };
 
 	struct String {

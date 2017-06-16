@@ -1,9 +1,9 @@
 #include <iostream>
 #include <vector>
 
-#include <gc/ast_builder.hpp>
-#include <gc/gc.hpp>
-#include <print.hpp>
+#include <atl/gc/ast_builder.hpp>
+#include <atl/gc/gc.hpp>
+#include <atl/print.hpp>
 
 #include <gtest/gtest.h>
 
@@ -124,22 +124,17 @@ TEST(TestGC, test_mark_LambdaMetadata)
 
 	{
 		auto metadata = gc.make<LambdaMetadata>
-			(make_formals(gc), wrap<Null>());
+			(make_formals(gc));
 
 		{
-			auto closure = gc.ast_builder();
-			{
-				NestAst nest(closure);
-				closure.push_back(Any(tag<Symbol>::value, gc.raw_make<Symbol>("a")));
-				closure.push_back(Any(tag<Symbol>::value, gc.raw_make<Symbol>("b")));
-			}
-			metadata->has_closure_values = true;
-			metadata->closure_values = closure.root();
+			metadata->closure.push_back(Any(tag<Symbol>::value, gc.raw_make<Symbol>("c")));
+			metadata->closure.push_back(Any(tag<Symbol>::value, gc.raw_make<Symbol>("d")));
 		}
 
 		gc.gc();
-		ASSERT_EQ(6, gc._ast_pool.size());
-		ASSERT_EQ(2, metadata->closure_values.size());
+		ASSERT_EQ(3, gc._ast_pool.size());
+		ASSERT_EQ(4, gc._symbol_heap.size());
+		ASSERT_EQ(2, metadata->closure.size());
 	}
 
 	gc.gc();
@@ -220,6 +215,37 @@ TEST(TestGC, test_ast_composer)
 
 	ASSERT_EQ(2, ast->size());
 	ASSERT_EQ(3, ast->flat_size());
+}
+
+TEST(TestGC, test_nested_ast)
+{
+	using namespace atl;
+	GC gc;
+
+	Marked<Ast> ast;
+
+	{
+		auto inner = gc.ast_builder();
+		inner.nest_ast();
+		inner.push_back(wrap<Fixnum>(1));
+		inner.push_back(wrap<Fixnum>(2));
+		inner.end_ast();
+
+		{
+			auto outer = gc.ast_builder();
+			NestAst nest_outer(outer);
+
+			outer.push_back(wrap<Fixnum>(1));
+			outer.push_back(wrap(inner.root()));
+
+			ast = gc.marked(outer.root());
+		}
+	}
+	std::cout << printer::with_type(*ast) << std::endl;
+	std::cout << gc._ast_pool.size() << std::endl;
+	gc.gc();
+	std::cout << gc._ast_pool.size() << std::endl;
+	std::cout << printer::with_type(*ast) << std::endl;
 }
 
 TEST(TestGC, test_moving_ast)

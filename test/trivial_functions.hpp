@@ -1,7 +1,8 @@
 #ifndef RHAS_TRIVIAL_FUNCTIONS_FOR_TEST
 #define RHAS_TRIVIAL_FUNCTIONS_FOR_TEST
 
-#include <ffi.hpp>
+#include <atl/ffi.hpp>
+#include <atl/lexical_environment.hpp>
 
 
 long add2(long a, long b) { return a + b; }
@@ -25,6 +26,13 @@ namespace atl
 				wsub(WrapStdFunction<long (long, long)>::a(sub2, gc)),
 				wadd3(WrapStdFunction<long (long, long, long)>::a(add3, gc))
 			{}
+
+			void add_to_env(SymbolMap& env)
+			{
+				env.define("equal2", weq.any);
+				env.define("add2", wadd.any);
+				env.define("sub2", wsub.any);
+			}
 		};
 
 	}

@@ -31,6 +31,7 @@ TEST(TestType, test_ast)
 	Ast ast(reinterpret_cast<AstData*>(&space.front()));
 
 	ASSERT_EQ(3, ast.size());
+	ASSERT_EQ(4, ast.value->flat_size());
 	ASSERT_EQ(false, ast.empty());
 	ASSERT_EQ(1, reinterpret_cast<Fixnum::value_type>(ast[0].value));
 }
@@ -47,7 +48,7 @@ TEST(TestType, test_ast_self_iterator)
 	auto self_itr = ast.self_iterator();
 	ASSERT_TRUE(self_itr.is<Ast>());
 
-	auto subex = self_itr.subex();
+	auto subex = atl::subex(self_itr);
 	ASSERT_EQ(3, subex.size());
 
 	auto itr = subex.begin();
@@ -57,6 +58,8 @@ TEST(TestType, test_ast_self_iterator)
 	ASSERT_EQ(Any(tag<Fixnum>::value, reinterpret_cast<void*>(2)), *itr);
 	++itr;
 	ASSERT_EQ(Any(tag<Fixnum>::value, reinterpret_cast<void*>(3)), *itr);
+	++itr;
+	ASSERT_EQ(subex.end(), itr);
 }
 
 TEST(TestType, test_empty_ast)
@@ -88,8 +91,19 @@ TEST(TestType, test_ast_iterator)
 	ASSERT_EQ(Any(tag<Fixnum>::value, reinterpret_cast<void*>(2)), *itr);
 	++itr;
 	ASSERT_EQ(tag<Ast>::value, (*itr)._tag);
+	{
+		auto sub = subex(itr);
+		auto sitr = sub.begin();
+		ASSERT_EQ(Any(tag<Fixnum>::value, reinterpret_cast<void*>(3)), *sitr);
+		++sitr;
+		ASSERT_EQ(Any(tag<Fixnum>::value, reinterpret_cast<void*>(4)), *sitr);
+		++sitr;
+		ASSERT_EQ(sub.end(), sitr);
+	}
 	++itr;
 	ASSERT_EQ(Any(tag<Fixnum>::value, reinterpret_cast<void*>(5)), *itr);
+	++itr;
+	ASSERT_EQ(ast.end(), itr);
 }
 
 TEST(TestType, test_ast_subscript)

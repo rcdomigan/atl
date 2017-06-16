@@ -6,7 +6,7 @@
  * Created on May 19, 2015
  */
 
-#include <vm.hpp>
+#include <atl/vm.hpp>
 
 /** Run some code
  * @param code: Code is 'finished' then run
