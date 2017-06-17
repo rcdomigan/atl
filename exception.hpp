@@ -67,6 +67,10 @@ namespace atl
 	struct CxxNotImplemented : public std::runtime_error {
 		CxxNotImplemented(const std::string& what_arg) : std::runtime_error(what_arg) {}
 	};
+
+	struct EmptyBuffer : public std::runtime_error {
+		EmptyBuffer(const std::string& what_arg) : std::runtime_error(what_arg) {}
+	};
 }
 
 #endif

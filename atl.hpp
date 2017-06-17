@@ -24,7 +24,6 @@ namespace atl
 	struct Atl
 	{
 		GC gc;
-		ParseString parser;
 
 		Slots slots;
 		SymbolMap lexical;
@@ -41,8 +40,7 @@ namespace atl
 		std::ostream* stdout;
 
 		Atl() :
-			parser(gc)
-			, slots(gc)
+			slots(gc)
 			, lexical(gc, slots)
 			, assign_forms(gc, lexical)
 			, new_types(LAST_CONCRETE_TYPE)
@@ -126,13 +124,27 @@ namespace atl
 			return eval_ast(*ast);
 		}
 
-		template<class Input>
-		Any eval(Input& expr)
+		Any eval(Any& any)
 		{
-			auto parsed = parser.parse(expr);
-			if(is<Ast>(*parsed))
-				{ return eval_ast(unwrap<Ast>(*parsed)); }
+			if(is<Ast>(any))
+				{ return eval_ast(unwrap<Ast>(any)); }
 			throw WrongTypeError("Not yet dealing with evaling atoms");
+
+		}
+
+		Any eval(Any&& any)
+		{ return eval(any); }
+
+		Any eval(std::istream& stream)
+		{
+			auto parsed = Parser(gc, stream).parse();
+			return eval(*parsed);
+		}
+
+		Any eval(std::string const& input)
+		{
+			auto stream = std::istringstream(input);
+			return eval(stream);
 		}
 	};
 }

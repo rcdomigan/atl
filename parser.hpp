@@ -5,8 +5,6 @@
  * @author Ryan Domigan <ryan_domigan@sutdents@uml.edu>
  * Created on Jun 29, 2013
  */
-
-#include <iterator>
 #include <sstream>
 
 #include <string>
@@ -14,15 +12,12 @@
 #include <iostream>
 #include <functional>
 
-#include <iterator>
-
 #include "./exception.hpp"
 #include "./type.hpp"
 #include "./wrap.hpp"
 #include "./is.hpp"
 #include "./gc.hpp"
 #include "./print.hpp"
-
 
 namespace atl
 {
@@ -44,7 +39,7 @@ namespace atl
 	//                     symbol.  hex/octal/binary representations
 	//                     are not a thing ATM).
 	//  ';' : comments out to the end of line
-	class ParseString
+	class Parser
 	{
 	private:
 		template<class Itr>
@@ -53,12 +48,14 @@ namespace atl
 			for(; itr != end; ++itr)
 				{
 					if(*itr == ';')
-						for(; (itr != end) && (*itr != '\n'); ++itr);
-					else if(!std::isspace(*itr))
-						return;
+						{
+							for(; (itr != end) && (*itr != '\n'); ++itr);
+							if(itr == end) { return; }
+						}
 
-					if(*itr == '\n')
-						++_line;
+					else if(!std::isspace(*itr)) { return; }
+
+					if(*itr == '\n') ++_line;
 				}
 		}
 
@@ -164,42 +161,55 @@ namespace atl
 			return;
 		}
 
-	public:
-		ParseString(GC &gc) : _gc(gc) { _line = 1; }
+		std::string buffer;
+		std::string::const_iterator bitr, bend;
+		std::istream& stream;
 
-		/* parse one S-expression from a string into an ast */
-		Marked<Any> parse(const std::string& input)
+		void getline()
 		{
-			auto backer = _gc.ast_builder();
-			parse(backer, input.begin(), input.end());
+			if(!stream) { throw EmptyBuffer("Parser needs more chars"); }
 
-			return _gc.marked(backer.built());
+			std::getline(stream, buffer);
+			bitr = buffer.begin();
+			bend = buffer.end();
+			skip_ws_and_comments(bitr, bend);
+
+			++_line;
+		}
+	public:
+		Parser(GC &gc, std::istream& stream_)
+			: _gc(gc),
+			  stream(stream_)
+		{
+			bitr = buffer.begin();
+			bend = buffer.end();
+			_line = 1;
 		}
 
 		/* parse one S-expression from a stream into an ast */
-		Marked<Any> parse(std::istream &stream)
+		Marked<Any> parse()
 		{
-			auto initial_flags = stream.flags();
-			std::noskipws(stream);
-
 			auto backer = _gc.ast_builder();
 
-			auto itr = std::istreambuf_iterator<char>(stream),
-				end = std::istreambuf_iterator<char>();
-			parse(backer, itr, end);
+			while(true)
+				{
+					while(bitr == bend) { getline(); }
 
-			// Swallow any following whitepace or comments so the caller
-			// of the parser doesn't have to check.
-			skip_ws_and_comments(itr, end);
-
-			stream.flags(initial_flags);
-
+					try
+						{
+							parse(backer, bitr, bend);
+							skip_ws_and_comments(bitr, bend);
+						}
+					catch(UnbalancedParens)
+						{ continue; }
+					break;
+				}
 			return _gc.marked(backer.built());
 		}
 
 		void reset_line_number() { _line = 1; }
 	};
-	const std::string ParseString::_ws = " \n\t";
-	const std::string ParseString::delim = "()\" \n\t";
+	const std::string Parser::_ws = " \n\t";
+	const std::string Parser::delim = "()\" \n\t";
 }
 #endif

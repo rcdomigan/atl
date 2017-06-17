@@ -5,6 +5,7 @@
  */
 
 #include "./atl.hpp"
+#include "./primitive_callable.hpp"
 
 #include "./debug.hpp"
 
@@ -14,10 +15,15 @@ using namespace atl;
 
 int main(int argc, char *argv[]) {
     atl::Atl interpreter;
+    export_primitives(interpreter);
+
+    auto parser = Parser(interpreter.gc, std::cin);
 
     while( true ) {
 	    std::cout << "> ";
-        auto rval = interpreter.eval(std::cin);
+	    auto value = parser.parse();
+	    std::cout << "Gonna eval: " << printer::print(*value) << std::endl;
+	    auto rval = interpreter.eval(*value);
         std::cout << std::dec << printer::print(rval) << std::endl;
     }
 
