@@ -95,8 +95,7 @@ namespace atl
 			compiler.assemble.finish();
 
 #ifdef DEBUGGING
-			auto printer = CodePrinter(code);
-			printer.dbg();
+			compiler.dbg();
 			vm.run_debug(compiler.code_store, 100);
 #else
 			vm.run(compiler.code_store);
@@ -108,11 +107,20 @@ namespace atl
 
 		Any eval_ast(Ast& ast)
 		{
+			namespace pm = pattern_match;
+
 			auto type = gc.marked(annotate(ast));
 
+			auto initial_size = compiler.code_store.size();
 			compiler.compile(ast);
 
 			auto ran = run();
+
+			// Definitions will accumulate in the environment, but simple
+			// evaluations should be discarded once we have a result
+			if(!pm::match(pm::rest_begins(tag<Define>::value),
+			              ast))
+				{ compiler.code_store.resize(initial_size); }
 
 			return Any(unwrap<Type>(*type).value(),
 			           reinterpret_cast<void*>(ran));

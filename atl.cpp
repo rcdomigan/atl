@@ -22,7 +22,6 @@ int main(int argc, char *argv[]) {
     while( true ) {
 	    std::cout << "> ";
 	    auto value = parser.parse();
-	    std::cout << "Gonna eval: " << printer::print(*value) << std::endl;
 	    auto rval = interpreter.eval(*value);
         std::cout << std::dec << printer::print(rval) << std::endl;
     }

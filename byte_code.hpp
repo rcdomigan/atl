@@ -169,6 +169,8 @@ namespace atl
 
 		void pop_back() { code.pop_back(); }
 
+		void resize(size_t n) { code.resize(n); }
+
 		bool operator==(Code const& other) const
 		{ return code == other.code; }
 

@@ -55,12 +55,17 @@ namespace atl
 
 		TinyVM()=delete;
 
+		void _reset_stack()
+		{
+			call_stack = nullptr;
+			pc = 0;
+			top = stack;
+		}
+
 		TinyVM(GC& gc)
 			: _gc(gc),
-			  slots(nullptr),
-			  top(stack),
-			  call_stack(stack)
-		{}
+			  slots(nullptr)
+		{ _reset_stack(); }
 
 		~TinyVM() { if(slots) { delete []slots; } }
 
@@ -325,9 +330,7 @@ namespace atl
 		{
 			if(slots) { delete []slots; }
 			slots = new value_type[input.num_slots];
-
-			call_stack = nullptr;
-			pc = 0;
+			_reset_stack();
 		}
 
 		// Take code and run it.  Prints the stack and pc after each
