@@ -44,6 +44,25 @@ namespace atl
 		template<class T>
 		Any tt() { return wrap(Type(tag<T>::value, true)); }
 	}
+
+	template<class T>
+	static inline T& expect(Any& input)
+	{
+		must_be<T>(input);
+		return unwrap<T>(input);
+	}
+
+	template<class T>
+	static inline
+	typename std::conditional<is_pimpl<T>::value,
+	                          T&,
+	                          T>::type
+	expect(Any const& input)
+	{
+		must_be<T>(input);
+		return unwrap<T>(input);
+	}
+
 }
 
 #endif

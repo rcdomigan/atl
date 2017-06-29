@@ -49,6 +49,18 @@ namespace atl
         return a._tag == tag<Null>::value
             || (is<Pointer>(a) && (a.value == nullptr));
     }
+
+	template<class T>
+	void must_be(Any const& input)
+	{
+		if(!is<T>(input))
+			{
+				throw WrongTypeError(std::string("Must be ")
+				                     .append(type_name(tag<T>::value))
+				                     .append(" but got ")
+				                     .append(type_name(input._tag)));
+			}
+	}
 }
 
 #endif
