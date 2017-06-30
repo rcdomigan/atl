@@ -83,8 +83,8 @@ namespace atl
     template<class T>
     struct is_pimpl : public std::false_type {};
 
-#define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(DeclareType)(Type)(Ast)(AstData)(MovedAstData)(Undefined)(FunctionConstructor)(ClosureParameter)(Parameter)(GlobalSlot)
-#define ATL_PIMPL_SEQ (String)(Symbol)(Struct)(CxxFunctor)(CxxMacro)(Scheme)(LambdaMetadata)
+#define ATL_REINTERPERABLE_SEQ (Null)(Any)(Fixnum)(Pointer)(If)(Define)(Bool)(DefineMacro)(Quote)(Lambda)(DeclareType)(Type)(Ast)(AstData)(MovedAstData)(Undefined)(ClosureParameter)(Parameter)(GlobalSlot)(Data)
+#define ATL_PIMPL_SEQ (String)(Symbol)(Struct)(CxxFunctor)(CxxMacro)(Scheme)(LambdaMetadata)(Vec)
 #define ATL_TYPES_SEQ ATL_REINTERPERABLE_SEQ ATL_PIMPL_SEQ
 
 #define M(r, _, i, elem)						\
@@ -105,7 +105,7 @@ namespace atl
 #undef M
 
 
-    typedef mpl::vector27< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
+    typedef mpl::vector28< BOOST_PP_SEQ_ENUM( ATL_TYPES_SEQ )  > TypesVec;
 
 	const static tag_t LAST_CONCRETE_TYPE = mpl::size<TypesVec>::value;
 
@@ -207,13 +207,6 @@ namespace atl
         tag_t _tag;
         long value;
         DeclareType() : _tag(tag<DeclareType>::value) {}
-    };
-
-    struct FunctionConstructor
-    {
-        tag_t _tag;
-        long value;
-        FunctionConstructor() : _tag(tag<FunctionConstructor>::value) {}
     };
 
 
@@ -485,21 +478,22 @@ namespace atl
 	Ast AstData_to_Ast(Any &input)
 	{ return AstData_to_Ast(reinterpret_cast<AstData&>(input)); }
 
+	static const tag_t RIGID_TYPE_MASK = 1;
+
+	constexpr tag_t type_bitfield(tag_t tag, bool ridgid=false)
+	{ return ridgid || (tag < LAST_CONCRETE_TYPE) ? (tag << 1) | RIGID_TYPE_MASK : (tag << 1); }
+
 	struct Type // OK, type isn't a pimpl
     {
 	    typedef tag_t value_type;
-	    static const tag_t RIGID_TYPE_MASK = 1;
 
         tag_t _tag;
 	    tag_t _value;
 
 	    Type(tag_t value_, bool rigid=false)
 		    : _tag(tag<Type>::value)
-		    , _value(value_ << 1)
-	    {
-		    if(rigid || (value_ < LAST_CONCRETE_TYPE))
-			    { _value |= RIGID_TYPE_MASK; }
-	    }
+		    , _value(type_bitfield(value_, rigid))
+	    {}
 
 	    tag_t value() const { return _value >> 1; }
 	    bool is_rigid() const { return _value & RIGID_TYPE_MASK; }
@@ -507,7 +501,12 @@ namespace atl
 	    bool operator<(Type const& other) const { return _value < other._value; }
 	    bool operator==(Type const& other) const { return _value == other._value; }
 	    bool operator!=(Type const& other) const { return _value != other._value; }
-    };
+	};
+
+	constexpr Any function_constructor()
+	{ return Any(tag<Type>::value,
+	             reinterpret_cast<void*>(type_bitfield(tag<Lambda>::value))); }
+
 
 	struct Scheme
 	{
@@ -523,8 +522,7 @@ namespace atl
 					if(ast.empty()) { return false; }
 
 					auto head = ast[0];
-					return head._tag == tag<Type>::value &&
-						(reinterpret_cast<Type&>(head).value() == tag<FunctionConstructor>::value);
+					return (head == function_constructor());
 				}
 			return false;
 		}

@@ -325,9 +325,9 @@ TEST_F(TestHelpers, test_fn_type)
 	{
 		using namespace pattern_match;
 		ASSERT_TRUE
-			(match(ast(tt<FunctionConstructor>(),
+			(match(ast(function_constructor(),
 			           tt<Bool>(),
-			           ast(tt<FunctionConstructor>(),
+			           ast(function_constructor(),
 			               tt<Any>(),
 			               tt<Any>())),
 			       type))
@@ -369,7 +369,7 @@ TEST_F(TestHelpers, test_matching_beginning)
 	{
 		using namespace pattern_match;
 		ASSERT_TRUE
-			(match(rest_begins(tt<FunctionConstructor>()),
+			(match(rest_begins(function_constructor()),
 			       type))
 			<< printer::print(*type) << std::endl;
 	}

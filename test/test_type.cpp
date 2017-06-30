@@ -132,7 +132,7 @@ TEST(TestType, test_scheme_is_function)
 	vector<Any> space;
 	space.emplace_back(tag<AstData>::value, reinterpret_cast<void*>(2));
 
-	space.push_back(make_type(tag<FunctionConstructor>::value));
+	space.push_back(function_constructor());
 	space.push_back(make_type(tag<Fixnum>::value));
 
 	Any ast(tag<Ast>::value,
@@ -142,7 +142,9 @@ TEST(TestType, test_scheme_is_function)
 
 	ASSERT_TRUE(scheme.is_function());
 
-	space[1].value = reinterpret_cast<void*>(tag<FunctionConstructor>::value);
+	space[1] = Any(tag<Type>::value,
+	               reinterpret_cast<void*>(Type(tag<Lambda>::value).value()));
+
 	ASSERT_FALSE(scheme.is_function());
 }
 

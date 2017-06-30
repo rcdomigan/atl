@@ -256,27 +256,27 @@ namespace atl
 		 */
 		template<class T>
 		Matcher fnt(T const& arg0)
-		{ return ast(wrap<Type>(tag<FunctionConstructor>::value), arg0); }
+		{ return ast(function_constructor(), arg0); }
 
 		template<class T, class U>
 		Matcher fnt(T const& arg0, U const& arg1)
-		{ return ast(wrap<Type>(tag<FunctionConstructor>::value), arg0, arg1); }
+		{ return ast(function_constructor(), arg0, arg1); }
 
 		template<class T, class ... Rest>
 		Matcher fnt(T const& arg0, Rest ... rest)
-		{ return ast(wrap<Type>(tag<FunctionConstructor>::value), arg0, fnt(rest...)); }
+		{ return ast(function_constructor(), arg0, fnt(rest...)); }
 
 		template<class T>
 		Matcher fnt_rest(T const& arg0)
-		{ return rest(wrap<Type>(tag<FunctionConstructor>::value), arg0); }
+		{ return rest(function_constructor(), arg0); }
 
 		template<class T, class ... Rest>
 		Matcher fnt_rest(T const& arg0, Rest ... args)
-		{ return rest(wrap<Type>(tag<FunctionConstructor>::value), arg0, fnt(args...)); }
+		{ return rest(function_constructor(), arg0, fnt(args...)); }
 		template<class T, class U>
 
 		Matcher fnt_rest(T const& arg0, U const& arg1)
-		{ return rest(wrap<Type>(tag<FunctionConstructor>::value), arg0, arg1); }
+		{ return rest(function_constructor(), arg0, arg1); }
 
 		/* Helper for declaring asts of types (something that seems to come up a bit in tests). */
 		template<class ... Args>

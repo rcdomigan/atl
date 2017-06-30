@@ -26,7 +26,7 @@ namespace atl
 		std::ostream& _print_type_atom(Any value, std::ostream& out)
 		{
 			auto& type = unwrap<Type>(value);
-			if(type.value() == tag<FunctionConstructor>::value)
+			if(type.value() == tag<Lambda>::value)
 				{ return out << "->"; }
 			else
 				{

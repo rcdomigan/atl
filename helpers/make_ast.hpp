@@ -148,7 +148,7 @@ namespace atl
 			void _nest()
 			{
 				nesting.push_back(NestAst(space));
-				space.push_back(wrap<Type>(tag<FunctionConstructor>::value));
+				space.push_back(function_constructor());
 			}
 
 			void last_arg(Any& type)

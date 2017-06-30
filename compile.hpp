@@ -124,8 +124,7 @@ namespace atl
 								auto sym = unwrap<Symbol>(*inner);
 
 								++inner;
-								if(match(rest_begins(wrap<Type>(tag<FunctionConstructor>::value)),
-								         sym.scheme.type))
+								if(match(rest_begins(function_constructor()), sym.scheme.type))
 									{
 										_compile(inner, Context(context.closure, true));
 

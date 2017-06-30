@@ -27,7 +27,7 @@ struct TypeBasics
 	TypeBasics() { init_types(); }
 
 	// function constructor type
-	Any fn() { return wrap<Type>(tag<FunctionConstructor>::value); }
+	Any fn() { return function_constructor(); }
 
 	template<class T>
 	Any type() { return wrap<Type>(tag<T>::value); }

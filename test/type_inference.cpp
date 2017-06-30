@@ -581,7 +581,7 @@ TEST_F(Inference, test_lambda)
     ASSERT_EQ(tag<Ast>::value, We1.type->_tag);
 
     auto type = unwrap<Ast>(*We1.type);
-    ASSERT_EQ(type[0], wrap<Type>(tag<FunctionConstructor>::value))
+    ASSERT_EQ(type[0], function_constructor())
 	    << "Got: " << printer::print(type);
 
     ASSERT_EQ(type[1], type[2]);
@@ -932,8 +932,7 @@ TEST_F(Inference, test_thunk)
 	{
 		using namespace pattern_match;
 		ASSERT_TRUE
-			(match(rest(wrap<Type>(tag<FunctionConstructor>::value),
-			            wrap<Type>(tag<Bool>::value)),
+			(match(fnt_rest(wrap<Type>(tag<Bool>::value)),
 			       *inferred.type))
 			<< "got: " << printer::print(*inferred.type) << std::endl;
 	}
@@ -997,9 +996,7 @@ TEST_F(Inference, test_applying_defined_lambda)
 
 		auto scheme = unwrap<Scheme>(*inferred.type);
 		ASSERT_TRUE
-			(match(rest(wrap<Type>(tag<FunctionConstructor>::value),
-			            "a"),
-			       scheme.type))
+			(match(fnt_rest("a"), scheme.type))
 			<< " " << printer::print(scheme.type) << std::endl;
 	}
 }

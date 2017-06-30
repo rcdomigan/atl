@@ -638,16 +638,17 @@ namespace atl
 							    using namespace pattern_match;
 
 							    Any return_type;
-							    if(match(fnt_rest(capture(return_type)),
-							             *e1.type))
-								    { return WResult(std::move(e1.subs), return_type); }
 
-							    else if(is<Type>(*e1.type))
+							    if(is<Type>(*e1.type))
 								    {
 									    return_type = wrap<Type>(++new_types);
 									    e1.subs[unwrap<Type>(*e1.type)] = wrap(*gc(fn_type::fn(return_type)));
 									    return WResult(std::move(e1.subs), return_type);
 								    }
+
+							    if(match(fnt_rest(capture(return_type)),
+							             *e1.type))
+								    { return WResult(std::move(e1.subs), return_type); }
 
 							    std::cout << "no good: " << printer::print(*e1.type) << std::endl;
 							    throw AlgorithmWFailed("Thunk function of several args");
