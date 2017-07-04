@@ -124,19 +124,10 @@ namespace atl
 								auto sym = unwrap<Symbol>(*inner);
 
 								++inner;
-								if(match(rest_begins(function_constructor()), sym.scheme.type))
-									{
-										_compile(inner, Context(context.closure, true));
 
-										assemble.add_label(sym.name);
-										assemble.define(sym.slot);
-									}
-								else
-									{
-										// need to backpatch atoms in the source
-										throw CxxNotImplemented("No support for defining constants");
-									}
-
+								_compile(inner, Context(context.closure, true));
+								assemble.add_label(sym.name);
+								assemble.define(sym.slot);
 
 								return;
 							}
@@ -215,9 +206,11 @@ namespace atl
 							}
 						case tag<Symbol>::value:
 							{
-								assemble
-									.deref_slot(unwrap<Symbol>(*inner).slot)
-									.call_closure();
+								using namespace pattern_match;
+
+								auto& sym = unwrap<Symbol>(*inner);
+								assemble.deref_slot(sym.slot);
+								assemble.call_closure();
 								return;
 							}
 						default:
@@ -255,6 +248,11 @@ namespace atl
 			case tag<ClosureParameter>::value:
 				{
 					assemble.closure_argument(unwrap<ClosureParameter>(any).value);
+					return;
+				}
+			case tag<Symbol>::value:
+				{
+					assemble.deref_slot(unwrap<Symbol>(any).slot);
 					return;
 				}
 			default:

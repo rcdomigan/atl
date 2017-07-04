@@ -391,3 +391,21 @@ TEST_F(CompilerTest, test_define_after)
 
 	ASSERT_EQ(3, run());
 }
+
+TEST_F(CompilerTest, test_define_constant)
+{
+	using namespace make_ast;
+
+	auto foo = store.make<Symbol>("foo");
+
+	foo->slot = 0;
+	foo->scheme.type = wrap(Type(tag<Fixnum>::value));
+
+	compile.compile
+		(store
+		 (mk(wrap<Define>(), foo.any, wrap<Fixnum>(3))));
+
+	compile.compile(store(mk(add, 2, foo.any)));
+
+	ASSERT_EQ(5, run());
+}

@@ -80,15 +80,15 @@ TEST_F(AnalyzeAndCompile, test_lambda_with_if)
 	                          7, 3)));
 }
 
-// TEST_F(AnalyzeAndCompile, test_basic_define)
-// {
-// 	using namespace make_ast;
+TEST_F(AnalyzeAndCompile, test_basic_define)
+{
+	using namespace make_ast;
 
-// 	// Test that defining a constant works
-// 	intrp.eval_ast(mk(wrap<Define>(), "foo", 3));
-// 	ASSERT_EQ(wrap<Fixnum>(6),
-// 	          intrp.eval_ast(mk("add2", "foo", "foo")));
-// }
+	// Test that defining a constant works
+	intrp.eval_ast(mk(wrap<Define>(), "foo", 3));
+	ASSERT_EQ(wrap<Fixnum>(6),
+	          intrp.eval_ast(mk("add2", "foo", "foo")));
+}
 
 TEST_F(AnalyzeAndCompile, test_applying_defined_lambda)
 {

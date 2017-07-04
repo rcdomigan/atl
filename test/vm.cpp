@@ -273,3 +273,32 @@ TEST_F(VmTest, test_define)
 
 	ASSERT_EQ(vm.stack[0], 2);
 }
+
+TEST_F(VmTest, test_define_constant)
+{
+	size_t foo_slot = 0;
+
+	// (define foo 3)
+	// (add2 1 foo)
+	assemble
+		.add_label("declaration-end")
+		.constant(0)
+		.jump()
+
+		.add_label("foo")
+		.constant(2)
+		.constant_patch_label("declaration-end")
+
+		.get_label("foo")
+		.define(foo_slot)
+
+		.constant(3)
+		.constant(1)
+		.deref_slot(foo_slot)
+		.std_function(&fns.wadd->fn, 2)
+		.finish();
+
+	run_code(vm, code_store);
+
+	ASSERT_EQ(vm.stack[0], 3);
+}
